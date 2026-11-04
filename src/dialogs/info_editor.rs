@@ -10,8 +10,8 @@ use configurable_csv_analyzer::core::io::info::{
 };
 use configurable_csv_analyzer::core::logging::log_info;
 use configurable_csv_analyzer::core::model::{
-    ColumnSetting, GroupConsistencyCheck, InfoFile, NumericRangeCheck, RuleDefinition,
-    TableData, ValidationSeverity,
+    ColumnSetting, GroupConsistencyCheck, InfoFile, KeyMapping, LinkStep, NumericRangeCheck,
+    RuleDefinition, TableData, ValidationSeverity, VirtualColumnMapping,
 };
 use configurable_csv_analyzer::core::rules::RuleEngine;
 use configurable_csv_analyzer::core::validation::TableConfigValidator;
@@ -20,7 +20,8 @@ use crate::{
     AppState, ColorChoiceItem, InfoFileEditorWindow, MainWindow,
     SlintApplyRuleItem, SlintCalcRuleItem, SlintColumnDisplayItem,
     SlintComparisonRuleItem, SlintGroupValidationItem, SlintHighlightRuleItem,
-    SlintJoinRuleItem, SlintMappingItem,
+    SlintJoinRuleItem, SlintKeyMappingItem, SlintLinkStepItem, SlintMappingItem,
+    SlintVirtualColumnItem,
 };
 use configurable_csv_analyzer::core::color_cache::cached_color;
 
@@ -204,7 +205,15 @@ pub fn refresh_all_tabs(window: &InfoFileEditorWindow, session: &InfoEditorSessi
                     is_highlighted: *is_highlighted,
                 });
             }
-            RuleDefinition::VirtualRowJoin { id, target_table, key_concept, target_key_concept, import_concepts, is_active, .. } => {
+            RuleDefinition::VirtualRowJoin { id, target_table, key_concept, target_key_concept, import_concepts, link_steps, virtual_columns, is_active, .. } => {
+                let preview = if !link_steps.is_empty() {
+                    let steps_summary = link_steps.iter().map(|s| s.target_table_key.as_str()).collect::<Vec<_>>().join(" ➔ ");
+                    format!("{} ({} Spalten)", steps_summary, virtual_columns.len())
+                } else if !target_table.is_empty() {
+                    format!("{} ➔ {}", target_table, import_concepts.join(", "))
+                } else {
+                    "Neu / Nicht konfiguriert".to_string()
+                };
                 let imp = import_concepts.first().map(|s| s.as_str()).unwrap_or("");
                 join_items.push(SlintJoinRuleItem {
                     id: r_idx as i32,
@@ -213,7 +222,7 @@ pub fn refresh_all_tabs(window: &InfoFileEditorWindow, session: &InfoEditorSessi
                     host_concept: slint::SharedString::from(key_concept),
                     remote_concept: slint::SharedString::from(target_key_concept),
                     imported_concept: slint::SharedString::from(imp),
-                    match_preview_text: slint::SharedString::from("Live-Check bereit"),
+                    match_preview_text: slint::SharedString::from(preview),
                     is_active: *is_active,
                 });
             }
@@ -602,47 +611,246 @@ pub fn setup_info_editor_window(
         });
     }
 
-    // --- TAB 4: JOINS ---
+    // --- TAB 4: JOINS / VIRTUELLE SPALTEN ---
+    fn get_table_concepts_and_headers(tbl: &TableData) -> Vec<String> {
+        let mut list = Vec::new();
+        for k in tbl.column_mappings.keys() {
+            if !list.contains(k) {
+                list.push(k.clone());
+            }
+        }
+        for h in &tbl.headers {
+            if !list.contains(h) {
+                list.push(h.clone());
+            }
+        }
+        if list.is_empty() {
+            list.push("Key".to_string());
+        }
+        list
+    }
+
+    fn populate_selected_join_rule(
+        win: &InfoFileEditorWindow,
+        sess: &mut InfoEditorSession,
+        st: &AppState,
+        r_idx: usize,
+    ) {
+        let host_table = match sess.working_table.as_ref() {
+            Some(t) => t.clone(),
+            None => return,
+        };
+
+        if let Some(RuleDefinition::VirtualRowJoin {
+            id,
+            action_group,
+            description,
+            is_active,
+            is_highlighted,
+            target_table,
+            key_concept,
+            target_key_concept,
+            import_concepts,
+            link_steps,
+            virtual_columns,
+            ..
+        }) = sess.working_info.rules.get_mut(r_idx) {
+            // Auto-migrate from legacy fields if link_steps is empty
+            if link_steps.is_empty() {
+                let default_tgt = if !target_table.is_empty() {
+                    target_table.clone()
+                } else {
+                    st.tables.values().map(|t| t.display_name.clone()).next().unwrap_or_else(|| "$self".to_string())
+                };
+                let default_h = if !key_concept.is_empty() {
+                    key_concept.clone()
+                } else {
+                    host_table.headers.first().cloned().unwrap_or_else(|| "Key".to_string())
+                };
+                let default_r = if !target_key_concept.is_empty() {
+                    target_key_concept.clone()
+                } else {
+                    default_h.clone()
+                };
+                *link_steps = vec![LinkStep {
+                    target_table_key: default_tgt.clone(),
+                    key_mappings: vec![KeyMapping::new(&default_h, &default_r)],
+                }];
+                if virtual_columns.is_empty() {
+                    let imp = import_concepts.first().cloned().unwrap_or_else(|| default_r.clone());
+                    *virtual_columns = vec![VirtualColumnMapping {
+                        remote_column_concept: imp.clone(),
+                        virtual_column_header: VirtualColumnMapping::generate_default_header(&imp, &default_tgt, &host_table.display_name, "First"),
+                        virtual_column_key: VirtualColumnMapping::generate_default_key(&imp, &default_tgt, &host_table.display_name, "First"),
+                        multi_result_display: "First".to_string(),
+                        brush_key: None,
+                        priority: Some(5),
+                    }];
+                }
+            }
+
+            win.set_edit_join_name(slint::SharedString::from(&*id));
+            win.set_edit_join_action_group(slint::SharedString::from(action_group.as_deref().unwrap_or("")));
+            win.set_edit_join_description(slint::SharedString::from(&*description));
+            win.set_edit_join_is_active(*is_active);
+            win.set_edit_join_is_highlighted(*is_highlighted);
+
+            // Chain & Relationship analysis
+            let chain_res = RuleEngine::analyze_chain(&host_table, link_steps, &st.tables);
+            win.set_join_relationship_badge(slint::SharedString::from(&chain_res.relationship_badge));
+            win.set_join_relationship_is_one_to_many(chain_res.is_one_to_many);
+
+            // Steps
+            let mut slint_steps: Vec<SlintLinkStepItem> = Vec::new();
+            let mut prev_tbl: &TableData = &host_table;
+
+            for (s_idx, step) in link_steps.iter().enumerate() {
+                let host_concepts: Vec<slint::SharedString> = get_table_concepts_and_headers(prev_tbl)
+                    .into_iter()
+                    .map(slint::SharedString::from)
+                    .collect();
+
+                let tgt_table = RuleEngine::resolve_table(&step.target_table_key, &host_table, &st.tables);
+                let remote_concepts: Vec<slint::SharedString> = if let Some(target) = tgt_table {
+                    get_table_concepts_and_headers(target)
+                        .into_iter()
+                        .map(slint::SharedString::from)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+
+                let hit_stat = chain_res.step_stats.get(s_idx).cloned().unwrap_or_else(|| "Warte...".to_string());
+                let src_name = if s_idx == 0 {
+                    host_table.display_name.clone()
+                } else {
+                    link_steps[s_idx - 1].target_table_key.clone()
+                };
+                let step_title = format!("Schritt {}: Verknüpfung von '{}' nach:", s_idx + 1, src_name);
+
+                let mappings: Vec<SlintKeyMappingItem> = step.key_mappings.iter().enumerate().map(|(m_idx, m)| {
+                    SlintKeyMappingItem {
+                        step_idx: s_idx as i32,
+                        mapping_idx: m_idx as i32,
+                        host_concept: slint::SharedString::from(&m.host_concept),
+                        remote_concept: slint::SharedString::from(&m.remote_concept),
+                        manual_value: slint::SharedString::from(m.manual_remote_value.as_deref().unwrap_or("")),
+                        is_case_sensitive: m.is_case_sensitive,
+                    }
+                }).collect();
+
+                slint_steps.push(SlintLinkStepItem {
+                    step_idx: s_idx as i32,
+                    step_title: slint::SharedString::from(step_title),
+                    target_table: slint::SharedString::from(&step.target_table_key),
+                    hit_stat: slint::SharedString::from(hit_stat),
+                    available_host_concepts: ModelRc::new(VecModel::from(host_concepts)),
+                    available_remote_concepts: ModelRc::new(VecModel::from(remote_concepts)),
+                    mappings: ModelRc::new(VecModel::from(mappings)),
+                });
+
+                if let Some(target) = tgt_table {
+                    prev_tbl = target;
+                }
+            }
+            win.set_join_steps(ModelRc::new(VecModel::from(slint_steps)));
+
+            // Final target table concepts for Virtual Columns
+            let final_remote_concepts: Vec<slint::SharedString> = if let Some(last_step) = link_steps.last() {
+                if let Some(final_tbl) = RuleEngine::resolve_table(&last_step.target_table_key, &host_table, &st.tables) {
+                    get_table_concepts_and_headers(final_tbl)
+                        .into_iter()
+                        .map(slint::SharedString::from)
+                        .collect()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            win.set_available_final_remote_concepts(ModelRc::new(VecModel::from(final_remote_concepts)));
+
+            // Virtual Columns
+            let slint_cols: Vec<SlintVirtualColumnItem> = virtual_columns.iter().enumerate().map(|(vc_idx, vc)| {
+                SlintVirtualColumnItem {
+                    col_idx: vc_idx as i32,
+                    remote_concept: slint::SharedString::from(&vc.remote_column_concept),
+                    header: slint::SharedString::from(&vc.virtual_column_header),
+                    binding_key: slint::SharedString::from(&vc.virtual_column_key),
+                    display_mode: slint::SharedString::from(&vc.multi_result_display),
+                    brush_key: slint::SharedString::from(vc.brush_key.as_deref().unwrap_or("Keine")),
+                }
+            }).collect();
+            win.set_join_virtual_columns(ModelRc::new(VecModel::from(slint_cols)));
+        }
+    }
+
     {
         let win = info_window.clone();
         let state = state.clone();
         info_window.on_add_join_rule(move || {
             get_active_session().with(|s| {
                 let mut sess = s.borrow_mut();
+                let st = state.borrow();
+                let host_table = sess.working_table.as_ref().cloned().unwrap_or_else(|| TableData::new("new".into(), "Tabelle".into()));
                 let id = format!("Join_{}", sess.working_info.rules.len() + 1);
+
+                let default_target = st.tables.values().map(|t| t.display_name.clone()).next().unwrap_or_else(|| "$self".to_string());
+                let host_concepts = get_table_concepts_and_headers(&host_table);
+                let first_host_c = host_concepts.first().cloned().unwrap_or_else(|| "Key".to_string());
+
+                let tgt_tbl = RuleEngine::resolve_table(&default_target, &host_table, &st.tables);
+                let remote_concepts = tgt_tbl.map(get_table_concepts_and_headers).unwrap_or_default();
+                let first_remote_c = remote_concepts.first().cloned().unwrap_or_else(|| first_host_c.clone());
+
+                let initial_step = LinkStep {
+                    target_table_key: default_target.clone(),
+                    key_mappings: vec![KeyMapping::new(&first_host_c, &first_remote_c)],
+                };
+
+                let initial_vcol = VirtualColumnMapping {
+                    remote_column_concept: first_remote_c.clone(),
+                    virtual_column_header: VirtualColumnMapping::generate_default_header(&first_remote_c, &default_target, &host_table.display_name, "First"),
+                    virtual_column_key: VirtualColumnMapping::generate_default_key(&first_remote_c, &default_target, &host_table.display_name, "First"),
+                    multi_result_display: "First".to_string(),
+                    brush_key: None,
+                    priority: Some(5),
+                };
+
                 sess.working_info.rules.push(RuleDefinition::VirtualRowJoin {
                     id: id.clone(),
                     description: format!("Join {}", id),
                     action_group: None,
                     is_active: true,
                     is_highlighted: true,
-                    key_concept: "".into(),
-                    target_table: "".into(),
-                    target_key_concept: "".into(),
-                    import_concepts: Vec::new(),
+                    key_concept: first_host_c.clone(),
+                    target_table: default_target.clone(),
+                    target_key_concept: first_remote_c.clone(),
+                    import_concepts: vec![first_remote_c.clone()],
                     injected_column_names: Vec::new(),
+                    link_steps: vec![initial_step],
+                    virtual_columns: vec![initial_vcol],
                 });
                 sess.is_dirty = true;
+                let new_idx = sess.working_info.rules.len() - 1;
+                win.set_selected_join_idx(new_idx as i32);
+                populate_selected_join_rule(&win, &mut sess, &st, new_idx);
                 drop(sess);
                 let sess = s.borrow();
                 refresh_all_tabs(&win, &sess);
-                validate_and_update_banner(&win, &sess, &state.borrow());
+                validate_and_update_banner(&win, &sess, &st);
             });
         });
     }
 
     {
         let win = info_window.clone();
+        let state = state.clone();
         info_window.on_select_join_rule(move |r_idx| {
             get_active_session().with(|s| {
-                let sess = s.borrow();
-                if let Some(RuleDefinition::VirtualRowJoin { id, target_table, key_concept, target_key_concept, import_concepts, .. }) = sess.working_info.rules.get(r_idx as usize) {
-                    win.set_edit_join_name(slint::SharedString::from(id));
-                    win.set_edit_join_target_table(slint::SharedString::from(target_table));
-                    win.set_edit_join_host_concept(slint::SharedString::from(key_concept));
-                    win.set_edit_join_remote_concept(slint::SharedString::from(target_key_concept));
-                    win.set_edit_join_imported_concept(slint::SharedString::from(import_concepts.first().map(|s| s.as_str()).unwrap_or("")));
-                }
+                let mut sess = s.borrow_mut();
+                let st = state.borrow();
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx as usize);
             });
         });
     }
@@ -658,6 +866,7 @@ pub fn setup_info_editor_window(
                     sess.working_info.rules.remove(idx);
                     sess.is_dirty = true;
                 }
+                win.set_selected_join_idx(-1);
                 drop(sess);
                 let sess = s.borrow();
                 refresh_all_tabs(&win, &sess);
@@ -669,43 +878,555 @@ pub fn setup_info_editor_window(
     {
         let win = info_window.clone();
         let state = state.clone();
-        info_window.on_save_join_rule_edit(move |r_idx, name, tgt_tbl, host_k, rem_k, imp| {
+        info_window.on_save_join_rule_edit(move || {
             get_active_session().with(|s| {
                 let mut sess = s.borrow_mut();
-                let idx = r_idx as usize;
-                if let Some(RuleDefinition::VirtualRowJoin { id, target_table, key_concept, target_key_concept, import_concepts, .. }) = sess.working_info.rules.get_mut(idx) {
-                    *id = name.to_string();
-                    *target_table = tgt_tbl.to_string();
-                    *key_concept = host_k.to_string();
-                    *target_key_concept = rem_k.to_string();
-                    *import_concepts = if imp.is_empty() { vec![] } else { vec![imp.to_string()] };
+                let r_idx = win.get_selected_join_idx() as usize;
+                if let Some(RuleDefinition::VirtualRowJoin {
+                    id,
+                    action_group,
+                    description,
+                    is_active,
+                    is_highlighted,
+                    target_table,
+                    key_concept,
+                    target_key_concept,
+                    import_concepts,
+                    link_steps,
+                    virtual_columns,
+                    ..
+                }) = sess.working_info.rules.get_mut(r_idx) {
+                    *id = win.get_edit_join_name().to_string();
+                    let ag = win.get_edit_join_action_group().to_string();
+                    *action_group = if ag.is_empty() { None } else { Some(ag) };
+                    *description = win.get_edit_join_description().to_string();
+                    *is_active = win.get_edit_join_is_active();
+                    *is_highlighted = win.get_edit_join_is_highlighted();
+
+                    // Sync legacy fields
+                    if let Some(first_step) = link_steps.first() {
+                        *target_table = first_step.target_table_key.clone();
+                        if let Some(first_map) = first_step.key_mappings.first() {
+                            *key_concept = first_map.host_concept.clone();
+                            *target_key_concept = first_map.remote_concept.clone();
+                        }
+                    }
+                    *import_concepts = virtual_columns.iter().map(|vc| vc.remote_column_concept.clone()).collect();
                     sess.is_dirty = true;
                 }
+                let st = state.borrow();
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
                 drop(sess);
                 let sess = s.borrow();
                 refresh_all_tabs(&win, &sess);
-                validate_and_update_banner(&win, &sess, &state.borrow());
+                validate_and_update_banner(&win, &sess, &st);
             });
         });
     }
 
-    // Live join preview calculation
     {
         let win = info_window.clone();
         let state = state.clone();
-        info_window.on_calculate_live_join_preview(move |tgt_table, host_k, rem_k| {
+        info_window.on_add_join_step(move || {
             get_active_session().with(|s| {
-                let sess = s.borrow();
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
                 let st = state.borrow();
-                if let (Some(cur_tbl), Some(remote_tbl)) = (sess.working_table.as_ref(), st.tables.get(tgt_table.as_str())) {
-                    let (matched, total, ratio) = RuleEngine::calculate_join_match_ratio(cur_tbl, remote_tbl, &host_k, &rem_k);
-                    win.set_join_preview_stat(slint::SharedString::from(format!(
-                        "{} von {} Zeilen verknüpft ({:.1}%)",
-                        matched, total, ratio
-                    )));
-                } else {
-                    win.set_join_preview_stat(slint::SharedString::from("Zieltabelle nicht im Speicher geladen."));
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let default_target = st.tables.values().map(|t| t.display_name.clone()).next().unwrap_or_else(|| "$self".to_string());
+                    let prev_target = link_steps.last().map(|s| s.target_table_key.clone()).unwrap_or_else(|| "$self".to_string());
+                    let prev_tbl = RuleEngine::resolve_table(&prev_target, &host_tbl, &st.tables).unwrap_or(&host_tbl);
+                    let prev_concepts = get_table_concepts_and_headers(prev_tbl);
+                    let first_host_c = prev_concepts.first().cloned().unwrap_or_else(|| "Key".to_string());
+
+                    let tgt_tbl = RuleEngine::resolve_table(&default_target, &host_tbl, &st.tables).unwrap_or(&host_tbl);
+                    let tgt_concepts = get_table_concepts_and_headers(tgt_tbl);
+                    let first_remote_c = tgt_concepts.first().cloned().unwrap_or_else(|| first_host_c.clone());
+
+                    link_steps.push(LinkStep {
+                        target_table_key: default_target.clone(),
+                        key_mappings: vec![KeyMapping::new(&first_host_c, &first_remote_c)],
+                    });
+
+                    // Update virtual columns to target the new final table
+                    for vc in virtual_columns.iter_mut() {
+                        vc.remote_column_concept = first_remote_c.clone();
+                        let host_name = &host_tbl.display_name;
+                        vc.virtual_column_header = VirtualColumnMapping::generate_default_header(&first_remote_c, &default_target, host_name, &vc.multi_result_display);
+                        vc.virtual_column_key = VirtualColumnMapping::generate_default_key(&first_remote_c, &default_target, host_name, &vc.multi_result_display);
+                    }
+                    sess.is_dirty = true;
                 }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                refresh_all_tabs(&win, &sess);
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_delete_join_step(move |step_idx| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    if s_idx < link_steps.len() && link_steps.len() > 1 {
+                        link_steps.remove(s_idx);
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                refresh_all_tabs(&win, &sess);
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_change_step_target_table(move |step_idx, new_tgt| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    if s_idx < link_steps.len() {
+                        link_steps[s_idx].target_table_key = new_tgt.to_string();
+
+                        if let Some(target) = RuleEngine::resolve_table(&new_tgt, &host_tbl, &st.tables) {
+                            let concepts = get_table_concepts_and_headers(target);
+                            if let Some(first_c) = concepts.first() {
+                                for m in &mut link_steps[s_idx].key_mappings {
+                                    if m.remote_concept.is_empty() || !concepts.contains(&m.remote_concept) {
+                                        m.remote_concept = first_c.clone();
+                                    }
+                                }
+                                if s_idx == link_steps.len() - 1 {
+                                    for vc in virtual_columns.iter_mut() {
+                                        if vc.remote_column_concept.is_empty() || !concepts.contains(&vc.remote_column_concept) {
+                                            vc.remote_column_concept = first_c.clone();
+                                            let host_name = &host_tbl.display_name;
+                                            vc.virtual_column_header = VirtualColumnMapping::generate_default_header(first_c, &new_tgt, host_name, &vc.multi_result_display);
+                                            vc.virtual_column_key = VirtualColumnMapping::generate_default_key(first_c, &new_tgt, host_name, &vc.multi_result_display);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                refresh_all_tabs(&win, &sess);
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_add_key_mapping(move |step_idx| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    if s_idx < link_steps.len() {
+                        let prev_target = if s_idx == 0 {
+                            host_tbl.display_name.clone()
+                        } else {
+                            link_steps[s_idx - 1].target_table_key.clone()
+                        };
+                        let prev_tbl = RuleEngine::resolve_table(&prev_target, &host_tbl, &st.tables).unwrap_or(&host_tbl);
+                        let host_c = get_table_concepts_and_headers(prev_tbl).first().cloned().unwrap_or_else(|| "Key".to_string());
+
+                        let tgt_tbl = RuleEngine::resolve_table(&link_steps[s_idx].target_table_key, &host_tbl, &st.tables).unwrap_or(&host_tbl);
+                        let remote_c = get_table_concepts_and_headers(tgt_tbl).first().cloned().unwrap_or_else(|| host_c.clone());
+
+                        link_steps[s_idx].key_mappings.push(KeyMapping::new(&host_c, &remote_c));
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_delete_key_mapping(move |step_idx, map_idx| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    let m_idx = map_idx as usize;
+                    if s_idx < link_steps.len() && m_idx < link_steps[s_idx].key_mappings.len() {
+                        link_steps[s_idx].key_mappings.remove(m_idx);
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_key_mapping_host(move |step_idx, map_idx, val| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    let m_idx = map_idx as usize;
+                    if s_idx < link_steps.len() && m_idx < link_steps[s_idx].key_mappings.len() {
+                        link_steps[s_idx].key_mappings[m_idx].host_concept = val.to_string();
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_key_mapping_remote(move |step_idx, map_idx, val| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    let m_idx = map_idx as usize;
+                    if s_idx < link_steps.len() && m_idx < link_steps[s_idx].key_mappings.len() {
+                        link_steps[s_idx].key_mappings[m_idx].remote_concept = val.to_string();
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_key_mapping_manual(move |step_idx, map_idx, val| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    let m_idx = map_idx as usize;
+                    if s_idx < link_steps.len() && m_idx < link_steps[s_idx].key_mappings.len() {
+                        let trimmed = val.trim();
+                        link_steps[s_idx].key_mappings[m_idx].manual_remote_value = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_key_mapping_case(move |step_idx, map_idx, is_case| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let s_idx = step_idx as usize;
+                    let m_idx = map_idx as usize;
+                    if s_idx < link_steps.len() && m_idx < link_steps[s_idx].key_mappings.len() {
+                        link_steps[s_idx].key_mappings[m_idx].is_case_sensitive = is_case;
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_add_virtual_column(move || {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let final_target = link_steps.last().map(|s| s.target_table_key.clone()).unwrap_or_else(|| "$self".to_string());
+                    let final_tbl = RuleEngine::resolve_table(&final_target, &host_tbl, &st.tables).unwrap_or(&host_tbl);
+                    let concepts = get_table_concepts_and_headers(final_tbl);
+                    let concept = concepts.first().cloned().unwrap_or_else(|| "Wert".to_string());
+
+                    let new_col = VirtualColumnMapping {
+                        remote_column_concept: concept.clone(),
+                        virtual_column_header: VirtualColumnMapping::generate_default_header(&concept, &final_target, &host_tbl.display_name, "First"),
+                        virtual_column_key: VirtualColumnMapping::generate_default_key(&concept, &final_target, &host_tbl.display_name, "First"),
+                        multi_result_display: "First".to_string(),
+                        brush_key: None,
+                        priority: Some(5),
+                    };
+                    virtual_columns.push(new_col);
+                    sess.is_dirty = true;
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                refresh_all_tabs(&win, &sess);
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_delete_virtual_column(move |col_idx| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                if let Some(RuleDefinition::VirtualRowJoin { virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns.remove(c_idx);
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                refresh_all_tabs(&win, &sess);
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_virtual_column_concept(move |col_idx, concept| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns[c_idx].remote_column_concept = concept.to_string();
+                        let final_target = link_steps.last().map(|s| s.target_table_key.as_str()).unwrap_or("$self");
+                        virtual_columns[c_idx].virtual_column_header = VirtualColumnMapping::generate_default_header(&concept, final_target, &host_tbl.display_name, &virtual_columns[c_idx].multi_result_display);
+                        virtual_columns[c_idx].virtual_column_key = VirtualColumnMapping::generate_default_key(&concept, final_target, &host_tbl.display_name, &virtual_columns[c_idx].multi_result_display);
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_virtual_column_header(move |col_idx, hdr| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                if let Some(RuleDefinition::VirtualRowJoin { virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns[c_idx].virtual_column_header = hdr.to_string();
+                        sess.is_dirty = true;
+                    }
+                }
+                let st = state.borrow();
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_virtual_column_key(move |col_idx, key| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                if let Some(RuleDefinition::VirtualRowJoin { virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns[c_idx].virtual_column_key = key.to_string();
+                        sess.is_dirty = true;
+                    }
+                }
+                let st = state.borrow();
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_virtual_column_mode(move |col_idx, mode| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let st = state.borrow();
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin { link_steps, virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns[c_idx].multi_result_display = mode.to_string();
+                        let final_target = link_steps.last().map(|s| s.target_table_key.clone()).unwrap_or_else(|| "$self".to_string());
+                        let concept = virtual_columns[c_idx].remote_column_concept.clone();
+                        virtual_columns[c_idx].virtual_column_header = VirtualColumnMapping::generate_default_header(&concept, &final_target, &host_tbl.display_name, &mode);
+                        virtual_columns[c_idx].virtual_column_key = VirtualColumnMapping::generate_default_key(&concept, &final_target, &host_tbl.display_name, &mode);
+                        sess.is_dirty = true;
+                    }
+                }
+                populate_selected_join_rule(&win, &mut sess, &st, r_idx);
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_update_virtual_column_brush(move |col_idx, brush| {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                if let Some(RuleDefinition::VirtualRowJoin { virtual_columns, .. }) = sess.working_info.rules.get_mut(r_idx) {
+                    let c_idx = col_idx as usize;
+                    if c_idx < virtual_columns.len() {
+                        virtual_columns[c_idx].brush_key = if brush == "Keine" || brush.is_empty() { None } else { Some(brush.to_string()) };
+                        sess.is_dirty = true;
+                    }
+                }
+                let st = state.borrow();
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
+            });
+        });
+    }
+
+    {
+        let win = info_window.clone();
+        let state = state.clone();
+        info_window.on_generate_join_autotext(move || {
+            get_active_session().with(|s| {
+                let mut sess = s.borrow_mut();
+                let r_idx = win.get_selected_join_idx() as usize;
+                let host_tbl = match sess.working_table.as_ref() {
+                    Some(t) => t.clone(),
+                    None => return,
+                };
+                if let Some(RuleDefinition::VirtualRowJoin {
+                    id,
+                    action_group,
+                    description,
+                    is_active,
+                    link_steps,
+                    virtual_columns,
+                    ..
+                }) = sess.working_info.rules.get_mut(r_idx) {
+                    let autotext = VirtualColumnMapping::generate_autotext_description(
+                        id,
+                        *is_active,
+                        action_group.as_deref(),
+                        &host_tbl.display_name,
+                        link_steps,
+                        virtual_columns,
+                    );
+                    *description = autotext.clone();
+                    win.set_edit_join_description(slint::SharedString::from(autotext));
+                    sess.is_dirty = true;
+                }
+                let st = state.borrow();
+                drop(sess);
+                let sess = s.borrow();
+                validate_and_update_banner(&win, &sess, &st);
             });
         });
     }

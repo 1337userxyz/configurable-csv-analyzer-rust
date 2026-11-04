@@ -262,3 +262,104 @@ fn test_color_cache() {
     let fb = cached_color("UnknownNonHexBrushKey", 255);
     assert_eq!(fb.alpha(), 0);
 }
+
+#[test]
+fn test_virtual_columns_multi_step_joins() {
+    // 1. Values match logic
+    assert!(!RuleEngine::values_match("", "", false));
+    assert!(!RuleEngine::values_match("   ", "", false));
+    assert!(RuleEngine::values_match("10", "10.0", false));
+    assert!(RuleEngine::values_match("05", "5", false));
+    assert!(RuleEngine::values_match("Patch-01", "patch-01", false));
+    assert!(!RuleEngine::values_match("Patch-01", "patch-01", true));
+
+    // 2. Setup tables: Host (Patchpanel) -> Intermediate (Switches) -> Target (Rooms)
+    let mut patchpanel = TableData::new("patchpanel".into(), "patchpanel.csv".into());
+    patchpanel.headers = vec!["PortID".into(), "SwitchID".into()];
+    patchpanel.rows = vec![
+        vec!["P1".into(), "SW1".into()],
+        vec!["P2".into(), "SW2".into()],
+        vec!["P3".into(), "SW_UNKNOWN".into()],
+    ];
+
+    let mut switches = TableData::new("switches".into(), "switches.csv".into());
+    switches.headers = vec!["SwitchID".into(), "SwitchIP".into(), "RoomCode".into()];
+    switches.rows = vec![
+        vec!["SW1".into(), "10.0.0.1".into(), "R101".into()],
+        vec!["SW2".into(), "10.0.0.2".into(), "R102".into()],
+    ];
+
+    let mut rooms = TableData::new("rooms".into(), "rooms.csv".into());
+    rooms.headers = vec!["RoomCode".into(), "Building".into(), "Floor".into()];
+    rooms.rows = vec![
+        vec!["R101".into(), "Gebäude A".into(), "1".into()],
+        vec!["R102".into(), "Gebäude B".into(), "2".into()],
+    ];
+
+    let mut all_tables = HashMap::new();
+    all_tables.insert("switches.csv".to_string(), switches);
+    all_tables.insert("rooms.csv".to_string(), rooms);
+
+    // Multi-step link steps:
+    // Step 1: patchpanel -> switches (SwitchID == SwitchID)
+    // Step 2: switches -> rooms (RoomCode == RoomCode)
+    let steps = vec![
+        LinkStep {
+            target_table_key: "switches.csv".to_string(),
+            key_mappings: vec![KeyMapping::new("SwitchID", "SwitchID")],
+        },
+        LinkStep {
+            target_table_key: "rooms.csv".to_string(),
+            key_mappings: vec![KeyMapping::new("RoomCode", "RoomCode")],
+        },
+    ];
+
+    // Live Step hit count and chain analysis
+    let analysis = RuleEngine::analyze_chain(&patchpanel, &steps, &all_tables);
+    assert_eq!(analysis.total_matched_rows, 2);
+    assert_eq!(analysis.relationship, JoinRelationshipType::OneToOne);
+    assert!(analysis.relationship_badge.contains("1:1"));
+
+    // Virtual columns
+    let v_cols = vec![
+        VirtualColumnMapping {
+            remote_column_concept: "Building".to_string(),
+            virtual_column_header: "Gebäude".to_string(),
+            virtual_column_key: "v_first_building".to_string(),
+            multi_result_display: "First".to_string(),
+            brush_key: Some("PositiveBrush".to_string()),
+            priority: Some(5),
+        },
+    ];
+
+    let rule = RuleDefinition::VirtualRowJoin {
+        id: "Join_Gebaeude".to_string(),
+        description: "Patchpanel zu Gebäude via Switch".to_string(),
+        action_group: Some("Netzwerk".to_string()),
+        is_active: true,
+        is_highlighted: true,
+        key_concept: "SwitchID".to_string(),
+        target_table: "switches.csv".to_string(),
+        target_key_concept: "SwitchID".to_string(),
+        import_concepts: vec!["Building".to_string()],
+        injected_column_names: Vec::new(),
+        link_steps: steps.clone(),
+        virtual_columns: v_cols.clone(),
+    };
+
+    patchpanel.rules.push(rule);
+    let res = RuleEngine::execute(&mut patchpanel, &all_tables);
+    assert_eq!(res.summaries[0].hit_count, 2);
+
+    // Verify injected column
+    let bld_col_idx = patchpanel.headers.iter().position(|h| h == "Gebäude").expect("Spalte 'Gebäude' sollte existieren");
+    assert_eq!(patchpanel.rows[0][bld_col_idx], "Gebäude A");
+    assert_eq!(patchpanel.rows[1][bld_col_idx], "Gebäude B");
+    assert_eq!(patchpanel.rows[2][bld_col_idx], "");
+
+    // Autotext generation
+    let autotext = VirtualColumnMapping::generate_autotext_description("Join_Gebaeude", true, Some("Netzwerk"), "patchpanel.csv", &steps, &v_cols);
+    assert!(autotext.contains("Automatisierte Join-Beschreibung"));
+    assert!(autotext.contains("switches.csv"));
+    assert!(autotext.contains("rooms.csv"));
+}

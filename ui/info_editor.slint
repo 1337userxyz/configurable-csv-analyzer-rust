@@ -36,6 +36,34 @@ export struct SlintJoinRuleItem {
     is_active: bool,
 }
 
+export struct SlintKeyMappingItem {
+    step_idx: int,
+    mapping_idx: int,
+    host_concept: string,
+    remote_concept: string,
+    manual_value: string,
+    is_case_sensitive: bool,
+}
+
+export struct SlintLinkStepItem {
+    step_idx: int,
+    step_title: string,
+    target_table: string,
+    hit_stat: string,
+    available_host_concepts: [string],
+    available_remote_concepts: [string],
+    mappings: [SlintKeyMappingItem],
+}
+
+export struct SlintVirtualColumnItem {
+    col_idx: int,
+    remote_concept: string,
+    header: string,
+    binding_key: string,
+    display_mode: string,
+    brush_key: string,
+}
+
 export struct SlintComparisonRuleItem {
     id: int,
     rule_name: string,
@@ -167,20 +195,49 @@ export component InfoFileEditorWindow inherits Window {
     callback insert_formula_token(string);
     callback test_formula_syntax(string);
 
-    // --- TAB 4: MULTI-STEP JOINS ---
+    // --- TAB 4: MULTI-STEP JOINS / VIRTUELLE SPALTEN ---
     in-out property <[SlintJoinRuleItem]> join_rules: [];
     in-out property <int> selected_join_idx: -1;
     in-out property <string> edit_join_name: "";
-    in-out property <string> edit_join_target_table: "";
-    in-out property <string> edit_join_host_concept: "";
-    in-out property <string> edit_join_remote_concept: "";
-    in-out property <string> edit_join_imported_concept: "";
-    in-out property <string> join_preview_stat: "";
+    in-out property <string> edit_join_action_group: "";
+    in-out property <string> edit_join_description: "";
+    in-out property <bool> edit_join_is_active: true;
+    in-out property <bool> edit_join_is_highlighted: true;
+
+    // Steps & Columns:
+    in-out property <[SlintLinkStepItem]> join_steps: [];
+    in-out property <[SlintVirtualColumnItem]> join_virtual_columns: [];
+    in-out property <string> join_relationship_badge: "1:1 Beziehung (Eindeutig)";
+    in-out property <bool> join_relationship_is_one_to_many: false;
+    in-out property <[string]> available_display_modes: ["First", "CountMerged", "CountSeparated", "CommaSeparated", "CommaSeparatedMerged", "Sum", "Average"];
+    in-out property <[string]> available_final_remote_concepts: [];
+
     callback add_join_rule();
     callback delete_join_rule(int);
     callback select_join_rule(int);
-    callback save_join_rule_edit(int, string, string, string, string, string);
-    callback calculate_live_join_preview(string, string, string);
+    callback save_join_rule_edit();
+    callback toggle_join_active(int, bool);
+
+    callback add_join_step();
+    callback delete_join_step(int);
+    callback change_step_target_table(int, string);
+
+    callback add_key_mapping(int);
+    callback delete_key_mapping(int, int);
+    callback update_key_mapping_host(int, int, string);
+    callback update_key_mapping_remote(int, int, string);
+    callback update_key_mapping_manual(int, int, string);
+    callback update_key_mapping_case(int, int, bool);
+
+    callback add_virtual_column();
+    callback delete_virtual_column(int);
+    callback update_virtual_column_concept(int, string);
+    callback update_virtual_column_header(int, string);
+    callback update_virtual_column_key(int, string);
+    callback update_virtual_column_mode(int, string);
+    callback update_virtual_column_brush(int, string);
+
+    callback generate_join_autotext();
 
     // --- TAB 5: TABELLENVERGLEICHE ---
     in-out property <[SlintComparisonRuleItem]> comparison_rules: [];
@@ -1027,8 +1084,9 @@ export component InfoFileEditorWindow inherits Window {
                 padding: 14px;
                 spacing: 12px;
 
+                // Left: Rule list
                 Rectangle {
-                    width: 320px;
+                    width: 290px;
                     background: #1b1b23;
                     border-radius: 6px;
                     VerticalLayout {
@@ -1036,7 +1094,7 @@ export component InfoFileEditorWindow inherits Window {
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Tabellen-Joins:"; font-weight: 600; color: #ffffff; }
+                            Text { text: "Tabellen-Joins:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_join_rule(); } }
                         }
                         ScrollView {
@@ -1044,14 +1102,32 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 spacing: 4px;
                                 for j[j_idx] in root.join_rules: Rectangle {
-                                    height: 48px;
+                                    height: 52px;
                                     background: root.selected_join_idx == j_idx ? #2d3b59 : #242431;
                                     border-radius: 4px;
-                                    TouchArea { clicked => { root.selected_join_idx = j_idx; root.select_join_rule(j_idx); } }
-                                    VerticalLayout {
-                                        padding: 6px;
-                                        Text { text: j.rule_name; color: #ffffff; font-weight: 600; }
-                                        Text { text: j.match_preview_text; font-size: 11px; color: #64b5f6; }
+                                    HorizontalLayout {
+                                        padding-left: 8px;
+                                        padding-right: 8px;
+                                        spacing: 6px;
+                                        VerticalLayout {
+                                            alignment: center;
+                                            horizontal-stretch: 1;
+                                            Text { text: j.rule_name; color: #ffffff; font-weight: 600; }
+                                            Text { text: j.match_preview_text; font-size: 11px; color: #64b5f6; }
+                                        }
+                                        Button {
+                                            text: "🗑";
+                                            width: 28px;
+                                            height: 28px;
+                                            clicked => { root.delete_join_rule(j_idx); }
+                                        }
+                                    }
+                                    TouchArea {
+                                        width: parent.width - 34px;
+                                        clicked => {
+                                            root.selected_join_idx = j_idx;
+                                            root.select_join_rule(j_idx);
+                                        }
                                     }
                                 }
                             }
@@ -1059,78 +1135,293 @@ export component InfoFileEditorWindow inherits Window {
                     }
                 }
 
+                // Right: 3-Phasen Join-Konfiguration
                 Rectangle {
                     vertical-stretch: 1;
                     background: #1b1b23;
                     border-radius: 6px;
-                    VerticalLayout {
-                        padding: 14px;
-                        spacing: 10px;
-                        Text { text: "Join-Verknüpfung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
 
+                    if root.selected_join_idx < 0: VerticalLayout {
+                        alignment: center;
                         HorizontalLayout {
-                            spacing: 12px;
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text { text: "Regelname:"; color: #b0b0c2; }
-                                LineEdit { text: root.edit_join_name; edited(s) => { root.edit_join_name = s; } }
-                            }
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text { text: "Zieltabelle:"; color: #b0b0c2; }
-                                LineEdit { text: root.edit_join_target_table; edited(s) => { root.edit_join_target_table = s; } }
+                            alignment: center;
+                            Text {
+                                text: "Wählen Sie links eine Join-Regel aus oder erstellen Sie eine neue mit '+ Neu'.";
+                                color: #888899;
+                                font-size: 14px;
                             }
                         }
+                    }
 
-                        HorizontalLayout {
-                            spacing: 12px;
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text { text: "Lokales Schlüsselkonzept:"; color: #b0b0c2; }
-                                LineEdit { text: root.edit_join_host_concept; edited(s) => { root.edit_join_host_concept = s; } }
-                            }
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text { text: "Ziel-Schlüsselkonzept:"; color: #b0b0c2; }
-                                LineEdit { text: root.edit_join_remote_concept; edited(s) => { root.edit_join_remote_concept = s; } }
-                            }
-                        }
-
+                    if root.selected_join_idx >= 0: ScrollView {
+                        vertical-stretch: 1;
                         VerticalLayout {
-                            spacing: 4px;
-                            Text { text: "Zu importierendes Konzept / Spalte:"; color: #b0b0c2; }
-                            LineEdit { text: root.edit_join_imported_concept; edited(s) => { root.edit_join_imported_concept = s; } }
-                        }
+                            padding: 14px;
+                            spacing: 16px;
 
-                        // LIVE MATCH RATIO PREVIEW
-                        Rectangle {
-                            height: 38px;
-                            background: #1a273b;
-                            border-radius: 4px;
-                            border-width: 1px;
-                            border-color: #3b5987;
-                            HorizontalLayout {
-                                padding-left: 12px;
-                                padding-right: 12px;
-                                
-                                Text {
-                                    text: "📊 Live-Treffervorschau: " + root.join_preview_stat;
-                                    color: #90caf9;
-                                    font-weight: 600;
-                                    
+                            // ---------------- 1. BASIS-EINSTELLUNGEN ----------------
+                            Rectangle {
+                                background: #22222d;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: #2e2e3d;
+                                VerticalLayout {
+                                    padding: 12px;
+                                    spacing: 8px;
+                                    Text { text: "1. Basis-Einstellungen"; font-size: 13px; font-weight: 600; color: #e0e0ee; }
+
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        VerticalLayout {
+                                            horizontal-stretch: 2;
+                                            spacing: 4px;
+                                            Text { text: "Regelname:"; color: #b0b0c2; font-size: 11px; }
+                                            LineEdit { text: root.edit_join_name; edited(s) => { root.edit_join_name = s; } }
+                                        }
+                                        VerticalLayout {
+                                            horizontal-stretch: 2;
+                                            spacing: 4px;
+                                            Text { text: "Aktionsgruppe:"; color: #b0b0c2; font-size: 11px; }
+                                            LineEdit { text: root.edit_join_action_group; placeholder-text: "z.B. Netzwerk, Stammdaten..."; edited(s) => { root.edit_join_action_group = s; } }
+                                        }
+                                        HorizontalLayout {
+                                            alignment: start;
+                                            spacing: 12px;
+                                            padding-top: 18px;
+                                            CheckBox { text: "Regel aktiv"; checked: root.edit_join_is_active; toggled => { root.edit_join_is_active = self.checked; } }
+                                            CheckBox { text: "Im Grid hervorheben"; checked: root.edit_join_is_highlighted; toggled => { root.edit_join_is_highlighted = self.checked; } }
+                                        }
+                                    }
+
+                                    VerticalLayout {
+                                        spacing: 4px;
+                                        Text { text: "Beschreibung:"; color: #b0b0c2; font-size: 11px; }
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            LineEdit {
+                                                horizontal-stretch: 1;
+                                                text: root.edit_join_description;
+                                                placeholder-text: "Optionale Beschreibung der Verknüpfung...";
+                                                edited(s) => { root.edit_join_description = s; }
+                                            }
+                                            Button {
+                                                text: "✨ Autotext";
+                                                clicked => { root.generate_join_autotext(); }
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                        }
 
-                        Rectangle { vertical-stretch: 1; }
+                            // ---------------- 2. JOIN-KETTE (LINKSTEPS) ----------------
+                            Rectangle {
+                                background: #22222d;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: #2e2e3d;
+                                VerticalLayout {
+                                    padding: 12px;
+                                    spacing: 10px;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        Text { text: "2. Join-Kette (Datenfluss) - LinkSteps"; font-size: 13px; font-weight: 600; color: #e0e0ee; vertical-alignment: center; }
+                                        Button { text: "+ Verknüpfungsschritt hinzufügen"; clicked => { root.add_join_step(); } }
+                                    }
 
-                        HorizontalLayout {
-                            alignment: end;
-                            Button {
-                                text: "Regel speichern";
-                                primary: true;
-                                clicked => {
-                                    root.save_join_rule_edit(root.selected_join_idx, root.edit_join_name, root.edit_join_target_table, root.edit_join_host_concept, root.edit_join_remote_concept, root.edit_join_imported_concept);
+                                    for step[s_idx] in root.join_steps: Rectangle {
+                                        background: #181822;
+                                        border-radius: 6px;
+                                        border-width: 1px;
+                                        border-color: #313145;
+                                        VerticalLayout {
+                                            padding: 10px;
+                                            spacing: 8px;
+
+                                            // Step header & status
+                                            HorizontalLayout {
+                                                alignment: space-between;
+                                                spacing: 8px;
+                                                HorizontalLayout {
+                                                    spacing: 10px;
+                                                    Text { text: step.step_title; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                                                    Rectangle {
+                                                        background: #1e3a5f;
+                                                        border-radius: 4px;
+                                                        border-width: 1px;
+                                                        border-color: #3b82f6;
+                                                        HorizontalLayout {
+                                                            padding-left: 8px;
+                                                            padding-right: 8px;
+                                                            padding-top: 2px;
+                                                            padding-bottom: 2px;
+                                                            Text { text: "📊 " + step.hit_stat; font-size: 11px; color: #93c5fd; font-weight: 600; }
+                                                        }
+                                                    }
+                                                }
+                                                Button {
+                                                    text: "🗑 Schritt entfernen";
+                                                    clicked => { root.delete_join_step(step.step_idx); }
+                                                }
+                                            }
+
+                                            // Target table selector (ComboBox)
+                                            HorizontalLayout {
+                                                spacing: 8px;
+                                                Text { text: "Ziel-Tabelle:"; color: #b0b0c2; vertical-alignment: center; }
+                                                ComboBox {
+                                                    width: 280px;
+                                                    model: root.available_tables;
+                                                    current-value: step.target_table;
+                                                    selected(val) => { root.change_step_target_table(step.step_idx, val); }
+                                                }
+                                            }
+
+                                            // KeyMappings (Conditions)
+                                            VerticalLayout {
+                                                spacing: 6px;
+                                                HorizontalLayout {
+                                                    spacing: 8px;
+                                                    Text { text: "Host (Quell-Konzept)"; width: 170px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: "=="; width: 18px; color: transparent; }
+                                                    Text { text: "Remote (Ziel-Konzept)"; width: 170px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: "Statischer Wert (opt.)"; width: 130px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: "Aa"; width: 45px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: ""; width: 32px; }
+                                                }
+
+                                                for m[m_idx] in step.mappings: HorizontalLayout {
+                                                    spacing: 8px;
+                                                    ComboBox {
+                                                        width: 170px;
+                                                        model: step.available_host_concepts;
+                                                        current-value: m.host_concept;
+                                                        selected(val) => { root.update_key_mapping_host(step.step_idx, m.mapping_idx, val); }
+                                                    }
+                                                    Text { text: "=="; width: 18px; vertical-alignment: center; horizontal-alignment: center; color: #808095; font-weight: 600; }
+                                                    ComboBox {
+                                                        width: 170px;
+                                                        model: step.available_remote_concepts;
+                                                        current-value: m.remote_concept;
+                                                        selected(val) => { root.update_key_mapping_remote(step.step_idx, m.mapping_idx, val); }
+                                                    }
+                                                    LineEdit {
+                                                        width: 130px;
+                                                        placeholder-text: "Statischer Wert...";
+                                                        text: m.manual_value;
+                                                        edited(s) => { root.update_key_mapping_manual(step.step_idx, m.mapping_idx, s); }
+                                                    }
+                                                    CheckBox {
+                                                        width: 45px;
+                                                        checked: m.is_case_sensitive;
+                                                        toggled => { root.update_key_mapping_case(step.step_idx, m.mapping_idx, self.checked); }
+                                                    }
+                                                    Button {
+                                                        text: "🗑";
+                                                        width: 32px;
+                                                        clicked => { root.delete_key_mapping(step.step_idx, m.mapping_idx); }
+                                                    }
+                                                }
+
+                                                HorizontalLayout {
+                                                    Button {
+                                                        text: "+ Bedingung hinzufügen";
+                                                        clicked => { root.add_key_mapping(step.step_idx); }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ---------------- 3. SELECT (VIRTUELLE ERGEBNIS-SPALTEN) ----------------
+                            Rectangle {
+                                background: #22222d;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: #2e2e3d;
+                                VerticalLayout {
+                                    padding: 12px;
+                                    spacing: 10px;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        HorizontalLayout {
+                                            spacing: 12px;
+                                            Text { text: "3. SELECT (Virtuelle Ergebnis-Spalten)"; font-size: 13px; font-weight: 600; color: #e0e0ee; vertical-alignment: center; }
+                                            Rectangle {
+                                                background: root.join_relationship_is_one_to_many ? #b45309 : #15803d;
+                                                border-radius: 4px;
+                                                HorizontalLayout {
+                                                    padding-left: 8px;
+                                                    padding-right: 8px;
+                                                    padding-top: 3px;
+                                                    padding-bottom: 3px;
+                                                    Text { text: root.join_relationship_badge; font-size: 11px; font-weight: 600; color: #ffffff; }
+                                                }
+                                            }
+                                        }
+                                        Button { text: "+ Virtuelle Spalte hinzufügen"; clicked => { root.add_virtual_column(); } }
+                                    }
+
+                                    // Columns Table Header
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        Text { text: "Remote-Konzept (Ziel)"; width: 170px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: "Header im Grid"; width: 220px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: "Bindungs-Key"; width: 190px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: "Modus (1:N)"; width: 150px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: "Farb-Hervorhebung"; width: 130px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: ""; width: 32px; }
+                                    }
+
+                                    for vc[vc_idx] in root.join_virtual_columns: HorizontalLayout {
+                                        spacing: 8px;
+                                        ComboBox {
+                                            width: 170px;
+                                            model: root.available_final_remote_concepts;
+                                            current-value: vc.remote_concept;
+                                            selected(val) => { root.update_virtual_column_concept(vc.col_idx, val); }
+                                        }
+                                        LineEdit {
+                                            width: 220px;
+                                            text: vc.header;
+                                            edited(s) => { root.update_virtual_column_header(vc.col_idx, s); }
+                                        }
+                                        LineEdit {
+                                            width: 190px;
+                                            text: vc.binding_key;
+                                            edited(s) => { root.update_virtual_column_key(vc.col_idx, s); }
+                                        }
+                                        ComboBox {
+                                            width: 150px;
+                                            model: root.available_display_modes;
+                                            current-value: vc.display_mode;
+                                            selected(val) => { root.update_virtual_column_mode(vc.col_idx, val); }
+                                        }
+                                        ComboBox {
+                                            width: 130px;
+                                            model: root.available_brushes;
+                                            current-value: vc.brush_key;
+                                            selected(val) => { root.update_virtual_column_brush(vc.col_idx, val); }
+                                        }
+                                        Button {
+                                            text: "🗑";
+                                            width: 32px;
+                                            clicked => { root.delete_virtual_column(vc.col_idx); }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom action bar
+                            HorizontalLayout {
+                                alignment: end;
+                                Button {
+                                    text: "💾 Regel speichern";
+                                    primary: true;
+                                    clicked => {
+                                        root.save_join_rule_edit();
+                                    }
                                 }
                             }
                         }

@@ -1,8 +1,26 @@
 use std::collections::{HashMap, HashSet};
 use crate::core::model::{
-    HighlightItem, HighlightSeverity, RuleDefinition, TableData
+    HighlightItem, HighlightSeverity, KeyMapping, LinkStep, RuleDefinition, TableData,
+    VirtualColumnMapping,
 };
 use evalexpr::{eval_with_context, ContextWithMutableVariables, DefaultNumericTypes, HashMapContext, Value};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRelationshipType {
+    OneToOne,
+    OneToMany,
+    Unknown,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChainAnalysisResult {
+    pub step_stats: Vec<String>,
+    pub relationship: JoinRelationshipType,
+    pub relationship_badge: String,
+    pub is_one_to_many: bool,
+    pub total_matched_rows: usize,
+    pub host_total_rows: usize,
+}
 
 #[derive(Debug, Clone)]
 pub struct RuleGroupSummary {
@@ -313,57 +331,191 @@ impl RuleEngine {
                     target_table: target_table_name,
                     target_key_concept,
                     import_concepts,
+                    link_steps,
+                    virtual_columns,
                     ..
                 } => {
-                    let mut hits = 0;
-                    if let Some(target_tbl) = all_tables.get(target_table_name) {
-                        let current_key_col = current_table.find_col_index(key_concept);
-                        let target_key_col = target_tbl.find_col_index(target_key_concept);
+                    let (steps, v_cols) = if !link_steps.is_empty() {
+                        (link_steps.clone(), virtual_columns.clone())
+                    } else if !target_table_name.is_empty() {
+                        let s = LinkStep {
+                            target_table_key: target_table_name.clone(),
+                            key_mappings: vec![KeyMapping {
+                                host_concept: key_concept.clone(),
+                                remote_concept: target_key_concept.clone(),
+                                manual_remote_value: None,
+                                is_case_sensitive: false,
+                            }],
+                        };
+                        let vc = import_concepts.iter().map(|imp| VirtualColumnMapping {
+                            remote_column_concept: imp.clone(),
+                            virtual_column_header: format!("{}.{}", target_table_name, imp),
+                            virtual_column_key: format!("v_{}", imp.to_lowercase()),
+                            multi_result_display: "First".to_string(),
+                            brush_key: None,
+                            priority: Some(5),
+                        }).collect();
+                        (vec![s], vc)
+                    } else {
+                        (Vec::new(), Vec::new())
+                    };
 
-                        if let (Some(c_k), Some(t_k)) = (current_key_col, target_key_col) {
-                            // Index target table by key
-                            let mut target_index: HashMap<String, &Vec<String>> = HashMap::new();
-                            for row in &target_tbl.rows {
-                                let key = row.get(t_k).map(|s| s.trim()).unwrap_or("");
-                                if !key.is_empty() {
-                                    target_index.insert(key.to_string(), row);
+                    let mut total_hits = 0;
+                    if !steps.is_empty() && !v_cols.is_empty() {
+                        let mut col_indices = Vec::new();
+                        for v in &v_cols {
+                            let virt_header = &v.virtual_column_header;
+                            let virt_col_idx = match current_table.headers.iter().position(|h| h.eq_ignore_ascii_case(virt_header)) {
+                                Some(idx) => idx,
+                                None => {
+                                    let new_idx = current_table.headers.len();
+                                    current_table.headers.push(virt_header.clone());
+                                    current_table.is_virtual_col.push(true);
+                                    current_table.column_settings.push(crate::core::model::ColumnSetting {
+                                        column_name: virt_header.clone(),
+                                        width: 160,
+                                        is_visible: true,
+                                        display_order: new_idx as u32,
+                                    });
+                                    for row in &mut current_table.rows {
+                                        row.push(String::new());
+                                    }
+                                    new_idx
                                 }
-                            }
+                            };
+                            col_indices.push(virt_col_idx);
+                        }
 
-                            // Inject import_concepts as virtual columns
-                            for imp_concept in import_concepts {
-                                let virt_header = format!("{}.{}", target_table_name, imp_concept);
-                                let virt_col_idx = match current_table.headers.iter().position(|h| h.eq_ignore_ascii_case(&virt_header)) {
-                                    Some(idx) => idx,
+                        let mut row_updates: Vec<Vec<String>> = Vec::with_capacity(current_table.rows.len());
+
+                        for r_idx in 0..current_table.rows.len() {
+                            let current_source_row = current_table.rows[r_idx].clone();
+                            let mut intermediate_rows: Vec<Vec<String>> = vec![current_source_row];
+                            let mut intermediate_table: Option<&TableData> = Some(&*current_table);
+
+                            for step in &steps {
+                                let tgt_table = match RuleEngine::resolve_table(&step.target_table_key, current_table, all_tables) {
+                                    Some(t) => t,
                                     None => {
-                                        let new_idx = current_table.headers.len();
-                                        current_table.headers.push(virt_header.clone());
-                                        current_table.is_virtual_col.push(true);
-                                        current_table.column_settings.push(crate::core::model::ColumnSetting {
-                                            column_name: virt_header.clone(),
-                                            width: 160,
-                                            is_visible: true,
-                                            display_order: new_idx as u32,
-                                        });
-                                        for row in &mut current_table.rows {
-                                            row.push(String::new());
-                                        }
-                                        new_idx
+                                        intermediate_rows.clear();
+                                        break;
                                     }
                                 };
 
-                                let tgt_concept_col = target_tbl.find_col_index(imp_concept);
-
-                                for r_idx in 0..current_table.rows.len() {
-                                    let cur_key = current_table.rows[r_idx].get(c_k).map(|s| s.trim()).unwrap_or("");
-                                    if let Some(matched_row) = target_index.get(cur_key) {
-                                        let val = tgt_concept_col.and_then(|c| matched_row.get(c)).cloned().unwrap_or_default();
-                                        current_table.rows[r_idx][virt_col_idx] = val;
-                                        hits += 1;
-                                    } else {
-                                        current_table.rows[r_idx][virt_col_idx] = String::new();
+                                let prev_tbl = intermediate_table.unwrap_or(current_table);
+                                let mut next_rows = Vec::new();
+                                for src_row in &intermediate_rows {
+                                    for tgt_row in &tgt_table.rows {
+                                        let matched = step.key_mappings.iter().all(|m| {
+                                            let r_col = tgt_table.find_col_index(&m.remote_concept);
+                                            if let Some(rc) = r_col {
+                                                let r_val = tgt_row.get(rc).map(|s| s.as_str()).unwrap_or("");
+                                                if let Some(ref man_v) = m.manual_remote_value {
+                                                    RuleEngine::values_match(man_v, r_val, m.is_case_sensitive)
+                                                } else if let Some(hc) = prev_tbl.find_col_index(&m.host_concept) {
+                                                    let h_val = src_row.get(hc).map(|s| s.as_str()).unwrap_or("");
+                                                    RuleEngine::values_match(h_val, r_val, m.is_case_sensitive)
+                                                } else {
+                                                    false
+                                                }
+                                            } else {
+                                                false
+                                            }
+                                        });
+                                        if matched {
+                                            next_rows.push(tgt_row.clone());
+                                        }
                                     }
                                 }
+                                intermediate_rows = next_rows;
+                                intermediate_table = Some(tgt_table);
+                                if intermediate_rows.is_empty() {
+                                    break;
+                                }
+                            }
+
+                            if !intermediate_rows.is_empty() {
+                                total_hits += 1;
+                            }
+
+                            let final_table = intermediate_table.unwrap_or(current_table);
+                            let mut this_row_cols = Vec::with_capacity(v_cols.len());
+                            for (v_i, v) in v_cols.iter().enumerate() {
+                                let col_idx = col_indices[v_i];
+                                let remote_col_opt = final_table.find_col_index(&v.remote_column_concept);
+
+                                let val_str = if let Some(rc) = remote_col_opt {
+                                    let raw_vals: Vec<&str> = intermediate_rows.iter()
+                                        .map(|r| r.get(rc).map(|s| s.as_str().trim()).unwrap_or(""))
+                                        .filter(|s| !s.is_empty())
+                                        .collect();
+
+                                    match v.multi_result_display.as_str() {
+                                        "First" => raw_vals.first().copied().unwrap_or("").to_string(),
+                                        "CountMerged" => intermediate_rows.len().to_string(),
+                                        "CountSeparated" => {
+                                            let distinct: HashSet<&str> = raw_vals.iter().copied().collect();
+                                            distinct.len().to_string()
+                                        }
+                                        "CommaSeparated" => {
+                                            let mut distinct: Vec<&str> = Vec::new();
+                                            for val in raw_vals {
+                                                if !distinct.contains(&val) {
+                                                    distinct.push(val);
+                                                }
+                                            }
+                                            distinct.join(", ")
+                                        }
+                                        "CommaSeparatedMerged" => raw_vals.join(", "),
+                                        "Sum" => {
+                                            let sum: f64 = raw_vals.iter().filter_map(|s| s.parse::<f64>().ok()).sum();
+                                            if sum.fract() == 0.0 {
+                                                format!("{:.0}", sum)
+                                            } else {
+                                                format!("{:.2}", sum)
+                                            }
+                                        }
+                                        "Average" => {
+                                            let nums: Vec<f64> = raw_vals.iter().filter_map(|s| s.parse::<f64>().ok()).collect();
+                                            if !nums.is_empty() {
+                                                let avg = nums.iter().sum::<f64>() / nums.len() as f64;
+                                                if avg.fract() == 0.0 {
+                                                    format!("{:.0}", avg)
+                                                } else {
+                                                    format!("{:.2}", avg)
+                                                }
+                                            } else {
+                                                String::new()
+                                            }
+                                        }
+                                        _ => raw_vals.first().copied().unwrap_or("").to_string(),
+                                    }
+                                } else {
+                                    String::new()
+                                };
+
+                                if let Some(ref bk) = v.brush_key {
+                                    if !bk.is_empty() && bk != "Keine" && !intermediate_rows.is_empty() {
+                                        result.highlights.push(HighlightItem {
+                                            row: r_idx,
+                                            col: Some(col_idx),
+                                            severity: HighlightSeverity::Info,
+                                            message: format!("Virtuelle Spalte '{}': Treffer", v.virtual_column_header),
+                                            rule_id: id.clone(),
+                                        });
+                                    }
+                                }
+
+                                this_row_cols.push(val_str);
+                            }
+                            row_updates.push(this_row_cols);
+                        }
+
+                        // Apply updates to current_table rows
+                        for (r_idx, updates) in row_updates.into_iter().enumerate() {
+                            for (v_i, val_str) in updates.into_iter().enumerate() {
+                                let col_idx = col_indices[v_i];
+                                current_table.rows[r_idx][col_idx] = val_str;
                             }
                         }
                     }
@@ -371,7 +523,7 @@ impl RuleEngine {
                     result.summaries.push(RuleGroupSummary {
                         rule_id: id.clone(),
                         description: description.clone(),
-                        hit_count: hits,
+                        hit_count: total_hits,
                         error_count: 0,
                         warning_count: 0,
                     });
@@ -554,5 +706,220 @@ impl RuleEngine {
 
         let ratio = (matched as f64 / total as f64) * 100.0;
         (matched, total, ratio)
+    }
+
+    pub fn values_match(host_val: &str, remote_val: &str, is_case_sensitive: bool) -> bool {
+        let h = host_val.trim();
+        let r = remote_val.trim();
+        // SQL-Null-Semantik: Zwei leere oder reine Whitespace-Zellen verbinden sich niemals.
+        if h.is_empty() || r.is_empty() {
+            return false;
+        }
+        // Numerische Normalisierung: Strings, die gueltige Dezimalzahlen darstellen, numerisch vergleichen
+        if let (Ok(h_num), Ok(r_num)) = (h.parse::<f64>(), r.parse::<f64>()) {
+            if !h_num.is_nan() && !r_num.is_nan() {
+                return (h_num - r_num).abs() < f64::EPSILON;
+            }
+        }
+        if is_case_sensitive {
+            h == r
+        } else {
+            h.eq_ignore_ascii_case(r)
+        }
+    }
+
+    pub fn resolve_table<'a>(
+        table_key: &str,
+        current_table: &'a TableData,
+        all_tables: &'a HashMap<String, TableData>,
+    ) -> Option<&'a TableData> {
+        let key = table_key.trim();
+        if key.is_empty() {
+            return None;
+        }
+        if key == "$self" {
+            return Some(current_table);
+        }
+        if current_table.display_name.eq_ignore_ascii_case(key)
+            || current_table.id.eq_ignore_ascii_case(key)
+            || current_table.file_path.as_ref().map(|p| p.file_name().unwrap_or_default().to_string_lossy().eq_ignore_ascii_case(key)).unwrap_or(false)
+        {
+            return Some(current_table);
+        }
+        if let Some(t) = all_tables.get(key) {
+            return Some(t);
+        }
+        all_tables.values().find(|t| {
+            t.display_name.eq_ignore_ascii_case(key)
+                || t.id.eq_ignore_ascii_case(key)
+                || t.file_path.as_ref().map(|p| p.file_name().unwrap_or_default().to_string_lossy().eq_ignore_ascii_case(key)).unwrap_or(false)
+        })
+    }
+
+    pub fn calculate_step_hit_count(
+        source_table: &TableData,
+        target_table: &TableData,
+        key_mappings: &[KeyMapping],
+    ) -> (usize, usize, String) {
+        let total = source_table.rows.len();
+        if total == 0 {
+            return (0, 0, "0 / 0 Quellzeilen gematcht".to_string());
+        }
+        if key_mappings.is_empty() {
+            return (0, total, "Warte auf vollständige Bedingung...".to_string());
+        }
+
+        let mut resolved_conditions = Vec::new();
+        for m in key_mappings {
+            let host_col = source_table.find_col_index(&m.host_concept);
+            let remote_col = target_table.find_col_index(&m.remote_concept);
+            if host_col.is_none() && m.manual_remote_value.is_none() {
+                return (0, total, "Warte auf vollständige Bedingung...".to_string());
+            }
+            if remote_col.is_none() {
+                return (0, total, "Warte auf vollständige Bedingung...".to_string());
+            }
+            resolved_conditions.push((host_col, remote_col.unwrap(), m.manual_remote_value.clone(), m.is_case_sensitive));
+        }
+
+        let mut matched_source_count = 0;
+        for s_row in &source_table.rows {
+            let found = target_table.rows.iter().any(|t_row| {
+                resolved_conditions.iter().all(|(h_col, r_col, manual_val, case_sens)| {
+                    let r_val = t_row.get(*r_col).map(|s| s.as_str()).unwrap_or("");
+                    if let Some(ref man_v) = manual_val {
+                        RuleEngine::values_match(man_v, r_val, *case_sens)
+                    } else if let Some(h_idx) = h_col {
+                        let h_val = s_row.get(*h_idx).map(|s| s.as_str()).unwrap_or("");
+                        RuleEngine::values_match(h_val, r_val, *case_sens)
+                    } else {
+                        false
+                    }
+                })
+            });
+            if found {
+                matched_source_count += 1;
+            }
+        }
+
+        let stat_str = format!("{} / {} Quellzeilen gematcht", matched_source_count, total);
+        (matched_source_count, total, stat_str)
+    }
+
+    pub fn analyze_chain(
+        host_table: &TableData,
+        link_steps: &[LinkStep],
+        all_tables: &HashMap<String, TableData>,
+    ) -> ChainAnalysisResult {
+        let total_host_rows = host_table.rows.len();
+        if link_steps.is_empty() {
+            return ChainAnalysisResult {
+                step_stats: Vec::new(),
+                relationship: JoinRelationshipType::Unknown,
+                relationship_badge: "Keine Verknüpfungsschritte".to_string(),
+                is_one_to_many: false,
+                total_matched_rows: 0,
+                host_total_rows: total_host_rows,
+            };
+        }
+
+        let mut step_stats = Vec::new();
+        let mut intermediate_table = host_table;
+
+        for step in link_steps {
+            let tgt_table = RuleEngine::resolve_table(&step.target_table_key, host_table, all_tables);
+            if let Some(target) = tgt_table {
+                let (_, _, stat) = RuleEngine::calculate_step_hit_count(intermediate_table, target, &step.key_mappings);
+                step_stats.push(stat);
+                intermediate_table = target;
+            } else {
+                step_stats.push("Zieltabelle nicht geöffnet".to_string());
+                return ChainAnalysisResult {
+                    step_stats,
+                    relationship: JoinRelationshipType::Unknown,
+                    relationship_badge: "Zieltabelle nicht geöffnet".to_string(),
+                    is_one_to_many: false,
+                    total_matched_rows: 0,
+                    host_total_rows: total_host_rows,
+                };
+            }
+        }
+
+        let mut has_one_to_many = false;
+        let mut total_matched = 0;
+
+        for h_row in &host_table.rows {
+            let mut current_rows: Vec<&Vec<String>> = vec![h_row];
+            let mut curr_table = host_table;
+
+            for step in link_steps {
+                let tgt_table = match RuleEngine::resolve_table(&step.target_table_key, host_table, all_tables) {
+                    Some(t) => t,
+                    None => {
+                        current_rows.clear();
+                        break;
+                    }
+                };
+
+                let mut next_rows: Vec<&Vec<String>> = Vec::new();
+                for src_row in &current_rows {
+                    for tgt_row in &tgt_table.rows {
+                        let matched = step.key_mappings.iter().all(|m| {
+                            let r_col = tgt_table.find_col_index(&m.remote_concept);
+                            if let Some(rc) = r_col {
+                                let r_val = tgt_row.get(rc).map(|s| s.as_str()).unwrap_or("");
+                                if let Some(ref man_v) = m.manual_remote_value {
+                                    RuleEngine::values_match(man_v, r_val, m.is_case_sensitive)
+                                } else if let Some(hc) = curr_table.find_col_index(&m.host_concept) {
+                                    let h_val = src_row.get(hc).map(|s| s.as_str()).unwrap_or("");
+                                    RuleEngine::values_match(h_val, r_val, m.is_case_sensitive)
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        });
+                        if matched {
+                            next_rows.push(tgt_row);
+                        }
+                    }
+                }
+
+                current_rows = next_rows;
+                curr_table = tgt_table;
+                if current_rows.is_empty() {
+                    break;
+                }
+            }
+
+            if !current_rows.is_empty() {
+                total_matched += 1;
+            }
+            if current_rows.len() > 1 {
+                has_one_to_many = true;
+            }
+        }
+
+        let relationship = if has_one_to_many {
+            JoinRelationshipType::OneToMany
+        } else {
+            JoinRelationshipType::OneToOne
+        };
+
+        let relationship_badge = if has_one_to_many {
+            "1:n Beziehung (Mehrere Treffer möglich)".to_string()
+        } else {
+            "1:1 Beziehung (Eindeutig)".to_string()
+        };
+
+        ChainAnalysisResult {
+            step_stats,
+            relationship,
+            relationship_badge,
+            is_one_to_many: has_one_to_many,
+            total_matched_rows: total_matched,
+            host_total_rows: total_host_rows,
+        }
     }
 }

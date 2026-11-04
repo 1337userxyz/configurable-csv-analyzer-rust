@@ -191,12 +191,20 @@ pub enum RuleDefinition {
         is_active: bool,
         #[serde(default = "default_true")]
         is_highlighted: bool,
+        #[serde(default)]
         key_concept: String,
+        #[serde(default)]
         target_table: String,
+        #[serde(default)]
         target_key_concept: String,
+        #[serde(default)]
         import_concepts: Vec<String>,
         #[serde(default)]
         injected_column_names: Vec<String>,
+        #[serde(default, rename = "LinkSteps", alias = "linkSteps", alias = "link_steps")]
+        link_steps: Vec<LinkStep>,
+        #[serde(default, rename = "VirtualColumns", alias = "virtualColumns", alias = "virtual_columns")]
+        virtual_columns: Vec<VirtualColumnMapping>,
     },
     CrossTableComparison {
         id: String,
@@ -314,6 +322,162 @@ pub struct NumericRangeCheck {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupConsistencyCheck {
     pub concept: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct KeyMapping {
+    #[serde(alias = "hostConcept", alias = "host_concept")]
+    pub host_concept: String,
+    #[serde(alias = "remoteConcept", alias = "remote_concept")]
+    pub remote_concept: String,
+    #[serde(default, alias = "manualRemoteValue", alias = "manual_remote_value")]
+    pub manual_remote_value: Option<String>,
+    #[serde(default, alias = "isCaseSensitive", alias = "is_case_sensitive")]
+    pub is_case_sensitive: bool,
+}
+
+impl KeyMapping {
+    pub fn new(host: &str, remote: &str) -> Self {
+        Self {
+            host_concept: host.to_string(),
+            remote_concept: remote.to_string(),
+            manual_remote_value: None,
+            is_case_sensitive: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct LinkStep {
+    #[serde(alias = "targetTableKey", alias = "target_table_key")]
+    pub target_table_key: String,
+    #[serde(default, alias = "keyMappings", alias = "key_mappings")]
+    pub key_mappings: Vec<KeyMapping>,
+}
+
+impl LinkStep {
+    pub fn new(target: &str) -> Self {
+        Self {
+            target_table_key: target.to_string(),
+            key_mappings: Vec::new(),
+        }
+    }
+}
+
+fn default_display_mode_first() -> String {
+    "First".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct VirtualColumnMapping {
+    #[serde(alias = "remoteColumnConcept", alias = "remote_column_concept")]
+    pub remote_column_concept: String,
+    #[serde(alias = "virtualColumnHeader", alias = "virtual_column_header")]
+    pub virtual_column_header: String,
+    #[serde(alias = "virtualColumnKey", alias = "virtual_column_key")]
+    pub virtual_column_key: String,
+    #[serde(default = "default_display_mode_first", alias = "multiResultDisplay", alias = "multi_result_display")]
+    pub multi_result_display: String,
+    #[serde(default, alias = "brushKey", alias = "brush_key")]
+    pub brush_key: Option<String>,
+    #[serde(default, alias = "priority")]
+    pub priority: Option<u32>,
+}
+
+impl VirtualColumnMapping {
+    pub fn sanitize_identifier(s: &str) -> String {
+        let clean = s
+            .replace('ä', "ae").replace('Ä', "ae")
+            .replace('ö', "oe").replace('Ö', "oe")
+            .replace('ü', "ue").replace('Ü', "ue")
+            .replace('ß', "ss");
+        
+        let mut res = String::new();
+        for c in clean.chars() {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                res.push(c.to_ascii_lowercase());
+            } else if c == ' ' || c == '-' || c == '.' {
+                res.push('_');
+            }
+        }
+        while res.contains("__") {
+            res = res.replace("__", "_");
+        }
+        let res = res.trim_matches('_').to_string();
+        if res.is_empty() {
+            "col".to_string()
+        } else if res.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            format!("v_{}", res)
+        } else {
+            res
+        }
+    }
+
+    pub fn generate_default_header(concept: &str, target_table: &str, host_table: &str, mode: &str) -> String {
+        let tgt = target_table.trim_end_matches(".csv").trim_end_matches(".ods");
+        let hst = host_table.trim_end_matches(".csv").trim_end_matches(".ods");
+        match mode {
+            "Sum" => format!("Summe {} ({} -> {})", concept, tgt, hst),
+            "Average" => format!("Mittelwert {} ({} -> {})", concept, tgt, hst),
+            "CountSeparated" => format!("Anzahl Eindeutig {} ({} -> {})", concept, tgt, hst),
+            "CountMerged" => format!("Anzahl {} ({} -> {})", concept, tgt, hst),
+            _ => format!("{} ({} -> {})", concept, tgt, hst),
+        }
+    }
+
+    pub fn generate_default_key(concept: &str, target_table: &str, host_table: &str, mode: &str) -> String {
+        let c_clean = Self::sanitize_identifier(concept);
+        let t_clean = Self::sanitize_identifier(target_table.trim_end_matches(".csv").trim_end_matches(".ods"));
+        let h_clean = Self::sanitize_identifier(host_table.trim_end_matches(".csv").trim_end_matches(".ods"));
+        let m_clean = mode.to_lowercase();
+        format!("v_{}_{}_from_{}_to_{}", m_clean, c_clean, t_clean, h_clean)
+    }
+
+    pub fn generate_autotext_description(
+        rule_name: &str,
+        is_active: bool,
+        action_group: Option<&str>,
+        host_table: &str,
+        link_steps: &[LinkStep],
+        virtual_columns: &[VirtualColumnMapping],
+    ) -> String {
+        let mut desc = format!("--- Automatisierte Join-Beschreibung ---\nRegel: {} (Aktiv: {})\nGruppe: {}\n\nVerknüpfungskette:\n",
+            rule_name,
+            if is_active { "True" } else { "False" },
+            action_group.unwrap_or("Standard")
+        );
+
+        let mut current_source = host_table.to_string();
+        for step in link_steps {
+            desc.push_str(&format!(" {} -> {} (via {} Bedingung(en))\n", current_source, step.target_table_key, step.key_mappings.len()));
+            for m in &step.key_mappings {
+                if let Some(ref man) = m.manual_remote_value {
+                    desc.push_str(&format!("  - {} == \"{}\" (Manuell)\n", m.remote_concept, man));
+                } else {
+                    desc.push_str(&format!("  - {} == {}{}\n", m.host_concept, m.remote_concept, if m.is_case_sensitive { " (Aa)" } else { "" }));
+                }
+            }
+            current_source = step.target_table_key.clone();
+        }
+
+        if !virtual_columns.is_empty() {
+            desc.push_str("\nVirtuelle Ergebnis-Spalten:\n");
+            for vc in virtual_columns {
+                desc.push_str(&format!(" - \"{}\" [{}] aus {}.{} (Key: {})\n",
+                    vc.virtual_column_header,
+                    vc.multi_result_display,
+                    current_source,
+                    vc.remote_column_concept,
+                    vc.virtual_column_key
+                ));
+            }
+        }
+
+        desc
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

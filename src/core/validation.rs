@@ -177,42 +177,143 @@ impl TableConfigValidator {
                     target_table,
                     target_key_concept,
                     import_concepts,
+                    link_steps,
+                    virtual_columns,
                     ..
                 } => {
-                    if !concept_or_col_exists(key_concept) {
-                        issues.push(ValidationIssue {
-                            severity: ValidationSeverity::Error,
-                            tab_index: tab_idx,
-                            field: format!("{}:key_concept", id),
-                            message: format!("Schlüsselkonzept '{}' in '{}' ist nicht definiert.", key_concept, id),
-                        });
-                    }
-                    if let Some(tgt_tbl) = all_tables.get(target_table) {
-                        if tgt_tbl.find_col_index(target_key_concept).is_none() {
-                            issues.push(ValidationIssue {
-                                severity: ValidationSeverity::Error,
-                                tab_index: tab_idx,
-                                field: format!("{}:target_key_concept", id),
-                                message: format!("Ziel-Schlüssel '{}' existiert nicht in Zieltabelle '{}'.", target_key_concept, target_table),
-                            });
-                        }
-                        for imp in import_concepts {
-                            if tgt_tbl.find_col_index(imp).is_none() {
+                    if !link_steps.is_empty() {
+                        let mut current_intermediate_table = table;
+                        for (s_idx, step) in link_steps.iter().enumerate() {
+                            let tgt_tbl = crate::core::rules::RuleEngine::resolve_table(&step.target_table_key, table, all_tables);
+                            if tgt_tbl.is_none() {
                                 issues.push(ValidationIssue {
                                     severity: ValidationSeverity::Warning,
                                     tab_index: tab_idx,
-                                    field: format!("{}:import_concepts", id),
-                                    message: format!("Import-Feld '{}' existiert nicht in Zieltabelle '{}'.", imp, target_table),
+                                    field: format!("{}:step_{}:target_table", id, s_idx + 1),
+                                    message: format!("Zieltabelle '{}' in Schritt {} ist aktuell nicht geöffnet.", step.target_table_key, s_idx + 1),
                                 });
                             }
+
+                            if step.key_mappings.is_empty() {
+                                issues.push(ValidationIssue {
+                                    severity: ValidationSeverity::Error,
+                                    tab_index: tab_idx,
+                                    field: format!("{}:step_{}:conditions", id, s_idx + 1),
+                                    message: format!("Schritt {} in '{}' benötigt mindestens eine Bedingung.", s_idx + 1, id),
+                                });
+                            }
+
+                            for (m_idx, mapping) in step.key_mappings.iter().enumerate() {
+                                if mapping.manual_remote_value.is_none() && mapping.host_concept.trim().is_empty() {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Error,
+                                        tab_index: tab_idx,
+                                        field: format!("{}:step_{}:condition_{}:host", id, s_idx + 1, m_idx + 1),
+                                        message: format!("Quellkonzept in Schritt {} Bedingung {} fehlt.", s_idx + 1, m_idx + 1),
+                                    });
+                                } else if mapping.manual_remote_value.is_none() {
+                                    if current_intermediate_table.find_col_index(&mapping.host_concept).is_none() {
+                                        issues.push(ValidationIssue {
+                                            severity: ValidationSeverity::Error,
+                                            tab_index: tab_idx,
+                                            field: format!("{}:step_{}:condition_{}:host", id, s_idx + 1, m_idx + 1),
+                                            message: format!("Quellkonzept '{}' in Schritt {} existiert nicht.", mapping.host_concept, s_idx + 1),
+                                        });
+                                    }
+                                }
+
+                                if mapping.remote_concept.trim().is_empty() {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Error,
+                                        tab_index: tab_idx,
+                                        field: format!("{}:step_{}:condition_{}:remote", id, s_idx + 1, m_idx + 1),
+                                        message: format!("Zielkonzept in Schritt {} Bedingung {} fehlt.", s_idx + 1, m_idx + 1),
+                                    });
+                                } else if let Some(target) = tgt_tbl {
+                                    if target.find_col_index(&mapping.remote_concept).is_none() {
+                                        issues.push(ValidationIssue {
+                                            severity: ValidationSeverity::Error,
+                                            tab_index: tab_idx,
+                                            field: format!("{}:step_{}:condition_{}:remote", id, s_idx + 1, m_idx + 1),
+                                            message: format!("Zielkonzept '{}' existiert nicht in Zieltabelle '{}'.", mapping.remote_concept, step.target_table_key),
+                                        });
+                                    }
+                                }
+                            }
+
+                            if let Some(target) = tgt_tbl {
+                                current_intermediate_table = target;
+                            }
                         }
-                    } else if !target_table.trim().is_empty() {
-                        issues.push(ValidationIssue {
-                            severity: ValidationSeverity::Warning,
-                            tab_index: tab_idx,
-                            field: format!("{}:target_table", id),
-                            message: format!("Zieltabelle '{}' ist aktuell nicht geöffnet.", target_table),
-                        });
+
+                        let mut seen_keys = std::collections::HashSet::new();
+                        for (c_idx, col) in virtual_columns.iter().enumerate() {
+                            let k = col.virtual_column_key.trim();
+                            if k.is_empty() {
+                                issues.push(ValidationIssue {
+                                    severity: ValidationSeverity::Error,
+                                    tab_index: tab_idx,
+                                    field: format!("{}:virtual_col_{}:key", id, c_idx + 1),
+                                    message: format!("Bindungs-Key für virtuelle Spalte '{}' fehlt.", col.virtual_column_header),
+                                });
+                            } else {
+                                let is_valid_ident = k.chars().next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false)
+                                    && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                                if !is_valid_ident {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Error,
+                                        tab_index: tab_idx,
+                                        field: format!("{}:virtual_col_{}:key", id, c_idx + 1),
+                                        message: format!("Bindungs-Key '{}' ist kein gültiger Identifier (nur a-z, 0-9, _).", k),
+                                    });
+                                }
+                                if !seen_keys.insert(k.to_lowercase()) {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Error,
+                                        tab_index: tab_idx,
+                                        field: format!("{}:virtual_col_{}:key", id, c_idx + 1),
+                                        message: format!("Bindungs-Key '{}' ist nicht eindeutig.", k),
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        // Legacy single-step fallback
+                        if !concept_or_col_exists(key_concept) {
+                            issues.push(ValidationIssue {
+                                severity: ValidationSeverity::Error,
+                                tab_index: tab_idx,
+                                field: format!("{}:key_concept", id),
+                                message: format!("Schlüsselkonzept '{}' in '{}' ist nicht definiert.", key_concept, id),
+                            });
+                        }
+                        if let Some(tgt_tbl) = all_tables.get(target_table) {
+                            if tgt_tbl.find_col_index(target_key_concept).is_none() {
+                                issues.push(ValidationIssue {
+                                    severity: ValidationSeverity::Error,
+                                    tab_index: tab_idx,
+                                    field: format!("{}:target_key_concept", id),
+                                    message: format!("Ziel-Schlüssel '{}' existiert nicht in Zieltabelle '{}'.", target_key_concept, target_table),
+                                });
+                            }
+                            for imp in import_concepts {
+                                if tgt_tbl.find_col_index(imp).is_none() {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Warning,
+                                        tab_index: tab_idx,
+                                        field: format!("{}:import_concepts", id),
+                                        message: format!("Import-Feld '{}' existiert nicht in Zieltabelle '{}'.", imp, target_table),
+                                    });
+                                }
+                            }
+                        } else if !target_table.trim().is_empty() {
+                            issues.push(ValidationIssue {
+                                severity: ValidationSeverity::Warning,
+                                tab_index: tab_idx,
+                                field: format!("{}:target_table", id),
+                                message: format!("Zieltabelle '{}' ist aktuell nicht geöffnet.", target_table),
+                            });
+                        }
                     }
                 }
                 RuleDefinition::CrossTableComparison {
