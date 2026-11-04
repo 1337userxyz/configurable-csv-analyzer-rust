@@ -310,27 +310,206 @@ export component InfoFileEditorWindow inherits Window {
 
         // TAB BAR (9 TABS)
         Rectangle {
-            height: 38px;
-            background: #191922;
+            height: 40px;
+            background: #181822;
             border-radius: 6px;
+            border-width: 1px;
+            border-color: #2e2e40;
 
-            ScrollView {
-                HorizontalLayout {
-                    padding-left: 6px;
-                    padding-right: 6px;
-                    padding-top: 3px;
-                    padding-bottom: 3px;
-                    spacing: 4px;
+            HorizontalLayout {
+                padding-left: 6px;
+                padding-right: 6px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+                spacing: 5px;
 
-                    Button { text: "1. Allgemein"; primary: root.active_tab_idx == 0; clicked => { root.active_tab_idx = 0; } }
-                    Button { text: "2. Spalten & Layout"; primary: root.active_tab_idx == 1; clicked => { root.active_tab_idx = 1; } }
-                    Button { text: "3. Mappings"; primary: root.active_tab_idx == 2; clicked => { root.active_tab_idx = 2; } }
-                    Button { text: "4. Berechnungen"; primary: root.active_tab_idx == 3; clicked => { root.active_tab_idx = 3; } }
-                    Button { text: "5. Joins"; primary: root.active_tab_idx == 4; clicked => { root.active_tab_idx = 4; } }
-                    Button { text: "6. Tabellenvergleich"; primary: root.active_tab_idx == 5; clicked => { root.active_tab_idx = 5; } }
-                    Button { text: "7. Gruppenvalidierung"; primary: root.active_tab_idx == 6; clicked => { root.active_tab_idx = 6; } }
-                    Button { text: "8. Highlights"; primary: root.active_tab_idx == 7; clicked => { root.active_tab_idx = 7; } }
-                    Button { text: "9. Übertragungen"; primary: root.active_tab_idx == 8; clicked => { root.active_tab_idx = 8; } }
+                // 1. Allgemein
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 0 ? #254b77 : (t0.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 0 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "1. Allgemein";
+                        color: root.active_tab_idx == 0 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 0 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t0 := TouchArea {
+                        clicked => { root.active_tab_idx = 0; }
+                    }
+                }
+
+                // 2. Spalten & Layout
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 1 ? #254b77 : (t1.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 1 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "2. Spalten & Layout";
+                        color: root.active_tab_idx == 1 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 1 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t1 := TouchArea {
+                        clicked => { root.active_tab_idx = 1; }
+                    }
+                }
+
+                // 3. Mappings
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 2 ? #254b77 : (t2.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 2 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "3. Mappings";
+                        color: root.active_tab_idx == 2 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 2 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t2 := TouchArea {
+                        clicked => { root.active_tab_idx = 2; }
+                    }
+                }
+
+                // 4. Berechnungen
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 3 ? #254b77 : (t3.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 3 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "4. Berechnungen";
+                        color: root.active_tab_idx == 3 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 3 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t3 := TouchArea {
+                        clicked => { root.active_tab_idx = 3; }
+                    }
+                }
+
+                // 5. Joins
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 4 ? #254b77 : (t4.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 4 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "5. Joins";
+                        color: root.active_tab_idx == 4 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 4 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t4 := TouchArea {
+                        clicked => { root.active_tab_idx = 4; }
+                    }
+                }
+
+                // 6. Tabellenvergleich
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 5 ? #254b77 : (t5.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 5 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "6. Tabellenvergleich";
+                        color: root.active_tab_idx == 5 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 5 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t5 := TouchArea {
+                        clicked => { root.active_tab_idx = 5; }
+                    }
+                }
+
+                // 7. Gruppenvalidierung
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 6 ? #254b77 : (t6.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 6 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "7. Gruppenvalidierung";
+                        color: root.active_tab_idx == 6 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 6 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t6 := TouchArea {
+                        clicked => { root.active_tab_idx = 6; }
+                    }
+                }
+
+                // 8. Highlights
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 7 ? #254b77 : (t7.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 7 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "8. Highlights";
+                        color: root.active_tab_idx == 7 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 7 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t7 := TouchArea {
+                        clicked => { root.active_tab_idx = 7; }
+                    }
+                }
+
+                // 9. Übertragungen
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    background: root.active_tab_idx == 8 ? #254b77 : (t8.has-hover ? #262635 : #1e1e29);
+                    border-radius: 4px;
+                    border-width: root.active_tab_idx == 8 ? 1px : 0px;
+                    border-color: #4a88cc;
+                    Text {
+                        text: "9. Übertragungen";
+                        color: root.active_tab_idx == 8 ? #ffffff : #b5b5c8;
+                        font-weight: root.active_tab_idx == 8 ? 700 : 500;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                    t8 := TouchArea {
+                        clicked => { root.active_tab_idx = 8; }
+                    }
                 }
             }
         }
