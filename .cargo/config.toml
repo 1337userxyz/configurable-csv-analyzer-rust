@@ -1,0 +1,6 @@
+[build]
+target-dir = "C:/Users/it-experte/.cargo/target_csv_analyzer"
+
+[profile.dev]
+debug = 1
+incremental = false

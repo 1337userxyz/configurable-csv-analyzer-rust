@@ -1,0 +1,11 @@
+{
+  "Views": [
+    {
+      "Name": "Netzwerk Köln",
+      "Files": [
+        { "RelativePath": "switches.csv", "InfoFilePath": "switches.csv.info" },
+        { "RelativePath": "patchpanel.csv", "InfoFilePath": null }
+      ]
+    }
+  ]
+}

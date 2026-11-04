@@ -1,0 +1,1440 @@
+import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
+
+export struct SlintColumnDisplayItem {
+    id: int,
+    column_name: string,
+    is_visible: bool,
+    width: int,
+    display_index: int,
+}
+
+export struct SlintMappingItem {
+    id: int,
+    concept_name: string,
+    csv_column_name: string,
+    is_valid_header: bool,
+}
+
+export struct SlintCalcRuleItem {
+    id: int,
+    rule_name: string,
+    target_column: string,
+    formula: string,
+    is_active: bool,
+    is_highlighted: bool,
+}
+
+export struct SlintJoinRuleItem {
+    id: int,
+    rule_name: string,
+    target_table: string,
+    host_concept: string,
+    remote_concept: string,
+    imported_concept: string,
+    match_preview_text: string,
+    is_active: bool,
+}
+
+export struct SlintComparisonRuleItem {
+    id: int,
+    rule_name: string,
+    target_table: string,
+    host_concept: string,
+    remote_concept: string,
+    comparison_type: string,
+    mismatch_brush: string,
+    mismatch_target: string,
+    show_proposal_dialog: bool,
+    is_active: bool,
+}
+
+export struct SlintGroupValidationItem {
+    id: int,
+    rule_name: string,
+    group_by_concept: string,
+    validation_type: string, // "isUnique", "numericRange", "groupConsistency"
+    param_concept: string,
+    range_min: string,
+    range_max: string,
+    mismatch_brush: string,
+    is_active: bool,
+}
+
+export struct SlintHighlightRuleItem {
+    id: int,
+    rule_name: string,
+    column_concept: string,
+    condition: string,
+    value_to_match: string,
+    invert_condition: bool,
+    brush_key: string,
+    target: string,
+    priority: int,
+    is_active: bool,
+}
+
+export struct SlintApplyRuleItem {
+    id: int,
+    rule_name: string,
+    source_concept: string,
+    target_table: string,
+    target_concept: string,
+    requires_confirmation: bool,
+    execute_automatically: bool,
+    is_active: bool,
+}
+
+export component InfoFileEditorWindow inherits Window {
+    title: "Konfigurations-Editor (.csv.info)";
+    min-width: 1040px;
+    min-height: 720px;
+    preferred-width: 1100px;
+    preferred-height: 760px;
+    background: #1e1e24;
+    default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
+    default-font-size: 13px;
+
+    // Window Meta Properties
+    in-out property <string> table_title: "Tabelle";
+    in-out property <string> file_path_display: "";
+    in-out property <bool> is_dirty: false;
+
+    // Active Navigation Tab (0..8)
+    in-out property <int> active_tab_idx: 0;
+
+    // Validation State
+    in-out property <bool> has_validation_errors: false;
+    in-out property <int> error_count: 0;
+    in-out property <int> warning_count: 0;
+    in-out property <string> validation_banner_message: "Konfiguration ist bereit.";
+
+    // Window Callbacks
+    callback save_and_apply_clicked();
+    callback cancel_clicked();
+    callback run_validation_clicked();
+
+    // Available CSV Headers & Available Tables (for dropdown/autocomplete helpers)
+    in-out property <[string]> available_headers: [];
+    in-out property <[string]> available_concepts: [];
+    in-out property <[string]> available_tables: [];
+    in-out property <[string]> available_brushes: [];
+    in-out property <[ColorChoiceItem]> color_choices: [];
+    in-out property <color> general_dirty_color: #26a69a;
+    in-out property <color> edit_comp_color: #e57373;
+    in-out property <color> edit_group_color: #ba68c8;
+    in-out property <color> edit_hl_color: #ffb74d;
+
+    // --- TAB 0: ALLGEMEIN ---
+    in-out property <string> general_delimiter: ",";
+    in-out property <string> general_encoding: "utf-8";
+    in-out property <bool> general_has_header: true;
+    in-out property <string> general_dirty_brush: "DirtyCellBrush";
+    in-out property <string> general_storage_override: "Standard";
+    callback general_settings_changed(string, string, bool, string, string);
+
+    // --- TAB 1: SPALTEN & LAYOUT ---
+    in-out property <[SlintColumnDisplayItem]> columns_list: [];
+    in-out property <string> columns_search_filter: "";
+    callback column_toggle_visibility(int, bool);
+    callback column_width_changed(int, int);
+    callback column_show_all();
+    callback column_hide_all();
+    callback column_reset_default_widths();
+    callback column_move_up(int);
+    callback column_move_down(int);
+
+    // --- TAB 2: MAPPINGS & KONZEPTE ---
+    in-out property <[SlintMappingItem]> mappings_list: [];
+    in-out property <string> new_concept_input: "";
+    in-out property <string> new_csv_col_input: "";
+    callback add_mapping_clicked(string, string);
+    callback delete_mapping_clicked(int);
+    callback update_mapping_csv_col(int, string);
+
+    // --- TAB 3: BERECHNUNGEN ---
+    in-out property <[SlintCalcRuleItem]> calc_rules: [];
+    in-out property <int> selected_calc_rule_idx: -1;
+    in-out property <string> edit_calc_name: "";
+    in-out property <string> edit_calc_target: "";
+    in-out property <string> edit_calc_formula: "";
+    in-out property <string> calc_syntax_status: "Syntax prüfen...";
+    in-out property <bool> edit_calc_active: true;
+    callback add_calc_rule();
+    callback delete_calc_rule(int);
+    callback select_calc_rule(int);
+    callback save_calc_rule_edit(int, string, string, string, bool);
+    callback insert_formula_token(string);
+    callback test_formula_syntax(string);
+
+    // --- TAB 4: MULTI-STEP JOINS ---
+    in-out property <[SlintJoinRuleItem]> join_rules: [];
+    in-out property <int> selected_join_idx: -1;
+    in-out property <string> edit_join_name: "";
+    in-out property <string> edit_join_target_table: "";
+    in-out property <string> edit_join_host_concept: "";
+    in-out property <string> edit_join_remote_concept: "";
+    in-out property <string> edit_join_imported_concept: "";
+    in-out property <string> join_preview_stat: "";
+    callback add_join_rule();
+    callback delete_join_rule(int);
+    callback select_join_rule(int);
+    callback save_join_rule_edit(int, string, string, string, string, string);
+    callback calculate_live_join_preview(string, string, string);
+
+    // --- TAB 5: TABELLENVERGLEICHE ---
+    in-out property <[SlintComparisonRuleItem]> comparison_rules: [];
+    in-out property <int> selected_comp_idx: -1;
+    in-out property <string> edit_comp_name: "";
+    in-out property <string> edit_comp_target_table: "";
+    in-out property <string> edit_comp_host_concept: "";
+    in-out property <string> edit_comp_remote_concept: "";
+    in-out property <string> edit_comp_type: "MissingInRemote";
+    in-out property <string> edit_comp_brush: "CrossTableMismatchBrush";
+    in-out property <bool> edit_comp_proposal_dialog: true;
+    callback add_comparison_rule();
+    callback delete_comparison_rule(int);
+    callback select_comparison_rule(int);
+    callback save_comparison_rule_edit(int, string, string, string, string, string, string, bool);
+
+    // --- TAB 6: GRUPPENVALIDIERUNG ---
+    in-out property <[SlintGroupValidationItem]> group_rules: [];
+    in-out property <int> selected_group_idx: -1;
+    in-out property <string> edit_group_name: "";
+    in-out property <string> edit_group_by_concept: "";
+    in-out property <string> edit_group_val_type: "isUnique";
+    in-out property <string> edit_group_param_concept: "";
+    in-out property <string> edit_group_min: "";
+    in-out property <string> edit_group_max: "";
+    in-out property <string> edit_group_brush: "UniquenessViolationBrush";
+    callback add_group_rule();
+    callback delete_group_rule(int);
+    callback select_group_rule(int);
+    callback save_group_rule_edit(int, string, string, string, string, string, string, string);
+
+    // --- TAB 7: HIGHLIGHT-REGELN ---
+    in-out property <[SlintHighlightRuleItem]> highlight_rules: [];
+    in-out property <int> selected_hl_idx: -1;
+    in-out property <string> edit_hl_name: "";
+    in-out property <string> edit_hl_column: "";
+    in-out property <string> edit_hl_condition: "Equals";
+    in-out property <string> edit_hl_val: "";
+    in-out property <bool> edit_hl_invert: false;
+    in-out property <string> edit_hl_brush: "WarningBrush";
+    in-out property <string> edit_hl_target: "Cell";
+    in-out property <int> edit_hl_priority: 50;
+    callback add_highlight_rule();
+    callback delete_highlight_rule(int);
+    callback select_highlight_rule(int);
+    callback save_highlight_rule_edit(int, string, string, string, string, bool, string, string, int);
+
+    // --- TAB 8: ÜBERTRAGUNGSREGELN ---
+    in-out property <[SlintApplyRuleItem]> apply_rules: [];
+    in-out property <int> selected_apply_idx: -1;
+    in-out property <string> edit_apply_name: "";
+    in-out property <string> edit_apply_source: "";
+    in-out property <string> edit_apply_target_table: "$self";
+    in-out property <string> edit_apply_target_concept: "";
+    in-out property <bool> edit_apply_confirm: true;
+    in-out property <bool> edit_apply_auto: false;
+    callback add_apply_rule();
+    callback delete_apply_rule(int);
+    callback select_apply_rule(int);
+    callback save_apply_rule_edit(int, string, string, string, string, bool, bool);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
+
+        // TOP HEADER BAR
+        Rectangle {
+            height: 52px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    
+
+                    Text {
+                        text: "📋 .info Konfigurations-Editor";
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: #ffffff;
+                        
+                    }
+                    Text {
+                        text: "|";
+                        color: #55556a;
+                        
+                    }
+                    Text {
+                        text: root.table_title + " (" + root.file_path_display + ")";
+                        color: #90caf9;
+                        font-weight: 600;
+                        overflow: elide;
+                        
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: end;
+                    
+
+                    if root.is_dirty: Rectangle {
+                        width: 130px;
+                        height: 26px;
+                        background: #4a3818;
+                        border-radius: 4px;
+                        Text {
+                            text: "● Ungespeichert";
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: #ffb74d;
+                            horizontal-alignment: center;
+                            
+                        }
+                    }
+                }
+            }
+        }
+
+        // TAB BAR (9 TABS)
+        Rectangle {
+            height: 38px;
+            background: #191922;
+            border-radius: 6px;
+
+            ScrollView {
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    padding-top: 3px;
+                    padding-bottom: 3px;
+                    spacing: 4px;
+
+                    Button { text: "1. Allgemein"; primary: root.active_tab_idx == 0; clicked => { root.active_tab_idx = 0; } }
+                    Button { text: "2. Spalten & Layout"; primary: root.active_tab_idx == 1; clicked => { root.active_tab_idx = 1; } }
+                    Button { text: "3. Mappings"; primary: root.active_tab_idx == 2; clicked => { root.active_tab_idx = 2; } }
+                    Button { text: "4. Berechnungen"; primary: root.active_tab_idx == 3; clicked => { root.active_tab_idx = 3; } }
+                    Button { text: "5. Joins"; primary: root.active_tab_idx == 4; clicked => { root.active_tab_idx = 4; } }
+                    Button { text: "6. Tabellenvergleich"; primary: root.active_tab_idx == 5; clicked => { root.active_tab_idx = 5; } }
+                    Button { text: "7. Gruppenvalidierung"; primary: root.active_tab_idx == 6; clicked => { root.active_tab_idx = 6; } }
+                    Button { text: "8. Highlights"; primary: root.active_tab_idx == 7; clicked => { root.active_tab_idx = 7; } }
+                    Button { text: "9. Übertragungen"; primary: root.active_tab_idx == 8; clicked => { root.active_tab_idx = 8; } }
+                }
+            }
+        }
+
+        // TAB CONTENT BODY
+        Rectangle {
+            vertical-stretch: 1;
+            background: #22222b;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            // ================= TAB 0: ALLGEMEIN =================
+            if root.active_tab_idx == 0: VerticalLayout {
+                padding: 24px;
+                spacing: 16px;
+
+                Text { text: "CSV-Parsing & Grundkonfiguration"; font-size: 15px; font-weight: 700; color: #ffffff; }
+
+                HorizontalLayout {
+                    spacing: 24px;
+
+                    VerticalLayout {
+                        width: 330px;
+                        spacing: 6px;
+                        Text { text: "Trennzeichen (Delimiter):"; color: #b0b0c2; }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: ["Komma (,)", "Semikolon (;)", "Tabulator (\\t)", "Pipe (|)", "Leerzeichen ( )"];
+                                current-value: root.general_delimiter == "," ? "Komma (,)" : (root.general_delimiter == ";" ? "Semikolon (;)" : (root.general_delimiter == "\\t" ? "Tabulator (\\t)" : (root.general_delimiter == "|" ? "Pipe (|)" : (root.general_delimiter == " " ? "Leerzeichen ( )" : "Benutzerdefiniert"))));
+                                selected(val) => {
+                                    if val == "Komma (,)" { root.general_delimiter = ","; }
+                                    if val == "Semikolon (;)" { root.general_delimiter = ";"; }
+                                    if val == "Tabulator (\\t)" { root.general_delimiter = "\\t"; }
+                                    if val == "Pipe (|)" { root.general_delimiter = "|"; }
+                                    if val == "Leerzeichen ( )" { root.general_delimiter = " "; }
+                                    root.general_settings_changed(root.general_delimiter, root.general_encoding, root.general_has_header, root.general_dirty_brush, root.general_storage_override);
+                                }
+                            }
+                            LineEdit {
+                                width: 55px;
+                                text: root.general_delimiter;
+                                placeholder-text: "Zeichen";
+                                edited(s) => {
+                                    root.general_delimiter = s;
+                                    root.general_settings_changed(s, root.general_encoding, root.general_has_header, root.general_dirty_brush, root.general_storage_override);
+                                }
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        width: 300px;
+                        spacing: 6px;
+                        Text { text: "Zeichencodierung (Encoding):"; color: #b0b0c2; }
+                        ComboBox {
+                            model: ["utf-8", "utf-8-bom", "windows-1252", "iso-8859-1", "ascii"];
+                            current-value: root.general_encoding;
+                            selected(val) => {
+                                root.general_encoding = val;
+                                root.general_settings_changed(root.general_delimiter, val, root.general_has_header, root.general_dirty_brush, root.general_storage_override);
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 24px;
+
+                    VerticalLayout {
+                        width: 330px;
+                        spacing: 6px;
+                        Text { text: "Farbschlüssel für bearbeitete Zellen (Dirty):"; color: #b0b0c2; }
+                        ColorComboBox {
+                            choices: root.color_choices;
+                            selected_key: root.general_dirty_brush;
+                            selected_color: root.general_dirty_color;
+                            selected(k, c) => {
+                                root.general_dirty_brush = k;
+                                root.general_dirty_color = c;
+                                root.general_settings_changed(root.general_delimiter, root.general_encoding, root.general_has_header, k, root.general_storage_override);
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        width: 300px;
+                        spacing: 6px;
+                        Text { text: "Speicherort-Override für diese Tabelle:"; color: #b0b0c2; }
+                        ComboBox {
+                            model: ["Standard (Global)", "Dateipfad (Dezentral)", "Stammverzeichnis (Zentral)", "Temporaer (RAM)"];
+                            current-value: root.general_storage_override == "Dateipfad" ? "Dateipfad (Dezentral)" : (root.general_storage_override == "Stammverzeichnis" ? "Stammverzeichnis (Zentral)" : (root.general_storage_override == "Temporaer" ? "Temporaer (RAM)" : "Standard (Global)"));
+                            selected(val) => {
+                                if val == "Standard (Global)" { root.general_storage_override = "Standard"; }
+                                if val == "Dateipfad (Dezentral)" { root.general_storage_override = "Dateipfad"; }
+                                if val == "Stammverzeichnis (Zentral)" { root.general_storage_override = "Stammverzeichnis"; }
+                                if val == "Temporaer (RAM)" { root.general_storage_override = "Temporaer"; }
+                                root.general_settings_changed(root.general_delimiter, root.general_encoding, root.general_has_header, root.general_dirty_brush, root.general_storage_override);
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    background: #1a2336;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #2e436e;
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 6px;
+                        Text {
+                            text: "ℹ Über den Speicherort-Override:";
+                            font-weight: 600;
+                            color: #90caf9;
+                        }
+                        Text {
+                            text: "Standardmäßig gilt die in der Hauptkonfiguration festgelegte globale Speicherstrategie.\nMit dieser Option kann für genau diese Tabelle abweichend festgelegt werden, ob ihre .csv.info dezentral neben der CSV-Datei liegt, zentral im Stammverzeichnis verwaltet wird oder nur temporär im Arbeitsspeicher verbleibt.";
+                            font-size: 11px;
+                            color: #b0c4de;
+                        }
+                    }
+                }
+
+                CheckBox {
+                    text: "Erste Zeile enthält Spaltennamen (Header vorhanden)";
+                    checked: root.general_has_header;
+                    toggled => {
+                        root.general_has_header = self.checked;
+                        root.general_settings_changed(root.general_delimiter, root.general_encoding, self.checked, root.general_dirty_brush, root.general_storage_override);
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+            }
+
+            // ================= TAB 1: SPALTEN & LAYOUT =================
+            if root.active_tab_idx == 1: VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    spacing: 10px;
+
+                    LineEdit {
+                        width: 300px;
+                        placeholder-text: "Spalten filtern...";
+                        text: root.columns_search_filter;
+                        edited(s) => { root.columns_search_filter = s; }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button { text: "Alle anzeigen"; clicked => { root.column_show_all(); } }
+                        Button { text: "Alle ausblenden"; clicked => { root.column_hide_all(); } }
+                        Button { text: "Standardbreite (150px)"; clicked => { root.column_reset_default_widths(); } }
+                    }
+                }
+
+                // Table Header
+                Rectangle {
+                    height: 28px;
+                    background: #252533;
+                    border-radius: 4px;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 10px;
+                        Text { width: 80px; text: "Sichtbar"; font-weight: 600; color: #a5a5bb; }
+                        Text { width: 300px; text: "Spaltenname"; font-weight: 600; color: #a5a5bb; }
+                        Text { width: 140px; text: "Breite (px)"; font-weight: 600; color: #a5a5bb; }
+                        Text { horizontal-stretch: 1; text: "Reihenfolge"; font-weight: 600; color: #a5a5bb; }
+                    }
+                }
+
+                // Column rows
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 4px;
+                        for col[c_idx] in root.columns_list: Rectangle {
+                            height: 36px;
+                            background: #1b1b24;
+                            border-radius: 4px;
+
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                
+
+                                CheckBox {
+                                    width: 80px;
+                                    text: "";
+                                    checked: col.is_visible;
+                                    toggled => { root.column_toggle_visibility(c_idx, self.checked); }
+                                }
+
+                                Text {
+                                    width: 300px;
+                                    text: col.column_name;
+                                    color: #ffffff;
+                                    font-weight: 600;
+                                    overflow: elide;
+                                    
+                                }
+
+                                LineEdit {
+                                    width: 100px;
+                                    text: col.width;
+                                    // edited width
+                                }
+
+                                HorizontalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 4px;
+                                    Button { text: "▲"; enabled: c_idx > 0; clicked => { root.column_move_up(c_idx); } }
+                                    Button { text: "▼"; enabled: c_idx < root.columns_list.length - 1; clicked => { root.column_move_down(c_idx); } }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 2: MAPPINGS =================
+            if root.active_tab_idx == 2: VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                Text { text: "Abstraktion zwischen Fachkonzepten und technischen CSV-Headern"; font-weight: 600; color: #ffffff; }
+
+                // Add mapping row
+                Rectangle {
+                    height: 44px;
+                    background: #1c1c25;
+                    border-radius: 6px;
+
+                    HorizontalLayout {
+                        padding: 6px;
+                        spacing: 10px;
+                        
+
+                        Text { text: "Neues Mapping:"; color: #9c9cb2; }
+                        LineEdit {
+                            width: 220px;
+                            placeholder-text: "Konzept (z.B. DeviceID)";
+                            text: root.new_concept_input;
+                            edited(s) => { root.new_concept_input = s; }
+                        }
+                        Text { text: "➔"; color: #60a5fa; }
+                        LineEdit {
+                            width: 220px;
+                            placeholder-text: "CSV-Spalte (z.B. switch_hostname)";
+                            text: root.new_csv_col_input;
+                            edited(s) => { root.new_csv_col_input = s; }
+                        }
+                        Button {
+                            text: "+ Hinzufügen";
+                            primary: true;
+                            clicked => {
+                                if root.new_concept_input != "" && root.new_csv_col_input != "" {
+                                    root.add_mapping_clicked(root.new_concept_input, root.new_csv_col_input);
+                                    root.new_concept_input = "";
+                                    root.new_csv_col_input = "";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Table Header
+                Rectangle {
+                    height: 28px;
+                    background: #252533;
+                    border-radius: 4px;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 10px;
+                        Text { width: 240px; text: "Fachkonzept"; font-weight: 600; color: #a5a5bb; }
+                        Text { width: 260px; text: "Gemappte CSV-Spalte"; font-weight: 600; color: #a5a5bb; }
+                        Text { width: 140px; text: "Integrität"; font-weight: 600; color: #a5a5bb; }
+                        Text { horizontal-stretch: 1; text: "Aktion"; font-weight: 600; color: #a5a5bb; }
+                    }
+                }
+
+                // Mappings List
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 4px;
+                        for map[m_idx] in root.mappings_list: Rectangle {
+                            height: 38px;
+                            background: #1b1b24;
+                            border-radius: 4px;
+
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                
+
+                                Text {
+                                    width: 240px;
+                                    text: map.concept_name;
+                                    font-weight: 600;
+                                    color: #81d4fa;
+                                    
+                                }
+
+                                LineEdit {
+                                    width: 260px;
+                                    text: map.csv_column_name;
+                                    edited(s) => { root.update_mapping_csv_col(m_idx, s); }
+                                }
+
+                                Rectangle {
+                                    width: 140px;
+                                    height: 22px;
+                                    background: map.is_valid_header ? #183324 : #3b2020;
+                                    border-radius: 3px;
+                                    Text {
+                                        text: map.is_valid_header ? "✓ Existiert" : "⚠ Fehlt in CSV";
+                                        font-size: 11px;
+                                        color: map.is_valid_header ? #81c784 : #e57373;
+                                        horizontal-alignment: center;
+                                        
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: end;
+                                    Button {
+                                        text: "✕ Entfernen";
+                                        clicked => { root.delete_mapping_clicked(m_idx); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 3: BERECHNUNGEN =================
+            if root.active_tab_idx == 3: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                // Left: Rules list
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Berechnungsregeln:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_calc_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for rule[r_idx] in root.calc_rules: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_calc_rule_idx == r_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    border-width: root.selected_calc_rule_idx == r_idx ? 1px : 0px;
+                                    border-color: #60a5fa;
+                                    TouchArea { clicked => { root.selected_calc_rule_idx = r_idx; root.select_calc_rule(r_idx); } }
+                                    HorizontalLayout {
+                                        padding-left: 8px; padding-right: 8px; alignment: space-between; 
+                                        Text { text: rule.rule_name; color: #ffffff; font-weight: 600; }
+                                        Button { text: "✕"; clicked => { root.delete_calc_rule(r_idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Editor for selected calculation
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Berechnung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Regel-Name:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_calc_name; edited(s) => { root.edit_calc_name = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Zielspalte (Header):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_calc_target; edited(s) => { root.edit_calc_target = s; } }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Formel-Ausdruck:"; color: #b0b0c2; }
+                            LineEdit {
+                                text: root.edit_calc_formula;
+                                placeholder-text: "{Port} * 2 oder {Prefix} + \"-\" + {Index}";
+                                edited(s) => {
+                                    root.edit_calc_formula = s;
+                                    root.test_formula_syntax(s);
+                                }
+                            }
+                        }
+
+                        // Formula Helper Toolbar
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Text { text: "Operatoren:"; color: #8e8ea6; }
+                            Button { text: "+"; clicked => { root.insert_formula_token("+"); } }
+                            Button { text: "-"; clicked => { root.insert_formula_token("-"); } }
+                            Button { text: "*"; clicked => { root.insert_formula_token("*"); } }
+                            Button { text: "/"; clicked => { root.insert_formula_token("/"); } }
+                            Button { text: "("; clicked => { root.insert_formula_token("("); } }
+                            Button { text: ")"; clicked => { root.insert_formula_token(")"); } }
+                        }
+
+                        // Concept Buttons Toolbar
+                        Text { text: "Klickbares Konzept in Formel einfügen:"; font-size: 11px; color: #8e8ea6; }
+                        ScrollView {
+                            height: 38px;
+                            HorizontalLayout {
+                                spacing: 4px;
+                                for c in root.available_concepts: Button {
+                                    text: "{" + c + "}";
+                                    clicked => { root.insert_formula_token("{" + c + "}"); }
+                                }
+                            }
+                        }
+
+                        // Real-time syntax status
+                        Text {
+                            text: root.calc_syntax_status;
+                            color: #81c784;
+                            font-weight: 600;
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_calc_rule_edit(root.selected_calc_rule_idx, root.edit_calc_name, root.edit_calc_target, root.edit_calc_formula, root.edit_calc_active);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 4: MULTI-STEP JOINS =================
+            if root.active_tab_idx == 4: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Tabellen-Joins:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_join_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for j[j_idx] in root.join_rules: Rectangle {
+                                    height: 48px;
+                                    background: root.selected_join_idx == j_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    TouchArea { clicked => { root.selected_join_idx = j_idx; root.select_join_rule(j_idx); } }
+                                    VerticalLayout {
+                                        padding: 6px;
+                                        Text { text: j.rule_name; color: #ffffff; font-weight: 600; }
+                                        Text { text: j.match_preview_text; font-size: 11px; color: #64b5f6; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Join-Verknüpfung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_join_name; edited(s) => { root.edit_join_name = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Zieltabelle:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_join_target_table; edited(s) => { root.edit_join_target_table = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Lokales Schlüsselkonzept:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_join_host_concept; edited(s) => { root.edit_join_host_concept = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Ziel-Schlüsselkonzept:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_join_remote_concept; edited(s) => { root.edit_join_remote_concept = s; } }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Zu importierendes Konzept / Spalte:"; color: #b0b0c2; }
+                            LineEdit { text: root.edit_join_imported_concept; edited(s) => { root.edit_join_imported_concept = s; } }
+                        }
+
+                        // LIVE MATCH RATIO PREVIEW
+                        Rectangle {
+                            height: 38px;
+                            background: #1a273b;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #3b5987;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                
+                                Text {
+                                    text: "📊 Live-Treffervorschau: " + root.join_preview_stat;
+                                    color: #90caf9;
+                                    font-weight: 600;
+                                    
+                                }
+                            }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_join_rule_edit(root.selected_join_idx, root.edit_join_name, root.edit_join_target_table, root.edit_join_host_concept, root.edit_join_remote_concept, root.edit_join_imported_concept);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 5: TABELLENVERGLEICH =================
+            if root.active_tab_idx == 5: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Vergleichsregeln:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_comparison_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for c[c_idx] in root.comparison_rules: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_comp_idx == c_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    TouchArea { clicked => { root.selected_comp_idx = c_idx; root.select_comparison_rule(c_idx); } }
+                                    HorizontalLayout {
+                                        padding-left: 8px; padding-right: 8px; alignment: space-between; 
+                                        Text { text: c.rule_name; color: #ffffff; font-weight: 600; }
+                                        Button { text: "✕"; clicked => { root.delete_comparison_rule(c_idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Tabellenvergleich konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_comp_name; edited(s) => { root.edit_comp_name = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Zieltabelle:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_comp_target_table; edited(s) => { root.edit_comp_target_table = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Lokaler Schlüssel:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_comp_host_concept; edited(s) => { root.edit_comp_host_concept = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Ziel-Schlüssel:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_comp_remote_concept; edited(s) => { root.edit_comp_remote_concept = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Vergleichstyp:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_comp_type; edited(s) => { root.edit_comp_type = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Mismatch-Farbe:"; color: #b0b0c2; }
+                                ColorComboBox {
+                                    choices: root.color_choices;
+                                    selected_key: root.edit_comp_brush;
+                                    selected_color: root.edit_comp_color;
+                                    selected(k, c) => {
+                                        root.edit_comp_brush = k;
+                                        root.edit_comp_color = c;
+                                    }
+                                }
+                            }
+                        }
+
+                        CheckBox {
+                            text: "Vorschlag-Dialog anzeigen (Übernahme fehlender Zeilen ins Dock einbinden)";
+                            checked: root.edit_comp_proposal_dialog;
+                            toggled => { root.edit_comp_proposal_dialog = self.checked; }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_comparison_rule_edit(root.selected_comp_idx, root.edit_comp_name, root.edit_comp_target_table, root.edit_comp_host_concept, root.edit_comp_remote_concept, root.edit_comp_type, root.edit_comp_brush, root.edit_comp_proposal_dialog);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 6: GRUPPENVALIDIERUNG =================
+            if root.active_tab_idx == 6: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Gruppenvalidierungen:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_group_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for g[g_idx] in root.group_rules: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_group_idx == g_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    TouchArea { clicked => { root.selected_group_idx = g_idx; root.select_group_rule(g_idx); } }
+                                    HorizontalLayout {
+                                        padding-left: 8px; padding-right: 8px; alignment: space-between; 
+                                        Text { text: g.rule_name; color: #ffffff; font-weight: 600; }
+                                        Button { text: "✕"; clicked => { root.delete_group_rule(g_idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Gruppenvalidierung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_name; edited(s) => { root.edit_group_name = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Gruppieren nach (Konzept):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_by_concept; edited(s) => { root.edit_group_by_concept = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Prüftyp (isUnique, numericRange, groupConsistency):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_val_type; edited(s) => { root.edit_group_val_type = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Zu prüfendes Feld:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_param_concept; edited(s) => { root.edit_group_param_concept = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Min-Wert (nur für numericRange):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_min; edited(s) => { root.edit_group_min = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Max-Wert (nur für numericRange):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_group_max; edited(s) => { root.edit_group_max = s; } }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Mismatch-Farbe:"; color: #b0b0c2; }
+                            ColorComboBox {
+                                choices: root.color_choices;
+                                selected_key: root.edit_group_brush;
+                                selected_color: root.edit_group_color;
+                                selected(k, c) => {
+                                    root.edit_group_brush = k;
+                                    root.edit_group_color = c;
+                                }
+                            }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_group_rule_edit(root.selected_group_idx, root.edit_group_name, root.edit_group_by_concept, root.edit_group_val_type, root.edit_group_param_concept, root.edit_group_min, root.edit_group_max, root.edit_group_brush);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 7: HIGHLIGHTS =================
+            if root.active_tab_idx == 7: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Highlight-Regeln:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_highlight_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for h[h_idx] in root.highlight_rules: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_hl_idx == h_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    TouchArea { clicked => { root.selected_hl_idx = h_idx; root.select_highlight_rule(h_idx); } }
+                                    HorizontalLayout {
+                                        padding-left: 8px; padding-right: 8px; alignment: space-between; 
+                                        Text { text: h.rule_name; color: #ffffff; font-weight: 600; }
+                                        Button { text: "✕"; clicked => { root.delete_highlight_rule(h_idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Highlight-Bedingung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_hl_name; edited(s) => { root.edit_hl_name = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Spalte / Konzept:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_hl_column; edited(s) => { root.edit_hl_column = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Bedingung (Equals, Contains, StartsWith, EndsWith, RegEx, IsEmpty, IsNotEmpty, InList):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_hl_condition; edited(s) => { root.edit_hl_condition = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Vergleichswert:"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_hl_val; edited(s) => { root.edit_hl_val = s; } }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Farb-Schlüssel (Brush):"; color: #b0b0c2; }
+                                ColorComboBox {
+                                    choices: root.color_choices;
+                                    selected_key: root.edit_hl_brush;
+                                    selected_color: root.edit_hl_color;
+                                    selected(k, c) => {
+                                        root.edit_hl_brush = k;
+                                        root.edit_hl_color = c;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Ziel (Row oder Cell):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_hl_target; edited(s) => { root.edit_hl_target = s; } }
+                            }
+                        }
+
+                        CheckBox {
+                            text: "Bedingung umkehren (NOT)";
+                            checked: root.edit_hl_invert;
+                            toggled => { root.edit_hl_invert = self.checked; }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_highlight_rule_edit(root.selected_hl_idx, root.edit_hl_name, root.edit_hl_column, root.edit_hl_condition, root.edit_hl_val, root.edit_hl_invert, root.edit_hl_brush, root.edit_hl_target, root.edit_hl_priority);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================= TAB 8: ÜBERTRAGUNGEN =================
+            if root.active_tab_idx == 8: HorizontalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 320px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 8px;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Übertragungsregeln:"; font-weight: 600; color: #ffffff; }
+                            Button { text: "+ Neu"; primary: true; clicked => { root.add_apply_rule(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for a[a_idx] in root.apply_rules: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_apply_idx == a_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    TouchArea { clicked => { root.selected_apply_idx = a_idx; root.select_apply_rule(a_idx); } }
+                                    HorizontalLayout {
+                                        padding-left: 8px; padding-right: 8px; alignment: space-between; 
+                                        Text { text: a.rule_name; color: #ffffff; font-weight: 600; }
+                                        Button { text: "✕"; clicked => { root.delete_apply_rule(a_idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        Text { text: "Übertragungs- & Folgeregel konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Regelname:"; color: #b0b0c2; }
+                            LineEdit { text: root.edit_apply_name; edited(s) => { root.edit_apply_name = s; } }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Quellkonzept(e):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_apply_source; edited(s) => { root.edit_apply_source = s; } }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text { text: "Zieltabelle ($self oder Fremdtabelle):"; color: #b0b0c2; }
+                                LineEdit { text: root.edit_apply_target_table; edited(s) => { root.edit_apply_target_table = s; } }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Zielspalte / Konzept:"; color: #b0b0c2; }
+                            LineEdit { text: root.edit_apply_target_concept; edited(s) => { root.edit_apply_target_concept = s; } }
+                        }
+
+                        CheckBox {
+                            text: "Vor Ausführung Bestätigungsdialog anzeigen";
+                            checked: root.edit_apply_confirm;
+                            toggled => { root.edit_apply_confirm = self.checked; }
+                        }
+
+                        CheckBox {
+                            text: "Bei jeder Zellenänderung sofort im Hintergrund ausführen";
+                            checked: root.edit_apply_auto;
+                            toggled => { root.edit_apply_auto = self.checked; }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Regel speichern";
+                                primary: true;
+                                clicked => {
+                                    root.save_apply_rule_edit(root.selected_apply_idx, root.edit_apply_name, root.edit_apply_source, root.edit_apply_target_table, root.edit_apply_target_concept, root.edit_apply_confirm, root.edit_apply_auto);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // BOTTOM ACTION & VALIDATION STATUS BAR
+        Rectangle {
+            height: 52px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: space-between;
+                
+
+                // Validation Status Banner
+                HorizontalLayout {
+                    spacing: 12px;
+                    
+
+                    Rectangle {
+                        height: 28px;
+                        background: root.has_validation_errors ? #3f1d1d : (root.warning_count > 0 ? #3d2f13 : #183324);
+                        border-radius: 4px;
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            
+                            Text {
+                                text: root.validation_banner_message;
+                                font-weight: 600;
+                                color: root.has_validation_errors ? #ef5350 : (root.warning_count > 0 ? #ffb74d : #81c784);
+                                
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "🔍 Validierung prüfen";
+                        clicked => { root.run_validation_clicked(); }
+                    }
+                }
+
+                // Dialog Buttons
+                HorizontalLayout {
+                    spacing: 10px;
+                    
+
+                    Button {
+                        text: "Abbrechen";
+                        clicked => { root.cancel_clicked(); }
+                    }
+
+                    Button {
+                        text: "✓ Übernehmen & Speichern";
+                        primary: true;
+                        enabled: !root.has_validation_errors;
+                        clicked => { root.save_and_apply_clicked(); }
+                    }
+                }
+            }
+        }
+    }
+}

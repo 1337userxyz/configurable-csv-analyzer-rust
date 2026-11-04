@@ -1,0 +1,1273 @@
+import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
+import { ConfigurationWindow, SlintViewItem, SlintViewFileItem, SlintBrushItem } from "configuration.slint";
+import {
+    InfoFileEditorWindow,
+    SlintColumnDisplayItem,
+    SlintMappingItem,
+    SlintCalcRuleItem,
+    SlintJoinRuleItem,
+    SlintComparisonRuleItem,
+    SlintGroupValidationItem,
+    SlintHighlightRuleItem,
+    SlintApplyRuleItem
+} from "info_editor.slint";
+
+export {
+    ColorChoiceItem,
+    ConfigurationWindow,
+    SlintViewItem,
+    SlintViewFileItem,
+    SlintBrushItem,
+    InfoFileEditorWindow,
+    SlintColumnDisplayItem,
+    SlintMappingItem,
+    SlintCalcRuleItem,
+    SlintJoinRuleItem,
+    SlintComparisonRuleItem,
+    SlintGroupValidationItem,
+    SlintHighlightRuleItem,
+    SlintApplyRuleItem
+}
+
+export struct TabItem {
+    id: string,
+    title: string,
+    is_dirty: bool,
+    error_count: int,
+    is_active: bool,
+}
+
+export struct HeaderItem {
+    id: int,
+    name: string,
+    concept: string,
+    sort_dir: int, // 0 = none, 1 = asc, 2 = desc
+    is_filtered: bool,
+    width: length,
+}
+
+export struct CellItem {
+    text: string,
+    bg_color: color,
+    has_error: bool,
+    has_warning: bool,
+    has_info: bool,
+}
+
+export struct RowItem {
+    row_idx: int,
+    original_idx: int,
+    is_marked: bool,
+    bg_color: color,
+    cells: [CellItem],
+}
+
+export struct RuleSummaryItem {
+    id: string,
+    description: string,
+    hits: int,
+    errors: int,
+    warnings: int,
+}
+
+export struct ProposalItem {
+    source_table: string,
+    key_val: string,
+    preview: string,
+    row_idx: int,
+}
+
+export struct LogViewItem {
+    timestamp: string,
+    level: string,
+    message: string,
+}
+
+export struct FilterChoiceItem {
+    value: string,
+    selected: bool,
+}
+
+export component MainWindow inherits Window {
+    title: "Configurable CSV & ODS Analyzer";
+    min-width: 1100px;
+    min-height: 720px;
+    background: #1e1e24;
+    default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
+    default-font-size: 13px;
+
+    // Callbacks from Slint to Rust
+    callback open_csv_clicked();
+    callback open_ods_clicked();
+    callback open_folder_clicked();
+    callback save_clicked();
+    callback save_as_clicked();
+    callback revert_clicked();
+    callback open_libreoffice_clicked();
+
+    callback tab_selected(string);
+    callback tab_close_clicked(string);
+
+    callback select_all_toggled(bool);
+    callback only_marked_toggled(bool);
+    callback mark_empty_rows_clicked();
+    callback clear_selection_clicked();
+    callback row_mark_toggled(int, bool);
+
+    callback apply_marker_color(string);
+    callback clear_markers_clicked();
+
+    callback search_text_changed(string);
+    callback run_rules_clicked();
+
+    callback header_sort_clicked(int);
+    callback open_filter_popup(int);
+    callback filter_apply_clicked(int);
+    callback filter_clear_all_clicked();
+    callback filter_toggle_item(int, bool);
+
+    callback cell_edited(int, int, string);
+
+    callback show_fill_dialog_clicked();
+    callback apply_fill_column(int, int, string, string, string, int, int);
+
+    callback show_split_dialog_clicked();
+    callback apply_split_column(int, string, string);
+
+    callback smart_add_row_clicked();
+    callback delete_marked_rows_clicked();
+
+    callback show_ods_sheet_dialog_clicked();
+    callback select_ods_sheet_clicked(string);
+
+    callback show_info_editor_clicked();
+    callback save_info_editor_clicked(string, string);
+    callback show_config_clicked();
+
+    callback show_diff_dialog_clicked();
+    callback sync_diff_clicked();
+
+    callback copy_clipboard_clicked();
+    callback paste_clipboard_clicked();
+
+    callback dock_tab_selected(int);
+    callback toggle_dock_collapsed();
+    callback copy_logs_clicked();
+    callback proposal_apply_clicked(int);
+
+    // Properties exposed to Rust
+    in-out property <[TabItem]> tabs: [];
+    in-out property <string> active_tab_id: "";
+    in-out property <[HeaderItem]> headers: [];
+    in-out property <[RowItem]> rows: [];
+    in-out property <int> total_row_count: 0;
+    in-out property <int> marked_row_count: 0;
+    in-out property <bool> only_marked_active: false;
+    in-out property <string> search_query: "";
+    in-out property <string> status_message: "Bereit";
+
+    // Dock properties
+    in-out property <bool> dock_collapsed: false;
+    in-out property <int> dock_tab_idx: 0; // 0: Rules, 1: Proposals, 2: Logs
+    in-out property <[RuleSummaryItem]> rule_summaries: [];
+    in-out property <[ProposalItem]> proposals: [];
+    in-out property <[LogViewItem]> logs: [];
+
+    // Filter modal
+    in-out property <bool> filter_dialog_visible: false;
+    in-out property <int> filter_dialog_col_idx: 0;
+    in-out property <string> filter_dialog_col_name: "";
+    in-out property <[FilterChoiceItem]> filter_dialog_items: [];
+    in-out property <string> filter_dialog_search: "";
+
+    // Fill Column Modal
+    in-out property <bool> fill_dialog_visible: false;
+    in-out property <int> fill_dialog_col_idx: 0;
+    in-out property <int> fill_dialog_mode: 0; // 0: Static, 1: Prefix/Suffix, 2: Increment
+    in-out property <string> fill_static_val: "";
+    in-out property <string> fill_prefix_val: "";
+    in-out property <string> fill_suffix_val: "";
+    in-out property <int> fill_start_val: 1;
+    in-out property <int> fill_step_val: 1;
+
+    // Split Column Modal
+    in-out property <bool> split_dialog_visible: false;
+    in-out property <int> split_dialog_col_idx: 0;
+    in-out property <string> split_delimiter: ",";
+    in-out property <string> split_new_cols: "Spalte_1, Spalte_2";
+
+    // Sheet Modal
+    in-out property <bool> sheet_dialog_visible: false;
+    in-out property <[string]> available_sheets: [];
+
+    // Diff Modal
+    in-out property <bool> diff_dialog_visible: false;
+    in-out property <string> diff_summary_text: "";
+    in-out property <string> diff_details_text: "";
+
+    // Inline cell edit tracking
+    in-out property <int> editing_row: -1;
+    in-out property <int> editing_col: -1;
+    in-out property <string> editing_text: "";
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // TOP BAR / MENU & ACTIONS
+        Rectangle {
+            height: 48px;
+            background: #25252d;
+            
+            
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+
+                    Button {
+                        text: "CSV öffnen";
+                        clicked => { root.open_csv_clicked(); }
+                    }
+                    Button {
+                        text: "ODS öffnen";
+                        clicked => { root.open_ods_clicked(); }
+                    }
+                    Button {
+                        text: "Ordner importieren";
+                        clicked => { root.open_folder_clicked(); }
+                    }
+                    Button {
+                        text: "Speichern";
+                        primary: true;
+                        clicked => { root.save_clicked(); }
+                    }
+                    Button {
+                        text: "Revert";
+                        clicked => { root.revert_clicked(); }
+                    }
+                    Button {
+                        text: "LibreOffice";
+                        clicked => { root.open_libreoffice_clicked(); }
+                    }
+
+                    Rectangle { width: 1px; background: #444452; height: 26px; }
+
+                    Button {
+                        text: "+ Zeile (Smart)";
+                        clicked => { root.smart_add_row_clicked(); }
+                    }
+                    Button {
+                        text: "Spalte füllen";
+                        clicked => { root.show_fill_dialog_clicked(); }
+                    }
+                    Button {
+                        text: "Spalte teilen";
+                        clicked => { root.show_split_dialog_clicked(); }
+                    }
+                    Button {
+                        text: "Zeilen löschen";
+                        clicked => { root.delete_marked_rows_clicked(); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    Button {
+                        text: "Diff / Sync";
+                        clicked => { root.show_diff_dialog_clicked(); }
+                    }
+                    Button {
+                        text: "⚙ Konfiguration";
+                        clicked => { root.show_config_clicked(); }
+                    }
+                    Button {
+                        text: ".info Editor";
+                        clicked => { root.show_info_editor_clicked(); }
+                    }
+                    Button {
+                        text: "Kopieren (TSV)";
+                        clicked => { root.copy_clipboard_clicked(); }
+                    }
+                    Button {
+                        text: "Einfügen";
+                        clicked => { root.paste_clipboard_clicked(); }
+                    }
+                }
+            }
+        }
+
+        // TAB BAR
+        Rectangle {
+            height: 42px;
+            background: #14161f;
+
+            // Bottom border for tab bar
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: #2a3147;
+            }
+
+            ScrollView {
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-top: 4px;
+                    padding-bottom: 4px;
+                    spacing: 6px;
+
+                    for tab in root.tabs: Rectangle {
+                        min-width: 150px;
+                        height: 34px;
+                        background: tab.is_active ? #223a66 : (tab_touch.has-hover ? #252d42 : #1b2132);
+                        border-radius: 6px;
+                        border-width: tab.is_active ? 1.5px : 1px;
+                        border-color: tab.is_active ? #60a5fa : (tab_touch.has-hover ? #47557a : #333d54);
+
+                        // Active top indicator stripe
+                        if tab.is_active: Rectangle {
+                            y: 0px;
+                            height: 3px;
+                            width: parent.width - 8px;
+                            x: 4px;
+                            border-radius: 1.5px;
+                            background: #60a5fa;
+                        }
+
+                        tab_touch := TouchArea {
+                            clicked => { root.tab_selected(tab.id); }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 8px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 4px;
+                                alignment: start;
+                                Text {
+                                    text: "📄 " + tab.title;
+                                    color: tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
+                                    font-weight: tab.is_active ? 700 : 500;
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+                                if tab.is_dirty: Text {
+                                    text: "*";
+                                    color: #fbbf24;
+                                    font-weight: 700;
+                                    font-size: 14px;
+                                    vertical-alignment: center;
+                                }
+                                if tab.error_count > 0: Rectangle {
+                                    min-width: 18px;
+                                    height: 18px;
+                                    border-radius: 9px;
+                                    background: #ef4444;
+                                    Text {
+                                        text: tab.error_count;
+                                        color: #ffffff;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: tab_close_hover.has-hover ? #ef4444 : (tab.is_active ? #384b73 : #283044);
+                                Text {
+                                    text: "✕";
+                                    color: tab_close_hover.has-hover ? #ffffff : (tab.is_active ? #cbd5e1 : #8893a7);
+                                    font-size: 10px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                tab_close_hover := TouchArea {
+                                    clicked => { root.tab_close_clicked(tab.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // TOOLBAR & SELECTION BAR
+        Rectangle {
+            height: 42px;
+            background: #23232b;
+            
+            
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 12px;
+                alignment: space-between;
+
+                // Selection info & controls
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    CheckBox {
+                        text: "Nur Markierte";
+                        checked: root.only_marked_active;
+                        toggled => { root.only_marked_toggled(self.checked); }
+                    }
+
+                    Rectangle {
+                        background: #333342;
+                        border-radius: 4px;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            Text {
+                                text: root.marked_row_count + " von " + root.total_row_count + " Zeilen markiert";
+                                color: #d1d1e0;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "Leere Zeilen";
+                        clicked => { root.mark_empty_rows_clicked(); }
+                    }
+                    Button {
+                        text: "Auswahl aufheben";
+                        clicked => { root.clear_selection_clicked(); }
+                    }
+                }
+
+                // Textmarker Palette
+                HorizontalLayout {
+                    spacing: 4px;
+                    alignment: center;
+
+                    Text {
+                        text: "Marker:";
+                        color: #9999a8;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #fff59d;
+                        TouchArea { clicked => { root.apply_marker_color("#fff59d"); } }
+                    }
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #c8e6c9;
+                        TouchArea { clicked => { root.apply_marker_color("#c8e6c9"); } }
+                    }
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #bbdefb;
+                        TouchArea { clicked => { root.apply_marker_color("#bbdefb"); } }
+                    }
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #ffcdd2;
+                        TouchArea { clicked => { root.apply_marker_color("#ffcdd2"); } }
+                    }
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #ffe0b2;
+                        TouchArea { clicked => { root.apply_marker_color("#ffe0b2"); } }
+                    }
+                    Rectangle {
+                        width: 22px; height: 22px; border-radius: 11px; background: #e1bee7;
+                        TouchArea { clicked => { root.apply_marker_color("#e1bee7"); } }
+                    }
+                    Button {
+                        text: "Löschen";
+                        clicked => { root.clear_markers_clicked(); }
+                    }
+                }
+
+                // Search & Filter actions
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    LineEdit {
+                        width: 180px;
+                        placeholder-text: "Schnellsuche...";
+                        text: root.search_query;
+                        edited(s) => { root.search_text_changed(s); }
+                    }
+                    Button {
+                        text: "Filter leeren";
+                        clicked => { root.filter_clear_all_clicked(); }
+                    }
+                    Button {
+                        text: "Regeln prüfen";
+                        primary: true;
+                        clicked => { root.run_rules_clicked(); }
+                    }
+                }
+            }
+        }
+
+        // MAIN GRID (Sticky Header + Scrollable Rows)
+        Rectangle {
+            background: #19191e;
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                // Table Header Row
+                Rectangle {
+                    height: 34px;
+                    background: #252838;
+                    clip: true;
+
+                    // Bottom border for sticky header
+                    Rectangle {
+                        y: parent.height - 1px;
+                        height: 1px;
+                        background: #3a415a;
+                    }
+
+                    header_layout := HorizontalLayout {
+                        x: table_scroll.content-x;
+
+                        // Checkbox column
+                        Rectangle {
+                            min-width: 38px;
+                            max-width: 38px;
+                            preferred-width: 38px;
+                            background: #252838;
+                            CheckBox {
+                                toggled => { root.select_all_toggled(self.checked); }
+                            }
+                            Rectangle {
+                                x: parent.width - 1px;
+                                width: 1px;
+                                background: #353b52;
+                            }
+                        }
+                        // Row index header
+                        Rectangle {
+                            min-width: 50px;
+                            max-width: 50px;
+                            preferred-width: 50px;
+                            background: #252838;
+                            Text {
+                                text: "#";
+                                color: #9aa5c0;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                font-weight: 600;
+                            }
+                            Rectangle {
+                                x: parent.width - 1px;
+                                width: 1px;
+                                background: #353b52;
+                            }
+                        }
+
+                        // Column Headers
+                        for h in root.headers: Rectangle {
+                            min-width: max(60px, h.width);
+                            max-width: max(60px, h.width);
+                            preferred-width: self.min-width;
+                            background: h.is_filtered ? #373f5c : #252838;
+
+                            Rectangle {
+                                x: parent.width - 1px;
+                                width: 1px;
+                                background: #353b52;
+                            }
+
+                            TouchArea {
+                                clicked => { root.header_sort_clicked(h.id); }
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 6px;
+                                alignment: space-between;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    Text {
+                                        text: h.name + (h.sort_dir == 1 ? " ▲" : h.sort_dir == 2 ? " ▼" : "");
+                                        color: #e6ebf5;
+                                        font-weight: 600;
+                                        overflow: elide;
+                                    }
+                                    if h.concept != "": Text {
+                                        text: "[" + h.concept + "]";
+                                        color: #60a5fa;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                    }
+                                }
+
+                                Button {
+                                    width: 24px;
+                                    height: 24px;
+                                    text: "▼";
+                                    clicked => { root.open_filter_popup(h.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Table Rows
+                table_scroll := ScrollView {
+                    VerticalLayout {
+                        min-width: header_layout.min-width;
+                        alignment: start;
+                        for row in root.rows: Rectangle {
+                            height: 28px;
+                            background: row.is_marked ? #23374d : row.bg_color != transparent ? row.bg_color : (Math.mod(row.row_idx, 2) == 0 ? #191a22 : #1f202b);
+
+                            Rectangle {
+                                y: parent.height - 1px;
+                                height: 1px;
+                                background: #292b3b;
+                            }
+
+                            HorizontalLayout {
+                                // Checkbox
+                                Rectangle {
+                                    min-width: 38px;
+                                    max-width: 38px;
+                                    preferred-width: 38px;
+                                    CheckBox {
+                                        checked: row.is_marked;
+                                        toggled => { root.row_mark_toggled(row.original_idx, self.checked); }
+                                    }
+                                    Rectangle {
+                                        x: parent.width - 1px;
+                                        width: 1px;
+                                        background: #2a2c3a;
+                                    }
+                                }
+                                // Row number
+                                Rectangle {
+                                    min-width: 50px;
+                                    max-width: 50px;
+                                    preferred-width: 50px;
+                                    Text {
+                                        text: (row.original_idx + 1);
+                                        color: #7b8296;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                        font-size: 11px;
+                                    }
+                                    Rectangle {
+                                        x: parent.width - 1px;
+                                        width: 1px;
+                                        background: #2a2c3a;
+                                    }
+                                }
+
+                                // Cells
+                                for cell[col_idx] in row.cells: Rectangle {
+                                    min-width: col_idx < root.headers.length ? max(60px, root.headers[col_idx].width) : 150px;
+                                    max-width: self.min-width;
+                                    preferred-width: self.min-width;
+                                    clip: true;
+                                    background: cell.bg_color != transparent ? cell.bg_color : (cell.has_error ? #4d1f24 : cell.has_warning ? #4d441f : cell.has_info ? #1f3b4d : transparent);
+
+                                    Rectangle {
+                                        x: parent.width - 1px;
+                                        width: 1px;
+                                        background: #2a2c3a;
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 8px;
+                                        padding-right: 8px;
+
+                                        if root.editing_row == row.original_idx && root.editing_col == col_idx: LineEdit {
+                                            text: root.editing_text;
+                                            edited(val) => { root.editing_text = val; }
+                                            accepted => {
+                                                root.cell_edited(row.original_idx, col_idx, self.text);
+                                                root.editing_row = -1;
+                                                root.editing_col = -1;
+                                            }
+                                        }
+
+                                        if root.editing_row != row.original_idx || root.editing_col != col_idx: Text {
+                                            text: cell.text;
+                                            color: cell.has_error ? #ff8a80 : cell.has_warning ? #ffd54f : #d1d1de;
+                                            vertical-alignment: center;
+                                            overflow: elide;
+                                        }
+                                    }
+
+                                    TouchArea {
+                                        double-clicked => {
+                                            root.editing_row = row.original_idx;
+                                            root.editing_col = col_idx;
+                                            root.editing_text = cell.text;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // BOTTOM DOCK (COLLAPSIBLE)
+        Rectangle {
+            height: root.dock_collapsed ? 32px : 180px;
+            background: #202027;
+            
+            
+
+            VerticalLayout {
+                // Dock Header / Tab buttons
+                Rectangle {
+                    height: 32px;
+                    background: #272732;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 8px;
+                        alignment: space-between;
+
+                        HorizontalLayout {
+                            spacing: 4px;
+                            Button {
+                                text: "Regeln & Analysen (" + root.rule_summaries.length + ")";
+                                primary: root.dock_tab_idx == 0;
+                                clicked => { root.dock_tab_selected(0); }
+                            }
+                            Button {
+                                text: "Vorschläge (" + root.proposals.length + ")";
+                                primary: root.dock_tab_idx == 1;
+                                clicked => { root.dock_tab_selected(1); }
+                            }
+                            Button {
+                                text: "Log-Viewer (" + root.logs.length + ")";
+                                primary: root.dock_tab_idx == 2;
+                                clicked => { root.dock_tab_selected(2); }
+                            }
+                        }
+
+                        Button {
+                            text: root.dock_collapsed ? "▲ Ausklappen" : "▼ Einklappen";
+                            clicked => { root.toggle_dock_collapsed(); }
+                        }
+                    }
+                }
+
+                // Dock Content
+                if !root.dock_collapsed: Rectangle {
+                    vertical-stretch: 1;
+
+                    // Tab 0: Rules
+                    if root.dock_tab_idx == 0: ScrollView {
+                        VerticalLayout {
+                            padding: 8px;
+                            spacing: 4px;
+                            for r in root.rule_summaries: Rectangle {
+                                height: 32px;
+                                background: #2a2a36;
+                                border-radius: 4px;
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    alignment: space-between;
+
+                                    Text {
+                                        text: r.id + ": " + r.description;
+                                        color: #e0e0ec;
+                                        vertical-alignment: center;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: end;
+                                        if r.errors > 0: Rectangle {
+                                            background: #c62828;
+                                            border-radius: 3px;
+                                            HorizontalLayout {
+                                                padding-left: 6px; padding-right: 6px;
+                                                Text { text: r.errors + " Fehler"; color: #ffffff; vertical-alignment: center; }
+                                            }
+                                        }
+                                        if r.warnings > 0: Rectangle {
+                                            background: #f57f17;
+                                            border-radius: 3px;
+                                            HorizontalLayout {
+                                                padding-left: 6px; padding-right: 6px;
+                                                Text { text: r.warnings + " Warnungen"; color: #ffffff; vertical-alignment: center; }
+                                            }
+                                        }
+                                        if r.hits == 0: Text {
+                                            text: "OK (0 Treffer)";
+                                            color: #81c784;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Tab 1: Proposals
+                    if root.dock_tab_idx == 1: ScrollView {
+                        VerticalLayout {
+                            padding: 8px;
+                            spacing: 4px;
+                            if root.proposals.length == 0: Text {
+                                text: "Keine Vorschläge aus Tabellenvergleichen vorhanden.";
+                                color: #888899;
+                                horizontal-alignment: center;
+                            }
+                            for p[idx] in root.proposals: Rectangle {
+                                height: 34px;
+                                background: #2a2a36;
+                                border-radius: 4px;
+
+                                HorizontalLayout {
+                                    padding-left: 10px; padding-right: 10px;
+                                    alignment: space-between;
+
+                                    Text {
+                                        text: "Quelle: " + p.source_table + " | Schlüssel: " + p.key_val + " (" + p.preview + ")";
+                                        color: #e0e0ec;
+                                        vertical-alignment: center;
+                                    }
+
+                                    Button {
+                                        text: "Übernehmen";
+                                        primary: true;
+                                        clicked => { root.proposal_apply_clicked(idx); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Tab 2: Logs
+                    if root.dock_tab_idx == 2: VerticalLayout {
+                        padding: 6px;
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Logs kopieren";
+                                clicked => { root.copy_logs_clicked(); }
+                            }
+                        }
+                        ScrollView {
+                            VerticalLayout {
+                                for log in root.logs: Text {
+                                    text: "[" + log.timestamp + "] [" + log.level + "] " + log.message;
+                                    color: log.level == "ERROR" ? #ff8a80 : log.level == "WARN" ? #ffd54f : #a6a6b8;
+                                    font-family: "Consolas, Courier New, monospace";
+                                    font-size: 11px;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // FOOTER STATUS BAR
+        Rectangle {
+            height: 24px;
+            background: #18181f;
+            
+            
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                alignment: space-between;
+
+                Text {
+                    text: root.status_message;
+                    color: #9292a4;
+                    vertical-alignment: center;
+                    font-size: 11px;
+                }
+                Text {
+                    text: "Configurable CSV & ODS Analyzer (Rust + Slint)";
+                    color: #646476;
+                    vertical-alignment: center;
+                    font-size: 11px;
+                }
+            }
+        }
+    }
+
+    // --- MODALS / DIALOGS OVERLAYS ---
+
+    // 1. Column Filter Dialog
+    if root.filter_dialog_visible: Rectangle {
+        background: #000000aa;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 360px;
+            height: 440px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+
+                Text {
+                    text: "Filter: " + root.filter_dialog_col_name;
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #ffffff;
+                }
+
+                LineEdit {
+                    placeholder-text: "Werte suchen...";
+                    text: root.filter_dialog_search;
+                    edited(s) => { root.filter_dialog_search = s; }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 2px;
+                        for item[idx] in root.filter_dialog_items: CheckBox {
+                            text: item.value == "" ? "(Leere)" : item.value;
+                            checked: item.selected;
+                            toggled => { root.filter_toggle_item(idx, self.checked); }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    Button {
+                        text: "Abbrechen";
+                        clicked => { root.filter_dialog_visible = false; }
+                    }
+                    Button {
+                        text: "Anwenden";
+                        primary: true;
+                        clicked => {
+                            root.filter_apply_clicked(root.filter_dialog_col_idx);
+                            root.filter_dialog_visible = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fill Column Dialog
+    if root.fill_dialog_visible: Rectangle {
+        background: #000000aa;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 420px;
+            height: 380px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                Text {
+                    text: "Spalte füllen";
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #ffffff;
+                }
+
+                Text {
+                    text: "Zielspalte Index: " + (root.fill_dialog_col_idx + 1);
+                    color: #b0b0c2;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Statisch";
+                        primary: root.fill_dialog_mode == 0;
+                        clicked => { root.fill_dialog_mode = 0; }
+                    }
+                    Button {
+                        text: "Präfix / Suffix";
+                        primary: root.fill_dialog_mode == 1;
+                        clicked => { root.fill_dialog_mode = 1; }
+                    }
+                    Button {
+                        text: "Inkrement";
+                        primary: root.fill_dialog_mode == 2;
+                        clicked => { root.fill_dialog_mode = 2; }
+                    }
+                }
+
+                if root.fill_dialog_mode == 0: LineEdit {
+                    placeholder-text: "Statischer Wert...";
+                    text: root.fill_static_val;
+                    edited(s) => { root.fill_static_val = s; }
+                }
+
+                if root.fill_dialog_mode == 1: VerticalLayout {
+                    spacing: 6px;
+                    LineEdit {
+                        placeholder-text: "Präfix...";
+                        text: root.fill_prefix_val;
+                        edited(s) => { root.fill_prefix_val = s; }
+                    }
+                    LineEdit {
+                        placeholder-text: "Suffix...";
+                        text: root.fill_suffix_val;
+                        edited(s) => { root.fill_suffix_val = s; }
+                    }
+                }
+
+                if root.fill_dialog_mode == 2: VerticalLayout {
+                    spacing: 6px;
+                    LineEdit {
+                        placeholder-text: "Präfix (z. B. SRV-)...";
+                        text: root.fill_prefix_val;
+                        edited(s) => { root.fill_prefix_val = s; }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text { text: "Start:"; vertical-alignment: center; }
+                        LineEdit {
+                            text: root.fill_start_val;
+                            edited(s) => { root.fill_start_val = s.to-float(); }
+                        }
+                        Text { text: "Schritt:"; vertical-alignment: center; }
+                        LineEdit {
+                            text: root.fill_step_val;
+                            edited(s) => { root.fill_step_val = s.to-float(); }
+                        }
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    Button {
+                        text: "Abbrechen";
+                        clicked => { root.fill_dialog_visible = false; }
+                    }
+                    Button {
+                        text: "Ausführen";
+                        primary: true;
+                        clicked => {
+                            root.apply_fill_column(
+                                root.fill_dialog_col_idx,
+                                root.fill_dialog_mode,
+                                root.fill_static_val,
+                                root.fill_prefix_val,
+                                root.fill_suffix_val,
+                                root.fill_start_val,
+                                root.fill_step_val
+                            );
+                            root.fill_dialog_visible = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Split Column Dialog
+    if root.split_dialog_visible: Rectangle {
+        background: #000000aa;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 420px;
+            height: 280px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                Text {
+                    text: "Spalte aufteilen";
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #ffffff;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Trennzeichen:"; vertical-alignment: center; }
+                    LineEdit {
+                        width: 50px;
+                        text: root.split_delimiter;
+                        edited(s) => { root.split_delimiter = s; }
+                    }
+                }
+
+                Text { text: "Neue Spaltennamen (kommagetrennt):"; color: #b0b0c2; }
+                LineEdit {
+                    text: root.split_new_cols;
+                    edited(s) => { root.split_new_cols = s; }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    Button {
+                        text: "Abbrechen";
+                        clicked => { root.split_dialog_visible = false; }
+                    }
+                    Button {
+                        text: "Aufteilen";
+                        primary: true;
+                        clicked => {
+                            root.apply_split_column(
+                                root.split_dialog_col_idx,
+                                root.split_delimiter,
+                                root.split_new_cols
+                            );
+                            root.split_dialog_visible = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Sheet Selection Dialog
+    if root.sheet_dialog_visible: Rectangle {
+        background: #000000aa;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 380px;
+            height: 320px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+
+                Text {
+                    text: "ODS Tabellenblatt auswählen";
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #ffffff;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 4px;
+                        for sheet in root.available_sheets: Button {
+                            text: sheet;
+                            clicked => {
+                                root.select_ods_sheet_clicked(sheet);
+                                root.sheet_dialog_visible = false;
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    text: "Schließen";
+                    clicked => { root.sheet_dialog_visible = false; }
+                }
+            }
+        }
+    }
+
+    // 5. Diff Dialog
+    if root.diff_dialog_visible: Rectangle {
+        background: #000000aa;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 580px;
+            height: 420px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                Text {
+                    text: "Tabellendaten-Diff (CSV <-> ODS / Extern)";
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #ffffff;
+                }
+
+                Text {
+                    text: root.diff_summary_text;
+                    color: #64b5f6;
+                    font-weight: 600;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    Text {
+                        text: root.diff_details_text;
+                        color: #d1d1de;
+                        font-family: "Consolas, Courier New, monospace";
+                        font-size: 11px;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    Button {
+                        text: "Schließen";
+                        clicked => { root.diff_dialog_visible = false; }
+                    }
+                    Button {
+                        text: "Quelle ➔ Ziel synchronisieren";
+                        primary: true;
+                        clicked => {
+                            root.sync_diff_clicked();
+                            root.diff_dialog_visible = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

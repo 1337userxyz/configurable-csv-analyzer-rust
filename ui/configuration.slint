@@ -1,0 +1,1020 @@
+import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+
+export struct SlintViewItem {
+    id: int,
+    name: string,
+    is_default: bool,
+    file_count: int,
+    spreadsheet_path: string,
+    color_pattern: string,
+    export_color_pattern: string,
+}
+
+export struct SlintViewFileItem {
+    id: int,
+    relative_path: string,
+    info_file_path: string,
+    storage_mode: string,
+    integrity_status: string,
+}
+
+export struct SlintBrushItem {
+    key: string,
+    hex_value: string,
+    category: string,
+    is_system: bool,
+    color: color,
+}
+
+export component ConfigurationWindow inherits Window {
+    title: "Hauptkonfiguration - Configurable CSV & ODS Analyzer";
+    min-width: 980px;
+    min-height: 680px;
+    preferred-width: 1040px;
+    preferred-height: 720px;
+    background: #1e1e24;
+    default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
+    default-font-size: 13px;
+
+    // Callbacks to Rust
+    callback save_and_close_clicked();
+    callback cancel_clicked();
+
+    // Tab selection
+    in-out property <int> active_nav_tab: 0; // 0: Views, 1: Storage, 2: Brushes, 3: Associations
+
+    // Views State
+    in-out property <[SlintViewItem]> views: [];
+    in-out property <int> selected_view_idx: 0;
+    in-out property <[SlintViewFileItem]> current_view_files: [];
+    in-out property <int> selected_file_idx: -1;
+    in-out property <string> new_view_name_input: "";
+    in-out property <string> current_spreadsheet_path: "";
+    in-out property <string> current_color_pattern: "None";
+    in-out property <string> current_export_color_pattern: "None";
+
+    callback select_view(int);
+    callback add_view_clicked(string);
+    callback delete_view_clicked(int);
+    callback set_default_view_clicked(int);
+    callback move_view_up(int);
+    callback move_view_down(int);
+    callback browse_spreadsheet_clicked();
+    callback clear_spreadsheet_clicked();
+    callback view_patterns_changed(string, string);
+
+    callback add_csv_to_view_clicked();
+    callback add_folder_to_view_clicked();
+    callback remove_file_from_view_clicked(int);
+    callback move_file_up(int);
+    callback move_file_down(int);
+    callback migrate_info_file_clicked(int);
+    callback open_info_editor_for_file_clicked(int);
+    callback diff_info_file_clicked(int);
+
+    // Storage State
+    in-out property <int> selected_storage_mode: 0; // 0: Dateipfad, 1: Stammverzeichnis, 2: Temporaer, 3: BenutzerEntscheidet
+    in-out property <string> central_directory_path: "./Configs";
+    callback storage_mode_changed(int);
+    callback browse_central_directory();
+    callback central_directory_edited(string);
+
+    // Brushes State
+    in-out property <[SlintBrushItem]> brushes: [];
+    in-out property <string> brush_search_query: "";
+    in-out property <int> selected_brush_idx: -1;
+    in-out property <string> edit_brush_key: "";
+    in-out property <string> edit_brush_hex: "#ffffff";
+    in-out property <string> edit_brush_category: "Status";
+    in-out property <bool> edit_brush_is_system: false;
+    in-out property <int> marker_priority: 100;
+
+    callback brush_selected(int);
+    callback brush_search_changed(string);
+    callback update_brush_clicked(string, string, string);
+    callback add_brush_clicked(string, string, string);
+    callback delete_brush_clicked(string);
+    callback marker_priority_changed(int);
+
+    // Associations State
+    in-out property <bool> check_associations_on_startup: false;
+    in-out property <string> association_status_message: "Bereit";
+    callback toggle_associations_startup(bool);
+    callback register_associations_now();
+
+    // Diff preview modal
+    in-out property <bool> diff_modal_visible: false;
+    in-out property <string> diff_modal_text: "";
+    callback close_diff_modal();
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+
+        // TOP HEADER
+        Rectangle {
+            height: 48px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    Text {
+                        text: "⚙ Hauptkonfiguration";
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: #ffffff;
+
+                    }
+                    Text {
+                        text: "|";
+                        color: #55556a;
+
+                    }
+                    Text {
+                        text: "Sammlungen (Views), Speicherorte, Farbkatalog & System";
+                        font-size: 12px;
+                        color: #9e9eb4;
+
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+
+                    // Navigation Tabs
+                    Button {
+                        text: "📁 Ansichten & Pfade";
+                        primary: root.active_nav_tab == 0;
+                        clicked => { root.active_nav_tab = 0; }
+                    }
+                    Button {
+                        text: "💾 Speicherorte";
+                        primary: root.active_nav_tab == 1;
+                        clicked => { root.active_nav_tab = 1; }
+                    }
+                    Button {
+                        text: "🎨 Farbkatalog";
+                        primary: root.active_nav_tab == 2;
+                        clicked => { root.active_nav_tab = 2; }
+                    }
+                    Button {
+                        text: "🔗 Dateiverknüpfungen";
+                        primary: root.active_nav_tab == 3;
+                        clicked => { root.active_nav_tab = 3; }
+                    }
+                }
+            }
+        }
+
+        // MAIN CONTENT BODY (Switched by active_nav_tab)
+        Rectangle {
+            vertical-stretch: 1;
+            background: #22222b;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            // TAB 0: ANSICHTEN & PFADE ("VIEWS")
+            if root.active_nav_tab == 0: HorizontalLayout {
+                padding: 14px;
+                spacing: 14px;
+
+                // Left: List of Views
+                Rectangle {
+                    width: 290px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+
+                        Text {
+                            text: "Definierte Ansichten (Views)";
+                            font-weight: 600;
+                            color: #ffffff;
+                        }
+
+                        // Add view row
+                        HorizontalLayout {
+                            spacing: 6px;
+                            LineEdit {
+                                placeholder-text: "Neue Ansicht...";
+                                text: root.new_view_name_input;
+                                edited(s) => { root.new_view_name_input = s; }
+                            }
+                            Button {
+                                text: "+";
+                                clicked => {
+                                    if root.new_view_name_input != "" {
+                                        root.add_view_clicked(root.new_view_name_input);
+                                        root.new_view_name_input = "";
+                                    }
+                                }
+                            }
+                        }
+
+                        // Views List
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for v[idx] in root.views: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_view_idx == idx ? #2d3b59 : #242431;
+                                    border-radius: 5px;
+                                    border-width: root.selected_view_idx == idx ? 1.5px : 1px;
+                                    border-color: root.selected_view_idx == idx ? #60a5fa : #353549;
+
+                                    TouchArea {
+                                        clicked => {
+                                            root.selected_view_idx = idx;
+                                            root.select_view(idx);
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 8px;
+                                        alignment: space-between;
+
+                                        HorizontalLayout {
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: v.name;
+                                                font-weight: root.selected_view_idx == idx ? 600 : 400;
+                                                color: root.selected_view_idx == idx ? #ffffff : #d0d0e0;
+
+                                            }
+                                            if v.is_default: Rectangle {
+                                                width: 50px;
+                                                height: 18px;
+                                                background: #1e3a2f;
+                                                border-radius: 3px;
+                                                Text {
+                                                    text: "Standard";
+                                                    font-size: 10px;
+                                                    color: #66bb6a;
+                                                    horizontal-alignment: center;
+
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            text: v.file_count + " Tab.";
+                                            font-size: 11px;
+                                            color: #8c8ca0;
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // View Action Buttons
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Button {
+                                text: "▲";
+                                enabled: root.selected_view_idx > 0;
+                                clicked => { root.move_view_up(root.selected_view_idx); }
+                            }
+                            Button {
+                                text: "▼";
+                                enabled: root.selected_view_idx < root.views.length - 1;
+                                clicked => { root.move_view_down(root.selected_view_idx); }
+                            }
+                            Button {
+                                text: "Als Standard";
+                                clicked => { root.set_default_view_clicked(root.selected_view_idx); }
+                            }
+                            Button {
+                                text: "Löschen";
+                                clicked => { root.delete_view_clicked(root.selected_view_idx); }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Details & Files of selected view
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+
+                        // View Meta Settings
+                        HorizontalLayout {
+                            spacing: 12px;
+
+
+                            Text {
+                                text: "Verknüpftes ODS:";
+                                color: #b0b0c4;
+
+                            }
+                            LineEdit {
+                                horizontal-stretch: 1;
+                                text: root.current_spreadsheet_path;
+                                placeholder-text: "Keine ODS-Datei verknüpft (optional)";
+                                enabled: false;
+                            }
+                            Button {
+                                text: "Durchsuchen...";
+                                clicked => { root.browse_spreadsheet_clicked(); }
+                            }
+                            Button {
+                                text: "Entfernen";
+                                clicked => { root.clear_spreadsheet_clicked(); }
+                            }
+                        }
+
+                        // Pattern row
+                        HorizontalLayout {
+                            spacing: 16px;
+
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: "Farbmuster Grid:"; color: #b0b0c4; vertical-alignment: center; }
+                                LineEdit {
+                                    width: 140px;
+                                    text: root.current_color_pattern;
+                                    edited(s) => {
+                                        root.current_color_pattern = s;
+                                        root.view_patterns_changed(s, root.current_export_color_pattern);
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text { text: "Export-Farbmuster:"; color: #b0b0c4; vertical-alignment: center; }
+                                LineEdit {
+                                    width: 140px;
+                                    text: root.current_export_color_pattern;
+                                    edited(s) => {
+                                        root.current_export_color_pattern = s;
+                                        root.view_patterns_changed(root.current_color_pattern, s);
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle { height: 1px; background: #333346; }
+
+                        // Files in View header
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: "Zugeordnete Tabellendateien (Tabs im Hauptfenster):";
+                                font-weight: 600;
+                                color: #ffffff;
+
+                            }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Button {
+                                    text: "+ CSV hinzufügen";
+                                    primary: true;
+                                    clicked => { root.add_csv_to_view_clicked(); }
+                                }
+                                Button {
+                                    text: "+ Ordner importieren";
+                                    clicked => { root.add_folder_to_view_clicked(); }
+                                }
+                            }
+                        }
+
+                        // Files Table Header
+                        Rectangle {
+                            height: 28px;
+                            background: #252533;
+                            border-radius: 4px;
+
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+
+                                Text { width: 280px; text: "CSV-Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 140px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 120px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { horizontal-stretch: 1; text: "Aktionen"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                            }
+                        }
+
+                        // Files List
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for f[f_idx] in root.current_view_files: Rectangle {
+                                    height: 38px;
+                                    background: root.selected_file_idx == f_idx ? #2d3b59 : #232330;
+                                    border-radius: 4px;
+                                    border-width: root.selected_file_idx == f_idx ? 1px : 0px;
+                                    border-color: #60a5fa;
+
+                                    TouchArea {
+                                        clicked => { root.selected_file_idx = f_idx; }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+
+                                        Text {
+                                            width: 280px;
+                                            text: f.relative_path;
+                                            color: #ffffff;
+                                            overflow: elide;
+
+                                        }
+
+                                        Text {
+                                            width: 140px;
+                                            text: f.storage_mode;
+                                            color: #9fa8da;
+
+                                        }
+
+                                        // Status badge
+                                        Rectangle {
+                                            width: 120px;
+                                            height: 24px;
+                                            background: f.integrity_status == "Gültig" ? #1b382b : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d);
+                                            border-radius: 4px;
+                                            Text {
+                                                text: f.integrity_status;
+                                                font-size: 11px;
+                                                font-weight: 600;
+                                                color: f.integrity_status == "Gültig" ? #66bb6a : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350);
+                                                horizontal-alignment: center;
+
+                                            }
+                                        }
+
+                                        // Action buttons
+                                        HorizontalLayout {
+                                            horizontal-stretch: 1;
+                                            spacing: 4px;
+                                            alignment: end;
+
+
+                                            Button {
+                                                text: "⚙ .info Editor";
+                                                clicked => { root.open_info_editor_for_file_clicked(f_idx); }
+                                            }
+                                            Button {
+                                                text: "Diff";
+                                                clicked => { root.diff_info_file_clicked(f_idx); }
+                                            }
+                                            Button {
+                                                text: "Migrieren";
+                                                clicked => { root.migrate_info_file_clicked(f_idx); }
+                                            }
+                                            Button {
+                                                text: "▲";
+                                                enabled: f_idx > 0;
+                                                clicked => { root.move_file_up(f_idx); }
+                                            }
+                                            Button {
+                                                text: "▼";
+                                                enabled: f_idx < root.current_view_files.length - 1;
+                                                clicked => { root.move_file_down(f_idx); }
+                                            }
+                                            Button {
+                                                text: "✕";
+                                                clicked => { root.remove_file_from_view_clicked(f_idx); }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TAB 1: SPEICHERORTE & INFO-DATEIEN
+            if root.active_nav_tab == 1: VerticalLayout {
+                padding: 24px;
+                spacing: 20px;
+
+                Text {
+                    text: "Globale Speichermodi für Konfigurationsdateien (*.csv.info)";
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #ffffff;
+                }
+
+                Text {
+                    text: "Bestimmt, wo das System beim Laden oder Speichern von CSV-Dateien nach der zugehörigen .info-Konfiguration sucht:";
+                    color: #b0b0c2;
+                }
+
+                VerticalLayout {
+                    spacing: 12px;
+
+                    // Option 0: Dateipfad (Dezentral)
+                    Rectangle {
+                        height: 60px;
+                        background: root.selected_storage_mode == 0 ? #27344e : #1c1c25;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.selected_storage_mode == 0 ? #60a5fa : #36364a;
+
+                        TouchArea { clicked => { root.selected_storage_mode = 0; root.storage_mode_changed(0); } }
+
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 14px;
+
+                            CheckBox {
+                                text: "";
+                                checked: root.selected_storage_mode == 0;
+                                toggled => { root.selected_storage_mode = 0; root.storage_mode_changed(0); }
+                            }
+                            VerticalLayout {
+                                Text { text: "1. Dateipfad (Dezentral - Standard)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Die .csv.info-Datei liegt immer direkt neben der CSV-Datei (z. B. switches.csv.info neben switches.csv)."; font-size: 11px; color: #9c9cb2; }
+                            }
+                        }
+                    }
+
+                    // Option 1: Stammverzeichnis (Zentral)
+                    Rectangle {
+                        height: 60px;
+                        background: root.selected_storage_mode == 1 ? #27344e : #1c1c25;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.selected_storage_mode == 1 ? #60a5fa : #36364a;
+
+                        TouchArea { clicked => { root.selected_storage_mode = 1; root.storage_mode_changed(1); } }
+
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 14px;
+
+                            CheckBox {
+                                text: "";
+                                checked: root.selected_storage_mode == 1;
+                                toggled => { root.selected_storage_mode = 1; root.storage_mode_changed(1); }
+                            }
+                            VerticalLayout {
+                                Text { text: "2. Stammverzeichnis (Zentral)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Alle .info-Dateien werden in einem zentralen Config-Verzeichnis gesammelt gespeichert."; font-size: 11px; color: #9c9cb2; }
+                            }
+                        }
+                    }
+
+                    // Option 2: Temporaer
+                    Rectangle {
+                        height: 60px;
+                        background: root.selected_storage_mode == 2 ? #27344e : #1c1c25;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.selected_storage_mode == 2 ? #60a5fa : #36364a;
+
+                        TouchArea { clicked => { root.selected_storage_mode = 2; root.storage_mode_changed(2); } }
+
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 14px;
+
+                            CheckBox {
+                                text: "";
+                                checked: root.selected_storage_mode == 2;
+                                toggled => { root.selected_storage_mode = 2; root.storage_mode_changed(2); }
+                            }
+                            VerticalLayout {
+                                Text { text: "3. Temporär (Nur im Arbeitsspeicher)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Änderungen an Mappings & Regeln gelten nur für die laufende Sitzung und werden nicht auf Platte persistiert."; font-size: 11px; color: #9c9cb2; }
+                            }
+                        }
+                    }
+
+                    // Option 3: BenutzerEntscheidet
+                    Rectangle {
+                        height: 60px;
+                        background: root.selected_storage_mode == 3 ? #27344e : #1c1c25;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.selected_storage_mode == 3 ? #60a5fa : #36364a;
+
+                        TouchArea { clicked => { root.selected_storage_mode = 3; root.storage_mode_changed(3); } }
+
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 14px;
+
+                            CheckBox {
+                                text: "";
+                                checked: root.selected_storage_mode == 3;
+                                toggled => { root.selected_storage_mode = 3; root.storage_mode_changed(3); }
+                            }
+                            VerticalLayout {
+                                Text { text: "4. Interaktive Benutzerabfrage"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert werden soll."; font-size: 11px; color: #9c9cb2; }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: #333346; }
+
+                // Central Directory Config
+                VerticalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "Zentrales Konfigurationsverzeichnis (für Modus Stammverzeichnis):";
+                        font-weight: 600;
+                        color: #ffffff;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        LineEdit {
+                            horizontal-stretch: 1;
+                            text: root.central_directory_path;
+                            edited(s) => {
+                                root.central_directory_path = s;
+                                root.central_directory_edited(s);
+                            }
+                        }
+                        Button {
+                            text: "Ordner auswählen...";
+                            clicked => { root.browse_central_directory(); }
+                        }
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+            }
+
+            // TAB 2: FARBKATALOG (BRUSHES)
+            if root.active_nav_tab == 2: HorizontalLayout {
+                padding: 14px;
+                spacing: 14px;
+
+                // Left: Brushes list & search
+                Rectangle {
+                    width: 480px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: "Farbkatalog (Brushes)";
+                                font-weight: 600;
+                                color: #ffffff;
+
+                            }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Text { text: "Priorität:"; color: #9c9cb2; vertical-alignment: center; }
+                                LineEdit {
+                                    width: 60px;
+                                    text: root.marker_priority;
+                                    edited(s) => {
+                                        // Update priority
+                                    }
+                                }
+                            }
+                        }
+
+                        // Search
+                        LineEdit {
+                            placeholder-text: "Nach Name, Kategorie oder Hex filtern...";
+                            text: root.brush_search_query;
+                            edited(s) => {
+                                root.brush_search_query = s;
+                                root.brush_search_changed(s);
+                            }
+                        }
+
+                        // Brushes List
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for b[b_idx] in root.brushes: Rectangle {
+                                    height: 36px;
+                                    background: root.selected_brush_idx == b_idx ? #2d3b59 : #242431;
+                                    border-radius: 4px;
+                                    border-width: root.selected_brush_idx == b_idx ? 1px : 0px;
+                                    border-color: #60a5fa;
+
+                                    TouchArea {
+                                        clicked => {
+                                            root.selected_brush_idx = b_idx;
+                                            root.brush_selected(b_idx);
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+
+                                        // Color Preview Box
+                                        Rectangle {
+                                            width: 20px;
+                                            height: 20px;
+                                            background: b.color;
+                                            border-radius: 3px;
+                                            border-width: 1px;
+                                            border-color: #ffffff44;
+                                        }
+
+                                        Text {
+                                            width: 170px;
+                                            text: b.key;
+                                            font-weight: 600;
+                                            color: #ffffff;
+                                            overflow: elide;
+
+                                        }
+
+                                        Text {
+                                            width: 80px;
+                                            text: b.hex_value;
+                                            color: #ffca28;
+                                            font-family: "Consolas, Courier New, monospace";
+
+                                        }
+
+                                        Text {
+                                            horizontal-stretch: 1;
+                                            text: b.category;
+                                            color: #90caf9;
+                                            font-size: 11px;
+
+                                        }
+
+                                        if b.is_system: Text {
+                                            text: "System";
+                                            font-size: 10px;
+                                            color: #7986cb;
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Edit / Add Brush pane
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 16px;
+                        spacing: 14px;
+
+                        Text {
+                            text: root.selected_brush_idx >= 0 ? "Farbdefinition bearbeiten" : "Neue Farbe hinzufügen";
+                            font-size: 15px;
+                            font-weight: 600;
+                            color: #ffffff;
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Schlüsselname (Key):"; color: #b0b0c2; }
+                            LineEdit {
+                                text: root.edit_brush_key;
+                                placeholder-text: "z.B. MarkerCyan oder AlertBrush";
+                                enabled: !root.edit_brush_is_system;
+                                edited(s) => { root.edit_brush_key = s; }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Hex-Farbwert (#RRGGBB):"; color: #b0b0c2; }
+                            LineEdit {
+                                text: root.edit_brush_hex;
+                                placeholder-text: "#FF5722";
+                                edited(s) => { root.edit_brush_hex = s; }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Kategorie (UI, Status, Textmarker, Analyse, Logging):"; color: #b0b0c2; }
+                            LineEdit {
+                                text: root.edit_brush_category;
+                                edited(s) => { root.edit_brush_category = s; }
+                            }
+                        }
+
+                        // Quick palette buttons
+                        Text { text: "Schnellauswahl-Palette:"; font-size: 11px; color: #8e8ea6; }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Button { text: "Rot"; clicked => { root.edit_brush_hex = "#ef5350"; } }
+                            Button { text: "Grün"; clicked => { root.edit_brush_hex = "#66bb6a"; } }
+                            Button { text: "Gelb"; clicked => { root.edit_brush_hex = "#fff59d"; } }
+                            Button { text: "Blau"; clicked => { root.edit_brush_hex = "#42a5f5"; } }
+                            Button { text: "Orange"; clicked => { root.edit_brush_hex = "#ffa726"; } }
+                            Button { text: "Lila"; clicked => { root.edit_brush_hex = "#ab47bc"; } }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+
+                            if root.selected_brush_idx >= 0 && !root.edit_brush_is_system: Button {
+                                text: "Farbe löschen";
+                                clicked => { root.delete_brush_clicked(root.edit_brush_key); }
+                            }
+
+                            Button {
+                                text: "+ Neu anlegen";
+                                clicked => {
+                                    root.add_brush_clicked(root.edit_brush_key, root.edit_brush_hex, root.edit_brush_category);
+                                }
+                            }
+
+                            Button {
+                                text: "Übernehmen";
+                                primary: true;
+                                clicked => {
+                                    root.update_brush_clicked(root.edit_brush_key, root.edit_brush_hex, root.edit_brush_category);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TAB 3: DATEIVERKNÜPFUNGEN
+            if root.active_nav_tab == 3: VerticalLayout {
+                padding: 24px;
+                spacing: 20px;
+
+                Text {
+                    text: "Betriebssystem-Dateiverknüpfungen (Windows Shell Association)";
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #ffffff;
+                }
+
+                Text {
+                    text: "Ermöglicht das Öffnen von CSV- und .info-Dateien direkt per Doppelklick im Windows Explorer.";
+                    color: #b0b0c2;
+                }
+
+                Rectangle {
+                    height: 80px;
+                    background: #1c1c25;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #36364a;
+
+                    HorizontalLayout {
+                        padding: 16px;
+                        spacing: 16px;
+
+
+                        CheckBox {
+                            text: "Beim Start automatisch prüfen, ob Dateiendungen (.csv, .csv.info) verknüpft sind";
+                            checked: root.check_associations_on_startup;
+                            toggled => {
+                                root.check_associations_on_startup = self.checked;
+                                root.toggle_associations_startup(self.checked);
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+
+                    Button {
+                        text: "🔗 Dateiverknüpfungen jetzt im Betriebssystem registrieren";
+                        primary: true;
+                        clicked => { root.register_associations_now(); }
+                    }
+
+                    Text {
+                        text: root.association_status_message;
+                        color: #64b5f6;
+                        font-weight: 600;
+
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+
+        // BOTTOM ACTION BAR
+        Rectangle {
+            height: 48px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #38384a;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 10px;
+                alignment: end;
+
+
+                Button {
+                    text: "Abbrechen";
+                    clicked => { root.cancel_clicked(); }
+                }
+
+                Button {
+                    text: "Speichern & Schließen";
+                    primary: true;
+                    clicked => { root.save_and_close_clicked(); }
+                }
+            }
+        }
+    }
+
+    // DIFF MODAL
+    if root.diff_modal_visible: Rectangle {
+        background: #000000bb;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        Rectangle {
+            width: 650px;
+            height: 480px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+
+                Text {
+                    text: "Info-Dateien Vergleich (Diff)";
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #ffffff;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    Text {
+                        text: root.diff_modal_text;
+                        color: #d1d1de;
+                        font-family: "Consolas, Courier New, monospace";
+                        font-size: 12px;
+                    }
+                }
+
+                Button {
+                    text: "Schließen";
+                    clicked => { root.close_diff_modal(); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,56 @@
+{
+  "InfoFileVersion": 1,
+  "CsvSettings": {
+    "FileName": "switches.csv",
+    "Delimiter": ",",
+    "HasHeader": true,
+    "Encoding": "utf-8"
+  },
+  "ColumnMappings": {
+    "DeviceName": "sw_name",
+    "IPAddress": "management_ip",
+    "Rack": "rack_id",
+    "Ports": "port_count",
+    "Status": "status"
+  },
+  "ColumnSettings": [
+    { "ColumnName": "sw_name", "Width": 160, "IsVisible": true, "DisplayOrder": 0 },
+    { "ColumnName": "management_ip", "Width": 150, "IsVisible": true, "DisplayOrder": 1 },
+    { "ColumnName": "rack_id", "Width": 120, "IsVisible": true, "DisplayOrder": 2 },
+    { "ColumnName": "port_count", "Width": 120, "IsVisible": true, "DisplayOrder": 3 },
+    { "ColumnName": "status", "Width": 120, "IsVisible": true, "DisplayOrder": 4 }
+  ],
+  "SavedFilterPresets": [],
+  "Rules": [
+    {
+      "Type": "bulkField",
+      "id": "RULE-REQ-IP",
+      "description": "Prüfe IP-Adresse auf Pflichtfeld",
+      "concept": "IPAddress",
+      "check_all_for_empty": true,
+      "check_all_for_placeholder": false,
+      "placeholders": []
+    },
+    {
+      "Type": "bulkField",
+      "id": "RULE-STATUS",
+      "description": "Prüfe Status auf Platzhalter (TBD / leer)",
+      "concept": "Status",
+      "check_all_for_empty": true,
+      "check_all_for_placeholder": true,
+      "placeholders": ["TBD", "-", "???"]
+    },
+    {
+      "Type": "groupValidation",
+      "id": "RULE-RACK-PORTS",
+      "description": "Ports im Rack zwischen 1 und 100",
+      "group_by_concept": "Rack",
+      "is_unique": false,
+      "numeric_range": {
+        "concept": "Ports",
+        "min": 1.0,
+        "max": 100.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+sw_name,management_ip,rack_id,port_count,status
+SW-KOLN-01,10.10.1.1,Rack-A,48,Active
+SW-KOLN-02,10.10.1.2,Rack-A,48,Active
+SW-KOLN-03,10.10.1.3,Rack-B,24,TBD
+SW-KOLN-04,10.10.1.4,Rack-B,24,Active
+SW-KOLN-05,,Rack-C,48,
+SW-KOLN-06,10.10.1.6,Rack-C,500,Active
