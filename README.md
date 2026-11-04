@@ -113,3 +113,7 @@ Die vollständige funktionale Spezifikation für die beiden noch fehlenden Dialo
    - Gruppenvalidierungen (`GroupValidationRules`)
    - Highlight- & Folgeregeln (`HighlightRules`, `ApplyRules`)
    - Semantische Validierung vor dem Speichern
+
+
+Zusätzliche Detail-Spezifikation für komplexe relationale Joins:
+👉 **[`SPEC_VIRTUAL_COLUMNS_JOIN_STEPS.md`](./SPEC_VIRTUAL_COLUMNS_JOIN_STEPS.md)** (Multi-Step-Joins, Live Hit Counts, Beziehungs-Erkennung 1:1/1:N und Aggregationen).
