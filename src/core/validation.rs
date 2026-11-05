@@ -66,7 +66,7 @@ impl TableConfigValidator {
             if trimmed.is_empty() {
                 return false;
             }
-            info.column_mappings.contains_key(trimmed)
+            info.column_mappings.keys().any(|k| k.eq_ignore_ascii_case(trimmed))
                 || table.headers.iter().any(|h| h.eq_ignore_ascii_case(trimmed))
         };
 
@@ -131,7 +131,7 @@ impl TableConfigValidator {
                         });
                     }
                     if let Some(uc) = unique_concept {
-                        if !concept_or_col_exists(uc) {
+                        if !uc.trim().is_empty() && !concept_or_col_exists(uc) {
                             issues.push(ValidationIssue {
                                 severity: ValidationSeverity::Warning,
                                 tab_index: tab_idx,
@@ -141,7 +141,7 @@ impl TableConfigValidator {
                         }
                     }
                     if let Some(nr) = numeric_range {
-                        if !concept_or_col_exists(&nr.concept) {
+                        if !nr.concept.trim().is_empty() && !concept_or_col_exists(&nr.concept) {
                             issues.push(ValidationIssue {
                                 severity: ValidationSeverity::Warning,
                                 tab_index: tab_idx,
@@ -151,7 +151,7 @@ impl TableConfigValidator {
                         }
                     }
                     if let Some(gc) = group_consistency {
-                        if !concept_or_col_exists(&gc.concept) {
+                        if !gc.concept.trim().is_empty() && !concept_or_col_exists(&gc.concept) {
                             issues.push(ValidationIssue {
                                 severity: ValidationSeverity::Warning,
                                 tab_index: tab_idx,
@@ -212,7 +212,7 @@ impl TableConfigValidator {
                                         message: format!("Quellkonzept in Schritt {} Bedingung {} fehlt.", s_idx + 1, m_idx + 1),
                                     });
                                 } else if mapping.manual_remote_value.is_none() {
-                                    if current_intermediate_table.find_col_index(&mapping.host_concept).is_none() {
+                                    if !current_intermediate_table.headers.is_empty() && current_intermediate_table.find_col_index(&mapping.host_concept).is_none() {
                                         issues.push(ValidationIssue {
                                             severity: ValidationSeverity::Error,
                                             tab_index: tab_idx,
@@ -230,7 +230,7 @@ impl TableConfigValidator {
                                         message: format!("Zielkonzept in Schritt {} Bedingung {} fehlt.", s_idx + 1, m_idx + 1),
                                     });
                                 } else if let Some(target) = tgt_tbl {
-                                    if target.find_col_index(&mapping.remote_concept).is_none() {
+                                    if !target.headers.is_empty() && target.find_col_index(&mapping.remote_concept).is_none() {
                                         issues.push(ValidationIssue {
                                             severity: ValidationSeverity::Error,
                                             tab_index: tab_idx,
@@ -287,7 +287,7 @@ impl TableConfigValidator {
                                 message: format!("Schlüsselkonzept '{}' in '{}' ist nicht definiert.", key_concept, id),
                             });
                         }
-                        if let Some(tgt_tbl) = all_tables.get(target_table) {
+                        if let Some(tgt_tbl) = crate::core::rules::RuleEngine::resolve_table(target_table, table, all_tables) {
                             if tgt_tbl.find_col_index(target_key_concept).is_none() {
                                 issues.push(ValidationIssue {
                                     severity: ValidationSeverity::Error,
@@ -332,7 +332,7 @@ impl TableConfigValidator {
                             message: format!("Schlüsselkonzept '{}' in '{}' ist nicht definiert.", key_concept, id),
                         });
                     }
-                    if let Some(tgt_tbl) = all_tables.get(target_table) {
+                    if let Some(tgt_tbl) = crate::core::rules::RuleEngine::resolve_table(target_table, table, all_tables) {
                         if tgt_tbl.find_col_index(target_key_concept).is_none() {
                             issues.push(ValidationIssue {
                                 severity: ValidationSeverity::Error,
@@ -399,7 +399,7 @@ impl TableConfigValidator {
                             });
                         }
                     }
-                    if target_table != "$self" && !all_tables.contains_key(target_table) && !target_table.trim().is_empty() {
+                    if target_table != "$self" && crate::core::rules::RuleEngine::resolve_table(target_table, table, all_tables).is_none() && !target_table.trim().is_empty() {
                         issues.push(ValidationIssue {
                             severity: ValidationSeverity::Warning,
                             tab_index: tab_idx,
@@ -460,8 +460,6 @@ impl TableConfigValidator {
             clean = clean.replace(&format!("{{{}}}", ph), "1");
         }
 
-        // Substitute raw identifiers with dummy number 1 if they match concept_checker
-        // But for evalexpr syntax testing, let's just parse with evalexpr
         match evalexpr::build_operator_tree::<evalexpr::DefaultNumericTypes>(&clean) {
             Ok(_) => (true, "Gültig".to_string()),
             Err(e) => (false, e.to_string()),

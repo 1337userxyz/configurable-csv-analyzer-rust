@@ -23,6 +23,10 @@ impl ColorCache {
                 self.cache.insert(b.key.to_lowercase(), c);
                 self.cache.insert(b.hex_value.to_lowercase(), c);
             }
+            if let Some(c_semi) = Self::parse_hex(&b.hex_value, 180) {
+                self.cache.insert(format!("{}_180", b.key.to_lowercase()), c_semi);
+                self.cache.insert(format!("{}_180", b.hex_value.to_lowercase()), c_semi);
+            }
         }
 
         // Prewarm marker colors (alpha 180 for cell background)
@@ -47,6 +51,7 @@ impl ColorCache {
         // Transparent
         self.cache.insert("transparent".into(), Color::from_argb_u8(0, 0, 0, 0));
         self.cache.insert("none".into(), Color::from_argb_u8(0, 0, 0, 0));
+        self.cache.insert("keine".into(), Color::from_argb_u8(0, 0, 0, 0));
         self.cache.insert("".into(), Color::from_argb_u8(0, 0, 0, 0));
     }
 
@@ -65,18 +70,29 @@ impl ColorCache {
 
     pub fn get_or_parse(&mut self, key_or_hex: &str, alpha: u8) -> Color {
         let trimmed = key_or_hex.trim();
-        if trimmed.is_empty() {
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("keine") || trimmed.eq_ignore_ascii_case("none") || trimmed.eq_ignore_ascii_case("transparent") {
             return Color::from_argb_u8(0, 0, 0, 0);
         }
         let lower = trimmed.to_lowercase();
         let cache_key = if alpha == 255 {
-            lower
+            lower.clone()
         } else {
             format!("{}_{}", lower, alpha)
         };
 
         if let Some(&c) = self.cache.get(&cache_key) {
             return c;
+        }
+
+        // Check if we have the 255-alpha color for this named brush key
+        if alpha != 255 {
+            if let Some(&base) = self.cache.get(&lower) {
+                if base.alpha() > 0 {
+                    let derived = Color::from_argb_u8(alpha, base.red(), base.green(), base.blue());
+                    self.cache.insert(cache_key, derived);
+                    return derived;
+                }
+            }
         }
 
         let parsed = Self::parse_hex(trimmed, alpha).unwrap_or_else(|| Color::from_argb_u8(0, 0, 0, 0));

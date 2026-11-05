@@ -1,0 +1,254 @@
+
+=== Session gestartet: 2026-11-05 11:28:46.745 ===
+[2026-11-05 11:28:46.746] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)[[2026-11-05 11:28:46.746[
+2026-11-05 11:28:46.746] [2026-11-05 11:28:46.746] [] [INFOINFOINFO] ] RuleEngineRuleEngine] : : RuleEngineStarte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext): Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+
+[[2026-11-05 11:28:46.7472026-11-05 11:28:46.747] [] [INFOINFO] ] RuleEngineRuleEngine: : Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+
+=== Session gestartet: 2026-11-05 11:34:45.433 ===
+[2026-11-05 11:34:45.434] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 11:35:12.530] [INFO] Import: 6 CSV-Dateien in "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt" gefunden.
+[2026-11-05 11:35:12.534] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 11:35:12.536] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 11:35:12.549] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 120 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:35:12.549] [WARN] RuleEngine: Join 'Join_2' in 'room-outlet-map': Zieltabelle 'verbindungstabelle' nicht geöffnet.
+[2026-11-05 11:35:12.550] [INFO] RuleEngine: Join-Regel 'Join_2' auf 'room-outlet-map' ausgeführt: 0 Treffer (1 virtuelle Spalten).
+[2026-11-05 11:35:12.553] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 11:35:12.566] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 120 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:35:12.566] [WARN] RuleEngine: Join 'Join_2' in 'room-outlet-map': Zieltabelle 'verbindungstabelle' nicht geöffnet.
+[2026-11-05 11:35:12.567] [INFO] RuleEngine: Join-Regel 'Join_2' auf 'room-outlet-map' ausgeführt: 0 Treffer (1 virtuelle Spalten).
+[2026-11-05 11:35:12.571] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 11:35:12.584] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 120 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:35:12.585] [INFO] RuleEngine: Join-Regel 'Join_2' auf 'room-outlet-map' ausgeführt: 0 Treffer (1 virtuelle Spalten).
+[2026-11-05 11:35:12.589] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 11:35:12.602] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 120 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:35:12.603] [INFO] RuleEngine: Join-Regel 'Join_2' auf 'room-outlet-map' ausgeführt: 0 Treffer (1 virtuelle Spalten).
+[2026-11-05 11:36:06.726] [INFO] InfoFile: Konfiguration erfolgreich gespeichert nach "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (1 Regeln)
+[2026-11-05 11:36:06.731] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (1 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 11:36:06.746] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:37:43.261] [INFO] InfoFile: Konfiguration erfolgreich gespeichert nach "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 11:37:43.266] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 11:37:43.281] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 11:37:43.282] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 11:58:49.730 ===
+[2026-11-05 11:58:49.731] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 11:58:49.731] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 11:58:49.731] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 11:58:49.732] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 11:58:49.732] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 11:58:49.733] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 12:00:27.116 ===
+[2026-11-05 12:00:27.127] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 12:00:27.127] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 12:00:27.127] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+[2026-11-05 12:00:27.127] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 12:00:27.127] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)[
+2026-11-05 12:00:27.127] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 12:23:47.058 ===
+[2026-11-05 12:23:47.062] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 12:27:58.844] [INFO] Import: 6 CSV-Dateien in "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt" gefunden.
+[2026-11-05 12:27:58.848] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 12:27:58.850] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 12:27:58.868] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 12:27:58.868] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 12:27:58.873] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 12:27:58.890] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 12:27:58.891] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 12:27:58.896] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 12:27:58.912] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 12:27:58.913] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 12:27:58.919] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 12:27:58.935] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 12:27:58.935] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 12:29:15.424] [INFO] Transform: Smart Add Zeile hinzugefügt (Index 8).
+[2026-11-05 12:29:15.428] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 12:29:15.446] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 12:29:15.447] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 12:47:37.082 ===
+[2026-11-05 12:47:37.083] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 12:47:37.083] [INFO] [RuleEngine2026-11-05 12:47:37.083: ] [Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)INFO
+] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 12:47:37.084] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 12:47:37.085] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 12:47:37.085] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 13:08:40.464 ===
+[2026-11-05 13:08:40.464] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+
+=== Session gestartet: 2026-11-05 14:04:21.435 ===
+[2026-11-05 14:04:21.436] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:04:21.436] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:04:21.436] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:04:21.436] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:04:21.437] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 14:04:21.437] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 14:15:19.900 ===
+[2026-11-05 14:15:19.902] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:15:19.902] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:15:19.904] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:15:19.905] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:15:19.908] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 14:15:19.908] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 14:16:37.474 ===
+[2026-11-05 14:16:37.475] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:17:02.999] [INFO] ODS: ODS-Datei 'R:\git\configurable-csv-analyzer-rust\examples\ods\09g18.ods' mit Kollektion 'Standard-Kollektion' verknüpft.
+[2026-11-05 14:17:11.356] [INFO] Config: 6 CSV-Datei(en) aus Ordner "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt" zur Kollektion 'Standard-Kollektion' hinzugefügt.
+[2026-11-05 14:17:26.620] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:17:26.626] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:17:26.628] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:17:26.644] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:26.645] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:17:26.650] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:17:26.666] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:26.666] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:17:26.673] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:17:26.689] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:26.689] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:17:26.697] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:17:26.712] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:26.713] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:17:26.720] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:17:26.736] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:26.736] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:17:26.739] [INFO] Config: Hauptkonfiguration & Kollektionen gespeichert und angewandt.
+[2026-11-05 14:17:56.613] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:17:56.617] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:17:56.635] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:17:56.635] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 14:18:43.007 ===
+[2026-11-05 14:18:43.008] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:18:43.008] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:18:43.017] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:18:43.035] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:18:43.052] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:18:43.052] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:18:43.058] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:18:43.080] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:18:43.080] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:18:43.088] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:18:43.105] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:18:43.106] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:18:43.115] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:18:43.131] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:18:43.131] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:18:43.141] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:18:43.159] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:18:43.159] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 14:19:38.440 ===
+[2026-11-05 14:19:38.441] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:19:38.441] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:19:38.448] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:19:38.457] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:19:38.484] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:38.484] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:19:38.494] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:19:38.511] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:38.511] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:19:38.521] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:19:38.544] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:38.545] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:19:38.553] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:19:38.569] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:38.569] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:19:38.579] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:19:38.594] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:38.595] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:19:47.270] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:19:47.274] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:19:47.289] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:19:47.290] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 14:34:19.444 ===
+[2026-11-05 14:34:19.445] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:34:19.489] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:34:19.499] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:34:19.499] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:34:19.540] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 14:34:19.540] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 14:37:20.797 ===
+[2026-11-05 14:37:20.798] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:37:20.798] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:37:20.811] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:37:20.814] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:37:20.829] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:37:20.830] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:37:20.837] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:37:20.851] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:37:20.851] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:37:20.858] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:37:20.873] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:37:20.873] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:37:20.882] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:37:20.897] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:37:20.897] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:37:20.906] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:37:20.920] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:37:20.921] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 14:43:35.042 ===
+[2026-11-05 14:43:35.043] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:43:35.044] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:43:35.045] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 14:43:35.046] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:43:35.047] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 14:43:35.047] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-05 14:48:01.495 ===
+[2026-11-05 14:48:01.495] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:48:01.496] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:48:01.500] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:48:01.504] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:48:01.518] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:48:01.518] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:48:01.524] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:48:01.548] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:48:01.548] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:48:01.557] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:48:01.572] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:48:01.572] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:48:01.581] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:48:01.596] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:48:01.596] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:48:01.605] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:48:01.619] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:48:01.620] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:48:42.684] [INFO] Export: ✓ 6 CSV-Tabelle(n) erfolgreich in ODS-Arbeitsmappe '"09g18.ods"' exportiert.
+
+=== Session gestartet: 2026-11-05 14:49:02.162 ===
+[2026-11-05 14:49:02.162] [INFO] App: Configurable CSV & ODS Analyzer gestartet.
+[2026-11-05 14:49:02.163] [INFO] Collection: Aktiviere Kollektion 'Standard-Kollektion' (6 Dateien)
+[2026-11-05 14:49:02.168] [INFO] InfoFile: Konfiguration automatisch geladen für 'room-outlet-map': "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv.info" (2 Regeln)
+[2026-11-05 14:49:02.174] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 4 Tabellen im Kontext)
+[2026-11-05 14:49:02.217] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:49:02.217] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:49:02.223] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 5 Tabellen im Kontext)
+[2026-11-05 14:49:02.236] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:49:02.237] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:49:02.247] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 6 Tabellen im Kontext)
+[2026-11-05 14:49:02.262] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:49:02.263] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:49:02.280] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:49:02.293] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:49:02.294] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 14:49:02.305] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'room-outlet-map' (2 Regeln definiert, 7 Tabellen im Kontext)
+[2026-11-05 14:49:02.319] [INFO] RuleEngine: Join-Regel 'Join_1' auf 'room-outlet-map' ausgeführt: 444 Treffer (3 virtuelle Spalten).
+[2026-11-05 14:49:02.319] [INFO] RuleEngine: Highlight-Regel 'verbunden' auf 'room-outlet-map'.'Status' (Equals 'verbunden', invert=false) ausgeführt: 19 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+
+=== Session gestartet: 2026-11-05 15:13:21.634 ===
+[2026-11-05 15:13:21.635] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 15:13:21.635] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 15:13:21.636] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-05 15:13:21.636] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-05 15:13:21.637] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-05 15:13:21.638] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).

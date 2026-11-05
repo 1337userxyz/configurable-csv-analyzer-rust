@@ -10,19 +10,24 @@ use slint::{Color, ComponentHandle, Model, ModelRc, VecModel};
 
 use configurable_csv_analyzer::core::io::csv::{find_all_csvs_in_dir, load_csv, save_csv};
 use configurable_csv_analyzer::core::io::info::{
-    apply_info_to_table, default_config_path, default_info_path_for_table, default_views_path,
-    load_app_config, load_info_file, load_views_file, save_info_file, build_info_from_table,
+    apply_info_to_table, build_info_from_table, default_config_path, default_info_path_for_table,
+    default_views_path, load_app_config, load_info_file, load_views_file, save_info_file,
+    save_views_file,
 };
-use configurable_csv_analyzer::core::io::ods::{list_ods_sheets, load_ods_sheet, open_in_libreoffice};
-use configurable_csv_analyzer::core::color_cache::cached_color;
+use configurable_csv_analyzer::core::io::ods::{
+    create_ods_file, list_ods_sheets, load_ods_sheet, open_in_libreoffice,
+};
+use configurable_csv_analyzer::core::color_cache::{cached_color, get_global_color_cache};
 use configurable_csv_analyzer::core::logging::{get_global_logger, log_error, log_info};
 use configurable_csv_analyzer::core::model::{
-    AppConfig, FilterCondition, TableData, TextMarkerColor, ViewsFile,
+    AppConfig, BrushCategory, FilterCondition, HighlightItem, TableData, TextMarkerColor,
+    ViewFileItem, ViewsFile,
 };
 use configurable_csv_analyzer::core::rules::RuleEngine;
 use configurable_csv_analyzer::core::transforms::{
-    compare_tables, export_to_clipboard_string, fill_column, paste_clipboard_data,
-    smart_add_row, split_column, FillMode,
+    build_smart_add_dialog_state, compare_tables, execute_smart_add_rows,
+    export_to_clipboard_string, fill_column, load_all_suggestions_for_column,
+    paste_clipboard_data, split_column, FillMode,
 };
 
 mod dialogs;
@@ -33,11 +38,13 @@ pub struct AppState {
     pub tables: HashMap<String, TableData>,
     pub tab_order: Vec<String>,
     pub active_tab_id: Option<String>,
+    pub active_view_name: Option<String>,
     pub search_query: String,
     pub only_marked: bool,
     pub pending_ods_path: Option<PathBuf>,
     pub app_config: AppConfig,
     pub views_config: ViewsFile,
+    pub active_view_mode: usize, // 0 = Alle, 1 = CSV, 2 = ODS
 }
 
 impl AppState {
@@ -46,22 +53,49 @@ impl AppState {
             tables: HashMap::new(),
             tab_order: Vec::new(),
             active_tab_id: None,
+            active_view_name: None,
             search_query: String::new(),
             only_marked: false,
             pending_ods_path: None,
             app_config: AppConfig::default(),
             views_config: ViewsFile::default(),
+            active_view_mode: 0,
         }
     }
 
     pub fn add_table(&mut self, mut table: TableData) -> String {
         // Try auto-loading .info file if exists
         if let Some(ref p) = table.file_path {
-            let info_p = default_info_path_for_table(p);
+            let mut info_p = default_info_path_for_table(p);
+            if !info_p.exists() {
+                // Also check central config directory if configured
+                let central = PathBuf::from(&self.app_config.central_config_directory);
+                if let Some(fname) = p.file_name() {
+                    let candidate = central.join(format!("{}.info", fname.to_string_lossy()));
+                    if candidate.exists() {
+                        info_p = candidate;
+                    }
+                }
+            }
             if info_p.exists() {
-                if let Ok(info) = load_info_file(&info_p) {
-                    apply_info_to_table(&mut table, &info);
-                    log_info("InfoFile", &format!("Konfiguration automatisch geladen: {:?}", info_p));
+                match load_info_file(&info_p) {
+                    Ok(info) => {
+                        let rule_count = info.rules.len();
+                        apply_info_to_table(&mut table, &info);
+                        log_info(
+                            "InfoFile",
+                            &format!(
+                                "Konfiguration automatisch geladen für '{}': {:?} ({} Regeln)",
+                                table.display_name, info_p, rule_count
+                            ),
+                        );
+                    }
+                    Err(e) => {
+                        log_error(
+                            "InfoFile",
+                            &format!("Fehler beim Laden der Info-Datei {:?}: {}", info_p, e),
+                        );
+                    }
                 }
             }
         }
@@ -72,7 +106,262 @@ impl AppState {
         }
         self.tables.insert(id.clone(), table);
         self.active_tab_id = Some(id.clone());
+
+        // Execute rules across all loaded tables so joins and highlights are immediately active
+        self.execute_all_rules();
+
         id
+    }
+
+    pub fn activate_and_load_view(&mut self, view_idx: usize) {
+        let Some(view) = self.views_config.views.get(view_idx).cloned() else {
+            return;
+        };
+        self.active_view_name = Some(view.name.clone());
+        log_info(
+            "Collection",
+            &format!(
+                "Aktiviere Kollektion '{}' ({} Dateien)",
+                view.name,
+                view.files.len()
+            ),
+        );
+
+        let mut ordered_tab_ids: Vec<String> = Vec::new();
+
+        for file_item in &view.files {
+            let p = PathBuf::from(&file_item.relative_path);
+            let existing_id = self
+                .tables
+                .values()
+                .find(|t| t.file_path.as_ref() == Some(&p))
+                .map(|t| t.id.clone());
+
+            if let Some(id) = existing_id {
+                if !ordered_tab_ids.contains(&id) {
+                    ordered_tab_ids.push(id);
+                }
+            } else if p.exists() {
+                let is_ods = p
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.eq_ignore_ascii_case("ods"))
+                    .unwrap_or(false);
+                if is_ods {
+                    match list_ods_sheets(&p) {
+                        Ok(sheets) => {
+                            for sheet in sheets {
+                                let sheet_id = format!("{}::{}", p.to_string_lossy(), sheet);
+                                let existing_tbl_id = self
+                                    .tables
+                                    .values()
+                                    .find(|t| t.id == sheet_id || (t.file_path.as_ref() == Some(&p) && t.sheet_name.as_deref() == Some(&sheet)))
+                                    .map(|t| t.id.clone());
+
+                                if let Some(id) = existing_tbl_id {
+                                    if !ordered_tab_ids.contains(&id) {
+                                        ordered_tab_ids.push(id);
+                                    }
+                                } else if let Ok(tbl) = load_ods_sheet(&p, Some(&sheet)) {
+                                    let id = self.add_table(tbl);
+                                    if !ordered_tab_ids.contains(&id) {
+                                        ordered_tab_ids.push(id);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log_error(
+                                "Collection",
+                                &format!("Fehler beim Lesen der ODS-Blätter von {:?}: {}", p, e),
+                            );
+                        }
+                    }
+                } else {
+                    match load_csv(&p, None, None, true) {
+                        Ok(tbl) => {
+                            let id = self.add_table(tbl);
+                            if !ordered_tab_ids.contains(&id) {
+                                ordered_tab_ids.push(id);
+                            }
+                        }
+                        Err(e) => {
+                            log_error(
+                                "Collection",
+                                &format!("Fehler beim Laden von {:?}: {}", p, e),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also load linked spreadsheet_path if configured and not yet open
+        if let Some(ref sp) = view.spreadsheet_path {
+            if !sp.trim().is_empty() {
+                let ods_p = PathBuf::from(sp.trim());
+                if ods_p.exists() {
+                    match list_ods_sheets(&ods_p) {
+                        Ok(sheets) => {
+                            for sheet in sheets {
+                                let sheet_id = format!("{}::{}", ods_p.to_string_lossy(), sheet);
+                                let existing_tbl_id = self
+                                    .tables
+                                    .values()
+                                    .find(|t| t.id == sheet_id || (t.file_path.as_ref() == Some(&ods_p) && t.sheet_name.as_deref() == Some(&sheet)))
+                                    .map(|t| t.id.clone());
+
+                                if let Some(id) = existing_tbl_id {
+                                    if !ordered_tab_ids.contains(&id) {
+                                        ordered_tab_ids.push(id);
+                                    }
+                                } else if let Ok(tbl) = load_ods_sheet(&ods_p, Some(&sheet)) {
+                                    let id = self.add_table(tbl);
+                                    if !ordered_tab_ids.contains(&id) {
+                                        ordered_tab_ids.push(id);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log_error(
+                                "Collection",
+                                &format!("Fehler beim Lesen der Blätter von {:?}: {}", ods_p, e),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Append any other currently open tabs that were not part of ordered_tab_ids
+        for id in &self.tab_order {
+            if !ordered_tab_ids.contains(id) {
+                ordered_tab_ids.push(id.clone());
+            }
+        }
+
+        self.tab_order = ordered_tab_ids;
+        if self.active_tab_id.is_none()
+            || !self
+                .active_tab_id
+                .as_ref()
+                .map(|id| self.tab_order.contains(id))
+                .unwrap_or(false)
+        {
+            self.active_tab_id = self.tab_order.first().cloned();
+        }
+
+        self.execute_all_rules();
+    }
+
+    pub fn save_tab_order_to_collection(&mut self) {
+        let view_idx = if let Some(ref active_name) = self.active_view_name {
+            self.views_config
+                .views
+                .iter()
+                .position(|v| &v.name == active_name)
+        } else {
+            self.views_config
+                .views
+                .iter()
+                .position(|v| v.is_default_view)
+                .or_else(|| {
+                    if !self.views_config.views.is_empty() {
+                        Some(0)
+                    } else {
+                        None
+                    }
+                })
+        };
+
+        let Some(idx) = view_idx else {
+            return;
+        };
+
+        let view_name = self.views_config.views[idx].name.clone();
+        self.active_view_name = Some(view_name.clone());
+
+        let existing_files = self.views_config.views[idx].files.clone();
+        let mut new_files: Vec<ViewFileItem> = Vec::new();
+        let mut used_paths: HashSet<String> = HashSet::new();
+
+        for tab_id in &self.tab_order {
+            if let Some(tbl) = self.tables.get(tab_id) {
+                if tbl.is_ods {
+                    // ODS tables from linked spreadsheet_path should not be saved as individual view files
+                    let is_in_existing = existing_files.iter().any(|f| {
+                        tbl.file_path.as_ref().map(|p| p.to_string_lossy() == f.relative_path).unwrap_or(false)
+                    });
+                    if !is_in_existing {
+                        continue;
+                    }
+                }
+                if let Some(ref p) = tbl.file_path {
+                    let p_str = p.to_string_lossy().to_string();
+                    if used_paths.contains(&p_str) {
+                        continue;
+                    }
+                    if let Some(existing) = existing_files.iter().find(|f| {
+                        f.relative_path == p_str
+                            || PathBuf::from(&f.relative_path).file_name() == p.file_name()
+                    }) {
+                        new_files.push(existing.clone());
+                        used_paths.insert(existing.relative_path.clone());
+                        used_paths.insert(p_str);
+                    } else {
+                        let storage_mode_str =
+                            self.app_config.selected_storage_mode.as_str().to_string();
+                        new_files.push(ViewFileItem {
+                            relative_path: p_str.clone(),
+                            full_path: Some(p_str.clone()),
+                            info_file_path: None,
+                            storage_mode: Some(storage_mode_str),
+                        });
+                        used_paths.insert(p_str);
+                    }
+                }
+            }
+        }
+
+        // Keep any unopened files from the collection at the end so they are not lost
+        for f in existing_files {
+            if !used_paths.contains(&f.relative_path) {
+                new_files.push(f);
+            }
+        }
+
+        self.views_config.views[idx].files = new_files;
+        if let Err(e) = save_views_file(&default_views_path(), &self.views_config) {
+            log_error(
+                "Collection",
+                &format!(
+                    "Fehler beim Speichern der Tab-Reihenfolge in Kollektion '{}': {}",
+                    view_name, e
+                ),
+            );
+        } else {
+            log_info(
+                "Collection",
+                &format!(
+                    "Tab-Reihenfolge in Kollektion '{}' gespeichert ({} Dateien).",
+                    view_name,
+                    self.views_config.views[idx].files.len()
+                ),
+            );
+        }
+    }
+
+    pub fn execute_all_rules(&mut self) {
+        let ids = self.tab_order.clone();
+        for id in ids {
+            let all_tbls = self.tables.clone();
+            if let Some(tbl) = self.tables.get_mut(&id) {
+                if !tbl.rules.is_empty() || tbl.is_virtual_col.iter().any(|&v| v) {
+                    RuleEngine::execute(tbl, &all_tbls);
+                }
+            }
+        }
     }
 
     pub fn active_table(&self) -> Option<&TableData> {
@@ -84,9 +373,72 @@ impl AppState {
     }
 }
 
+fn resolve_brush_color(key_or_hex: &str, state: &AppState) -> Color {
+    if let Some(hex) = state.app_config.find_brush_hex(key_or_hex) {
+        cached_color(hex, 180)
+    } else {
+        cached_color(key_or_hex, 180)
+    }
+}
+
 pub fn sync_ui(ui: &MainWindow, state: &AppState) {
-    // 1. Sync tabs
+    // 0. Sync available views / active collection & marker palette
+    let view_names: Vec<slint::SharedString> = state
+        .views_config
+        .views
+        .iter()
+        .map(|v| slint::SharedString::from(&v.name))
+        .collect();
+    ui.set_available_views(ModelRc::new(VecModel::from(view_names)));
+    ui.set_active_view_name(slint::SharedString::from(
+        state.active_view_name.as_deref().unwrap_or(""),
+    ));
+
+    let marker_choices: Vec<ColorChoiceItem> = state
+        .app_config
+        .brushes
+        .iter()
+        .filter(|b| b.category == BrushCategory::Textmarker)
+        .map(|b| {
+            let label = match b.key.as_str() {
+                "MarkerGelb" => "Gelb",
+                "MarkerGruen" => "Grün",
+                "MarkerBlau" => "Blau",
+                "MarkerRot" => "Rot",
+                "MarkerOrange" => "Orange",
+                "MarkerLila" => "Lila",
+                other => other.strip_prefix("Marker").unwrap_or(other),
+            };
+            ColorChoiceItem {
+                key: slint::SharedString::from(label),
+                hex_value: slint::SharedString::from(&b.hex_value),
+                color: cached_color(&b.hex_value, 255),
+            }
+        })
+        .collect();
+    if !marker_choices.is_empty() {
+        ui.set_marker_choices(ModelRc::new(VecModel::from(marker_choices)));
+    }
+
+    // 1. Sync tabs and view mode
+    let csv_count = state.tables.values().filter(|t| !t.is_ods).count();
+    let ods_count = state.tables.values().filter(|t| t.is_ods).count();
+    ui.set_csv_tab_count(csv_count as i32);
+    ui.set_ods_tab_count(ods_count as i32);
+    ui.set_active_view_mode(state.active_view_mode as i32);
+    let is_ods_active = state.active_table().map(|t| t.is_ods).unwrap_or(false);
+    ui.set_active_table_is_ods(is_ods_active);
+    let mode_label = match state.active_view_mode {
+        1 => format!("CSV-Ebene ({} Tabellen)", csv_count),
+        2 => format!("ODS-Ebene ({} Blätter)", ods_count),
+        _ => format!("Alle Ebenen ({} Tabellen)", csv_count + ods_count),
+    };
+    ui.set_active_mode_label(slint::SharedString::from(mode_label));
+
     let mut tab_items = Vec::new();
+    let mut csv_tab_items = Vec::new();
+    let mut ods_tab_items = Vec::new();
+
     for id in &state.tab_order {
         if let Some(tbl) = state.tables.get(id) {
             let error_count = tbl
@@ -95,21 +447,40 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
                 .filter(|h| h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error)
                 .count();
 
-            tab_items.push(TabItem {
+            let item = TabItem {
                 id: slint::SharedString::from(id),
                 title: slint::SharedString::from(&tbl.display_name),
                 is_dirty: tbl.is_dirty,
                 error_count: error_count as i32,
                 is_active: state.active_tab_id.as_ref() == Some(id),
-            });
+                is_ods: tbl.is_ods,
+                file_type: slint::SharedString::from(if tbl.is_ods { "ODS" } else { "CSV" }),
+            };
+
+            if tbl.is_ods {
+                ods_tab_items.push(item.clone());
+            } else {
+                csv_tab_items.push(item.clone());
+            }
+
+            let matches_mode = match state.active_view_mode {
+                1 => !tbl.is_ods,
+                2 => tbl.is_ods,
+                _ => true,
+            };
+            if matches_mode {
+                tab_items.push(item);
+            }
         }
     }
     ui.set_tabs(ModelRc::new(VecModel::from(tab_items)));
+    ui.set_csv_tabs(ModelRc::new(VecModel::from(csv_tab_items)));
+    ui.set_ods_tabs(ModelRc::new(VecModel::from(ods_tab_items)));
     ui.set_active_tab_id(slint::SharedString::from(state.active_tab_id.as_deref().unwrap_or("")));
 
     // 2. Active table sync
     if let Some(tbl) = state.active_table() {
-        // Headers
+        // Headers (respecting visibility from column_settings)
         let mut header_items = Vec::new();
         for (idx, h) in tbl.headers.iter().enumerate() {
             let concept = tbl
@@ -126,7 +497,12 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
             };
 
             let is_filtered = tbl.active_filters.get(&idx).map(|f| f.is_active()).unwrap_or(false);
-            let width = tbl.column_settings.get(idx).map(|s| s.width).unwrap_or(150) as f32;
+            let setting = tbl
+                .column_settings
+                .iter()
+                .find(|s| s.column_name.eq_ignore_ascii_case(h))
+                .or_else(|| tbl.column_settings.get(idx));
+            let width = setting.map(|s| s.width).unwrap_or(150) as f32;
 
             header_items.push(HeaderItem {
                 id: idx as i32,
@@ -154,38 +530,81 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
             });
         }
 
+        // Pre-index rule highlights by row for fast lookup
+        let mut row_hl_map: HashMap<usize, Vec<&HighlightItem>> = HashMap::new();
+        for h in &tbl.rule_highlights {
+            row_hl_map.entry(h.row).or_default().push(h);
+        }
+
         // Map visible rows to Slint RowItems
         let mut row_items = Vec::new();
         for (view_row_idx, &orig_row_idx) in visible_indices.iter().enumerate() {
             if let Some(row) = tbl.rows.get(orig_row_idx) {
                 let is_marked = tbl.marked_rows.contains(&orig_row_idx);
                 let row_marker = tbl.row_markers.get(&orig_row_idx);
+                let row_highlights = row_hl_map.get(&orig_row_idx);
+
+                // Highest priority row-level highlight (col == None)
+                let best_row_hl = row_highlights.and_then(|list| {
+                    list.iter()
+                        .filter(|h| h.col.is_none() && h.brush_key.is_some())
+                        .max_by_key(|h| h.priority)
+                        .copied()
+                });
+
+                let row_rule_color = best_row_hl
+                    .and_then(|h| h.brush_key.as_deref())
+                    .map(|bk| resolve_brush_color(bk, state))
+                    .unwrap_or_else(|| Color::from_argb_u8(0, 0, 0, 0));
 
                 let mut cell_items = Vec::new();
                 for (col_idx, cell_text) in row.iter().enumerate() {
-                    let has_error = tbl.rule_highlights.iter().any(|h| {
-                        h.row == orig_row_idx
-                            && (h.col.is_none() || h.col == Some(col_idx))
-                            && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error
-                    });
-                    let has_warning = tbl.rule_highlights.iter().any(|h| {
-                        h.row == orig_row_idx
-                            && (h.col.is_none() || h.col == Some(col_idx))
-                            && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Warning
-                    });
-                    let has_info = tbl.rule_highlights.iter().any(|h| {
-                        h.row == orig_row_idx
-                            && (h.col.is_none() || h.col == Some(col_idx))
-                            && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Info
+                    let has_error = row_highlights.map(|list| {
+                        list.iter().any(|h| {
+                            (h.col.is_none() || h.col == Some(col_idx))
+                                && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error
+                        })
+                    }).unwrap_or(false);
+
+                    let has_warning = row_highlights.map(|list| {
+                        list.iter().any(|h| {
+                            (h.col.is_none() || h.col == Some(col_idx))
+                                && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Warning
+                        })
+                    }).unwrap_or(false);
+
+                    let has_info = row_highlights.map(|list| {
+                        list.iter().any(|h| {
+                            (h.col.is_none() || h.col == Some(col_idx))
+                                && h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Info
+                        })
+                    }).unwrap_or(false);
+
+                    let best_cell_hl = row_highlights.and_then(|list| {
+                        list.iter()
+                            .filter(|h| h.col == Some(col_idx) && h.brush_key.is_some())
+                            .max_by_key(|h| h.priority)
+                            .copied()
                     });
 
                     let cell_marker = tbl.cell_markers.get(&(orig_row_idx, col_idx));
+                    let is_cell_dirty = tbl.dirty_cells.contains(&(orig_row_idx, col_idx));
                     let bg_color = if let Some(m) = cell_marker {
                         parse_hex_color(m.hex())
                     } else if let Some(m) = row_marker {
                         parse_hex_color(m.hex())
+                    } else if let Some(ch) = best_cell_hl {
+                        if let Some(ref bk) = ch.brush_key {
+                            resolve_brush_color(bk, state)
+                        } else {
+                            row_rule_color
+                        }
+                    } else if row_rule_color.alpha() > 0 {
+                        row_rule_color
+                    } else if is_cell_dirty {
+                        resolve_brush_color("DirtyCellBrush", state)
                     } else {
-                        Color::from_argb_u8(0, 0, 0, 0)
+                        row_rule_color
                     };
 
                     cell_items.push(CellItem {
@@ -200,7 +619,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
                 let row_bg = if let Some(m) = row_marker {
                     parse_hex_color(m.hex())
                 } else {
-                    Color::from_argb_u8(0, 0, 0, 0)
+                    row_rule_color
                 };
 
                 row_items.push(RowItem {
@@ -216,11 +635,40 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         ui.set_total_row_count(tbl.rows.len() as i32);
         ui.set_marked_row_count(tbl.marked_rows.len() as i32);
         ui.set_only_marked_active(state.only_marked);
+
+        // Sync Rule Summaries & Proposals for active table
+        let summaries: Vec<RuleSummaryItem> = tbl
+            .rule_summaries
+            .iter()
+            .map(|s| RuleSummaryItem {
+                id: slint::SharedString::from(&s.rule_id),
+                description: slint::SharedString::from(&s.description),
+                hits: s.hit_count as i32,
+                errors: s.error_count as i32,
+                warnings: s.warning_count as i32,
+            })
+            .collect();
+        ui.set_rule_summaries(ModelRc::new(VecModel::from(summaries)));
+
+        let proposals: Vec<ProposalItem> = tbl
+            .rule_proposals
+            .iter()
+            .enumerate()
+            .map(|(i, p)| ProposalItem {
+                source_table: slint::SharedString::from(&p.source_table),
+                key_val: slint::SharedString::from(&p.key_value),
+                preview: slint::SharedString::from(p.row_data.join(", ")),
+                row_idx: i as i32,
+            })
+            .collect();
+        ui.set_proposals(ModelRc::new(VecModel::from(proposals)));
     } else {
         ui.set_headers(ModelRc::new(VecModel::default()));
         ui.set_rows(ModelRc::new(VecModel::default()));
         ui.set_total_row_count(0);
         ui.set_marked_row_count(0);
+        ui.set_rule_summaries(ModelRc::new(VecModel::default()));
+        ui.set_proposals(ModelRc::new(VecModel::default()));
     }
 
     // 3. Sync Logs
@@ -244,30 +692,38 @@ fn parse_hex_color(hex: &str) -> Color {
 
 fn main() -> Result<(), slint::PlatformError> {
     let app_config = load_app_config(&default_config_path()).unwrap_or_default();
+    if let Ok(mut cache) = get_global_color_cache().lock() {
+        cache.update_from_brushes(&app_config.brushes);
+    }
     let views_config = load_views_file(&default_views_path()).unwrap_or_default();
 
     let mut initial_state = AppState::new();
     initial_state.app_config = app_config;
     initial_state.views_config = views_config;
 
-    // Check if there is a default view and auto-load its files on startup
-    if let Some(default_view) = initial_state.views_config.views.iter().find(|v| v.is_default_view).cloned() {
-        for file_item in &default_view.files {
-            let p = PathBuf::from(&file_item.relative_path);
-            if p.exists() {
-                if let Ok(table) = load_csv(&p, None, None, true) {
-                    initial_state.add_table(table);
-                }
+    log_info("App", "Configurable CSV & ODS Analyzer gestartet.");
+
+    // Check if there is a default view (or first view) and auto-load its files on startup
+    if let Some(default_idx) = initial_state
+        .views_config
+        .views
+        .iter()
+        .position(|v| v.is_default_view)
+        .or_else(|| {
+            if !initial_state.views_config.views.is_empty() {
+                Some(0)
+            } else {
+                None
             }
-        }
+        })
+    {
+        initial_state.activate_and_load_view(default_idx);
     }
 
     let main_window = MainWindow::new()?;
     let config_window = Rc::new(ConfigurationWindow::new()?);
     let info_editor_window = Rc::new(InfoFileEditorWindow::new()?);
     let state = Rc::new(RefCell::new(initial_state));
-
-    log_info("App", "Configurable CSV & ODS Analyzer gestartet.");
 
     // Setup dialogs
     dialogs::configuration::setup_configuration_window(
@@ -288,7 +744,11 @@ fn main() -> Result<(), slint::PlatformError> {
         let config_win = config_window.clone();
         let state = state.clone();
         main_window.on_show_config_clicked(move || {
-            dialogs::configuration::sync_configuration_ui(&config_win, &state.borrow());
+            {
+                let mut st = state.borrow_mut();
+                dialogs::configuration::ensure_selected_view(&config_win, &mut st);
+                dialogs::configuration::sync_configuration_ui(&config_win, &st);
+            }
             let _ = config_win.show();
         });
     }
@@ -304,34 +764,56 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    // --- CSV ÖFFNEN ---
+    // --- CSV ÖFFNEN (Mehrfachauswahl) ---
     {
         let ui_handle = main_window.as_weak();
         let state = state.clone();
         main_window.on_open_csv_clicked(move || {
-            let file = rfd::FileDialog::new()
+            let files = rfd::FileDialog::new()
+                .set_title("CSV-Dateien öffnen (Mehrfachauswahl möglich)")
                 .add_filter("CSV Dateien", &["csv", "tsv", "txt"])
                 .add_filter("Alle Dateien", &["*"])
-                .pick_file();
+                .pick_files();
 
-            if let Some(p) = file {
-                match load_csv(&p, None, None, true) {
-                    Ok(mut table) => {
-                        log_info("CSV", &format!("CSV erfolgreich geladen: {:?}", p));
-                        let mut st = state.borrow_mut();
-                        let all_tbls = st.tables.clone();
-                        RuleEngine::execute(&mut table, &all_tbls);
-                        st.add_table(table);
-                        if let Some(ui) = ui_handle.upgrade() {
-                            ui.set_status_message(slint::SharedString::from(format!("Geladen: {:?}", p.file_name().unwrap_or_default())));
-                            sync_ui(&ui, &st);
+            if let Some(paths) = files {
+                let mut loaded_count = 0usize;
+                let mut last_name = String::new();
+                let mut st = state.borrow_mut();
+                for p in paths {
+                    match load_csv(&p, None, None, true) {
+                        Ok(table) => {
+                            log_info("CSV", &format!("CSV erfolgreich geladen: {:?}", p));
+                            last_name = p
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
+                            st.add_table(table);
+                            loaded_count += 1;
+                        }
+                        Err(e) => {
+                            log_error("CSV", &format!("Fehler beim Laden von {:?}: {}", p, e));
+                            if let Some(ui) = ui_handle.upgrade() {
+                                ui.set_status_message(slint::SharedString::from(format!(
+                                    "Fehler: {}",
+                                    e
+                                )));
+                            }
                         }
                     }
-                    Err(e) => {
-                        log_error("CSV", &format!("Fehler beim Laden von {:?}: {}", p, e));
-                        if let Some(ui) = ui_handle.upgrade() {
-                            ui.set_status_message(slint::SharedString::from(format!("Fehler: {}", e)));
-                        }
+                }
+                if loaded_count > 0 {
+                    if st.active_view_name.is_some() {
+                        st.save_tab_order_to_collection();
+                    }
+                    if let Some(ui) = ui_handle.upgrade() {
+                        let msg = if loaded_count == 1 {
+                            format!("Geladen: {}", last_name)
+                        } else {
+                            format!("{} CSV-Dateien geladen", loaded_count)
+                        };
+                        ui.set_status_message(slint::SharedString::from(msg));
+                        sync_ui(&ui, &st);
                     }
                 }
             }
@@ -344,7 +826,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let state = state.clone();
         main_window.on_open_ods_clicked(move || {
             let file = rfd::FileDialog::new()
+                .set_title("ODS-Datei öffnen")
                 .add_filter("LibreOffice Calc (.ods)", &["ods"])
+                .add_filter("Alle Dateien", &["*"])
                 .pick_file();
 
             if let Some(p) = file {
@@ -354,31 +838,57 @@ fn main() -> Result<(), slint::PlatformError> {
                             let mut st = state.borrow_mut();
                             st.pending_ods_path = Some(p.clone());
                             if let Some(ui) = ui_handle.upgrade() {
-                                let sheet_model: Vec<slint::SharedString> = sheets.iter().map(|s| slint::SharedString::from(s)).collect();
+                                let mut sheet_model: Vec<slint::SharedString> = Vec::new();
+                                sheet_model.push(slint::SharedString::from("⭐ Alle Blätter importieren"));
+                                for s in &sheets {
+                                    sheet_model.push(slint::SharedString::from(s));
+                                }
                                 ui.set_available_sheets(ModelRc::new(VecModel::from(sheet_model)));
                                 ui.set_sheet_dialog_visible(true);
                             }
                         } else {
                             match load_ods_sheet(&p, None) {
-                                Ok(mut table) => {
+                                Ok(table) => {
                                     log_info("ODS", &format!("ODS erfolgreich geladen: {:?}", p));
                                     let mut st = state.borrow_mut();
-                                    let all_tbls = st.tables.clone();
-                                    RuleEngine::execute(&mut table, &all_tbls);
                                     st.add_table(table);
+                                    if st.active_view_name.is_some() {
+                                        st.save_tab_order_to_collection();
+                                    }
                                     if let Some(ui) = ui_handle.upgrade() {
-                                        ui.set_status_message(slint::SharedString::from(format!("ODS Geladen: {:?}", p.file_name().unwrap_or_default())));
+                                        ui.set_status_message(slint::SharedString::from(format!(
+                                            "ODS geladen: {:?}",
+                                            p.file_name().unwrap_or_default()
+                                        )));
                                         sync_ui(&ui, &st);
                                     }
                                 }
                                 Err(e) => {
-                                    log_error("ODS", &format!("Fehler beim Laden von {:?}: {}", p, e));
+                                    log_error(
+                                        "ODS",
+                                        &format!("Fehler beim Laden von {:?}: {}", p, e),
+                                    );
+                                    if let Some(ui) = ui_handle.upgrade() {
+                                        ui.set_status_message(slint::SharedString::from(format!(
+                                            "Fehler: {}",
+                                            e
+                                        )));
+                                    }
                                 }
                             }
                         }
                     }
                     Err(e) => {
-                        log_error("ODS", &format!("Fehler beim Lesen der Blätter von {:?}: {}", p, e));
+                        log_error(
+                            "ODS",
+                            &format!("Fehler beim Lesen der Blätter von {:?}: {}", p, e),
+                        );
+                        if let Some(ui) = ui_handle.upgrade() {
+                            ui.set_status_message(slint::SharedString::from(format!(
+                                "Fehler: {}",
+                                e
+                            )));
+                        }
                     }
                 }
             }
@@ -392,18 +902,39 @@ fn main() -> Result<(), slint::PlatformError> {
         main_window.on_select_ods_sheet_clicked(move |sheet_name| {
             let mut st = state.borrow_mut();
             if let Some(p) = st.pending_ods_path.take() {
-                match load_ods_sheet(&p, Some(sheet_name.as_str())) {
-                    Ok(mut table) => {
-                        log_info("ODS", &format!("ODS Blatt '{}' geladen aus {:?}", sheet_name, p));
-                        let all_tbls = st.tables.clone();
-                        RuleEngine::execute(&mut table, &all_tbls);
-                        st.add_table(table);
+                if sheet_name == "⭐ Alle Blätter importieren" {
+                    if let Ok(sheets) = list_ods_sheets(&p) {
+                        let mut loaded_cnt = 0;
+                        for s in sheets {
+                            if let Ok(table) = load_ods_sheet(&p, Some(&s)) {
+                                st.add_table(table);
+                                loaded_cnt += 1;
+                            }
+                        }
+                        log_info("ODS", &format!("{} Blätter aus {:?} geladen", loaded_cnt, p));
+                        if st.active_view_name.is_some() {
+                            st.save_tab_order_to_collection();
+                        }
                         if let Some(ui) = ui_handle.upgrade() {
+                            ui.set_status_message(slint::SharedString::from(format!("{} ODS-Blätter importiert", loaded_cnt)));
                             sync_ui(&ui, &st);
                         }
                     }
-                    Err(e) => {
-                        log_error("ODS", &format!("Fehler beim Laden des Blattes: {}", e));
+                } else {
+                    match load_ods_sheet(&p, Some(sheet_name.as_str())) {
+                        Ok(table) => {
+                            log_info("ODS", &format!("ODS Blatt '{}' geladen aus {:?}", sheet_name, p));
+                            st.add_table(table);
+                            if st.active_view_name.is_some() {
+                                st.save_tab_order_to_collection();
+                            }
+                            if let Some(ui) = ui_handle.upgrade() {
+                                sync_ui(&ui, &st);
+                            }
+                        }
+                        Err(e) => {
+                            log_error("ODS", &format!("Fehler beim Laden des Blattes: {}", e));
+                        }
                     }
                 }
             }
@@ -415,20 +946,223 @@ fn main() -> Result<(), slint::PlatformError> {
         let ui_handle = main_window.as_weak();
         let state = state.clone();
         main_window.on_open_folder_clicked(move || {
-            let folder = rfd::FileDialog::new().pick_folder();
+            let folder = rfd::FileDialog::new()
+                .set_title("Ordner mit CSV-Dateien auswählen")
+                .pick_folder();
+
             if let Some(f) = folder {
                 let csvs = find_all_csvs_in_dir(&f);
                 log_info("Import", &format!("{} CSV-Dateien in {:?} gefunden.", csvs.len(), f));
                 let mut st = state.borrow_mut();
                 for p in csvs {
-                    if let Ok(mut tbl) = load_csv(&p, None, None, true) {
-                        let all_tbls = st.tables.clone();
-                        RuleEngine::execute(&mut tbl, &all_tbls);
+                    if let Ok(tbl) = load_csv(&p, None, None, true) {
                         st.add_table(tbl);
                     }
                 }
+                if st.active_view_name.is_some() {
+                    st.save_tab_order_to_collection();
+                }
+                st.execute_all_rules();
                 if let Some(ui) = ui_handle.upgrade() {
                     sync_ui(&ui, &st);
+                }
+            }
+        });
+    }
+
+    // --- VIEW MODE CHANGED (0: Alle, 1: CSV, 2: ODS) ---
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_view_mode_changed(move |mode_idx| {
+            let mut st = state.borrow_mut();
+            st.active_view_mode = mode_idx as usize;
+
+            let cur_matches = if let Some(ref cur_id) = st.active_tab_id {
+                if let Some(tbl) = st.tables.get(cur_id) {
+                    match st.active_view_mode {
+                        1 => !tbl.is_ods,
+                        2 => tbl.is_ods,
+                        _ => true,
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !cur_matches {
+                let first_matching = st
+                    .tab_order
+                    .iter()
+                    .find(|id| {
+                        if let Some(tbl) = st.tables.get(*id) {
+                            match st.active_view_mode {
+                                1 => !tbl.is_ods,
+                                2 => tbl.is_ods,
+                                _ => true,
+                            }
+                        } else {
+                            false
+                        }
+                    })
+                    .cloned();
+                if first_matching.is_some() {
+                    st.active_tab_id = first_matching;
+                }
+            }
+
+            if let Some(ui) = ui_handle.upgrade() {
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+
+    // --- EXPORT: CSV -> ODS ---
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_export_csv_to_ods_clicked(move || {
+            let st = state.borrow();
+            let csv_tables: Vec<TableData> = st
+                .tab_order
+                .iter()
+                .filter_map(|id| st.tables.get(id))
+                .filter(|t| !t.is_ods)
+                .cloned()
+                .collect();
+
+            if csv_tables.is_empty() {
+                if let Some(ui) = ui_handle.upgrade() {
+                    ui.set_status_message(slint::SharedString::from(
+                        "Keine CSV-Tabellen zum Exportieren vorhanden.",
+                    ));
+                }
+                return;
+            }
+
+            let linked_ods = if let Some(ref view_name) = st.active_view_name {
+                st.views_config
+                    .views
+                    .iter()
+                    .find(|v| &v.name == view_name)
+                    .and_then(|v| v.spreadsheet_path.clone())
+            } else {
+                None
+            };
+
+            let target_path = if let Some(ref p_str) = linked_ods {
+                if !p_str.trim().is_empty() {
+                    Some(PathBuf::from(p_str.trim()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let final_path = match target_path {
+                Some(p) => p,
+                None => {
+                    let chosen = rfd::FileDialog::new()
+                        .set_title("Ziel-ODS-Datei für CSV-Export auswählen")
+                        .add_filter("LibreOffice Calc (.ods)", &["ods"])
+                        .save_file();
+                    match chosen {
+                        Some(mut p) => {
+                            if p.extension().is_none() {
+                                p.set_extension("ods");
+                            }
+                            p
+                        }
+                        None => return,
+                    }
+                }
+            };
+
+            match create_ods_file(&final_path, &csv_tables) {
+                Ok(_) => {
+                    let msg = format!(
+                        "✓ {} CSV-Tabelle(n) erfolgreich in ODS-Arbeitsmappe '{:?}' exportiert.",
+                        csv_tables.len(),
+                        final_path.file_name().unwrap_or_default()
+                    );
+                    log_info("Export", &msg);
+                    if let Some(ui) = ui_handle.upgrade() {
+                        ui.set_status_message(slint::SharedString::from(msg));
+                        sync_ui(&ui, &st);
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Fehler beim CSV ➔ ODS Export: {}", e);
+                    log_error("Export", &err_msg);
+                    if let Some(ui) = ui_handle.upgrade() {
+                        ui.set_status_message(slint::SharedString::from(err_msg));
+                    }
+                }
+            }
+        });
+    }
+
+    // --- EXPORT: ODS -> CSV ---
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_export_ods_to_csv_clicked(move || {
+            let st = state.borrow();
+            let ods_tables: Vec<TableData> = st
+                .tab_order
+                .iter()
+                .filter_map(|id| st.tables.get(id))
+                .filter(|t| t.is_ods)
+                .cloned()
+                .collect();
+
+            if ods_tables.is_empty() {
+                drop(st);
+                if let Some(ui) = ui_handle.upgrade() {
+                    ui.set_status_message(slint::SharedString::from(
+                        "Keine ODS-Tabellenblätter zum Exportieren geöffnet.",
+                    ));
+                }
+                return;
+            }
+            drop(st);
+
+            let folder = rfd::FileDialog::new()
+                .set_title("Zielordner für CSV-Export auswählen")
+                .pick_folder();
+
+            if let Some(dir) = folder {
+                let mut exported_count = 0;
+                for tbl in &ods_tables {
+                    let sheet_name = tbl
+                        .sheet_name
+                        .clone()
+                        .unwrap_or_else(|| tbl.display_name.clone());
+                    let clean_name = sheet_name.replace(
+                        ['/', '\\', ':', '*', '?', '"', '<', '>', '|', ' '],
+                        "_",
+                    );
+                    let out_path = dir.join(format!("{}.csv", clean_name));
+                    if let Err(e) = save_csv(&out_path, tbl, ';', "utf-8") {
+                        log_error(
+                            "Export",
+                            &format!("Fehler beim Exportieren von Blatt '{}': {}", sheet_name, e),
+                        );
+                    } else {
+                        exported_count += 1;
+                    }
+                }
+                let msg = format!(
+                    "✓ {} Tabellenblatt/-blätter erfolgreich als CSV nach '{:?}' exportiert.",
+                    exported_count,
+                    dir.file_name().unwrap_or_default()
+                );
+                log_info("Export", &msg);
+                if let Some(ui) = ui_handle.upgrade() {
+                    ui.set_status_message(slint::SharedString::from(msg));
                 }
             }
         });
@@ -481,12 +1215,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         load_csv(&p, Some(tbl.delimiter), Some(&tbl.encoding), true)
                     };
 
-                    if let Ok(mut new_tbl) = reloaded {
+                    if let Ok(new_tbl) = reloaded {
                         log_info("Revert", &format!("Tabelle zurückgesetzt auf Stand der Datei {:?}", p));
-                        let all_tbls = st.tables.clone();
-                        RuleEngine::execute(&mut new_tbl, &all_tbls);
-                        let id = new_tbl.id.clone();
-                        st.tables.insert(id, new_tbl);
+                        st.add_table(new_tbl);
                         if let Some(ui) = ui_handle.upgrade() {
                             sync_ui(&ui, &st);
                         }
@@ -512,7 +1243,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    // --- TAB SELECTION & CLOSE ---
+    // --- TAB SELECTION, REORDERING, VIEW SWITCHING & CLOSE ---
     {
         let ui_handle = main_window.as_weak();
         let state = state.clone();
@@ -521,6 +1252,69 @@ fn main() -> Result<(), slint::PlatformError> {
             st.active_tab_id = Some(tab_id.to_string());
             if let Some(ui) = ui_handle.upgrade() {
                 sync_ui(&ui, &st);
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_tab_move_left(move |tab_id| {
+            let mut st = state.borrow_mut();
+            if let Some(pos) = st.tab_order.iter().position(|id| id == tab_id.as_str()) {
+                let is_ods = st.tables.get(tab_id.as_str()).map(|t| t.is_ods).unwrap_or(false);
+                let prev_pos = st.tab_order[..pos]
+                    .iter()
+                    .rposition(|id| st.tables.get(id).map(|t| t.is_ods == is_ods).unwrap_or(false));
+                if let Some(target_pos) = prev_pos {
+                    st.tab_order.swap(pos, target_pos);
+                    st.save_tab_order_to_collection();
+                    if let Some(ui) = ui_handle.upgrade() {
+                        sync_ui(&ui, &st);
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_tab_move_right(move |tab_id| {
+            let mut st = state.borrow_mut();
+            if let Some(pos) = st.tab_order.iter().position(|id| id == tab_id.as_str()) {
+                let is_ods = st.tables.get(tab_id.as_str()).map(|t| t.is_ods).unwrap_or(false);
+                let next_pos = st.tab_order[pos + 1..]
+                    .iter()
+                    .position(|id| st.tables.get(id).map(|t| t.is_ods == is_ods).unwrap_or(false))
+                    .map(|offset| pos + 1 + offset);
+                if let Some(target_pos) = next_pos {
+                    st.tab_order.swap(pos, target_pos);
+                    st.save_tab_order_to_collection();
+                    if let Some(ui) = ui_handle.upgrade() {
+                        sync_ui(&ui, &st);
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_view_selected(move |view_name| {
+            let mut st = state.borrow_mut();
+            if let Some(idx) = st
+                .views_config
+                .views
+                .iter()
+                .position(|v| v.name == view_name.as_str())
+            {
+                st.activate_and_load_view(idx);
+                if let Some(ui) = ui_handle.upgrade() {
+                    ui.set_status_message(slint::SharedString::from(format!(
+                        "Kollektion '{}' geladen.",
+                        view_name
+                    )));
+                    sync_ui(&ui, &st);
+                }
             }
         });
     }
@@ -701,25 +1495,83 @@ fn main() -> Result<(), slint::PlatformError> {
                 let c = col_idx as usize;
                 let col_name = tbl.headers.get(c).cloned().unwrap_or_default();
 
-                let mut distinct_values: Vec<String> = tbl
-                    .rows
-                    .iter()
-                    .map(|r| r.get(c).cloned().unwrap_or_default())
-                    .collect::<HashSet<_>>()
-                    .into_iter()
-                    .collect();
-                distinct_values.sort();
+                // Rows matching all OTHER active filters, only_marked, and search_query
+                let other_matched_rows =
+                    tbl.rows_matching_other_filters(c, st.only_marked, &st.search_query);
 
+                // Count occurrences of each value in column `c` across `other_matched_rows`
+                let mut value_counts: HashMap<String, usize> = HashMap::new();
+                for &r_idx in &other_matched_rows {
+                    if let Some(row) = tbl.rows.get(r_idx) {
+                        let raw = row.get(c).map(|s| s.as_str()).unwrap_or("");
+                        let key = if raw.trim().is_empty() {
+                            String::new()
+                        } else {
+                            raw.to_string()
+                        };
+                        *value_counts.entry(key).or_insert(0) += 1;
+                    }
+                }
+
+                // Ensure empty "" entry is present if any row in the table has an empty cell in column `c`
+                let table_has_empty = tbl.rows.iter().any(|r| {
+                    r.get(c)
+                        .map(|s| s.trim().is_empty())
+                        .unwrap_or(true)
+                });
+                if table_has_empty {
+                    value_counts.entry(String::new()).or_insert(0);
+                }
+
+                // Also ensure any value currently selected in `current_filter` is shown (even if count is 0)
                 let current_filter = tbl.active_filters.get(&c);
+                if let Some(cf) = current_filter {
+                    if cf.include_empty {
+                        value_counts.entry(String::new()).or_insert(0);
+                    }
+                    for sv in &cf.selected_values {
+                        value_counts.entry(sv.clone()).or_insert(0);
+                    }
+                }
+
+                let mut distinct_values: Vec<String> = value_counts.keys().cloned().collect();
+                distinct_values.sort_by(|a, b| {
+                    if a.is_empty() && !b.is_empty() {
+                        std::cmp::Ordering::Less
+                    } else if !a.is_empty() && b.is_empty() {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        natord::compare(a, b)
+                    }
+                });
+
                 let items: Vec<FilterChoiceItem> = distinct_values
                     .into_iter()
                     .map(|val| {
-                        let selected = current_filter
-                            .map(|f| f.all_selected || f.selected_values.contains(&val))
-                            .unwrap_or(true);
+                        let count = value_counts.get(&val).copied().unwrap_or(0) as i32;
+                        let selected = match current_filter {
+                            None => true,
+                            Some(f) if f.all_selected => true,
+                            Some(f) => {
+                                if val.is_empty() {
+                                    f.include_empty || f.selected_values.contains("")
+                                } else {
+                                    f.selected_values.contains(&val)
+                                        || f.selected_values.contains(val.trim())
+                                }
+                            }
+                        };
+                        let display = if val.is_empty() {
+                            "(Leere)".to_string()
+                        } else {
+                            val.clone()
+                        };
                         FilterChoiceItem {
                             value: slint::SharedString::from(val),
+                            display_text: slint::SharedString::from(display),
+                            count,
                             selected,
+                            visible: true,
                         }
                     })
                     .collect();
@@ -727,6 +1579,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(ui) = ui_handle.upgrade() {
                     ui.set_filter_dialog_col_idx(col_idx);
                     ui.set_filter_dialog_col_name(slint::SharedString::from(col_name));
+                    ui.set_filter_dialog_total_hits(other_matched_rows.len() as i32);
                     ui.set_filter_dialog_items(ModelRc::new(VecModel::from(items)));
                     ui.set_filter_dialog_search(slint::SharedString::default());
                     ui.set_filter_dialog_visible(true);
@@ -748,30 +1601,90 @@ fn main() -> Result<(), slint::PlatformError> {
     }
     {
         let ui_handle = main_window.as_weak();
+        main_window.on_filter_search_changed(move |query| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let q = query.trim().to_lowercase();
+                let model = ui.get_filter_dialog_items();
+                let count = model.row_count();
+                for i in 0..count {
+                    if let Some(mut item) = model.row_data(i) {
+                        item.visible = q.is_empty()
+                            || item.display_text.to_lowercase().contains(&q);
+                        model.set_row_data(i, item);
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        main_window.on_filter_select_all(move |select_all| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let model = ui.get_filter_dialog_items();
+                let count = model.row_count();
+                for i in 0..count {
+                    if let Some(mut item) = model.row_data(i) {
+                        if item.visible {
+                            item.selected = select_all;
+                            model.set_row_data(i, item);
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_filter_reset_column(move |col_idx| {
+            let mut st = state.borrow_mut();
+            if let Some(tbl) = st.active_table_mut() {
+                tbl.active_filters.remove(&(col_idx as usize));
+            }
+            if let Some(ui) = ui_handle.upgrade() {
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
         let state = state.clone();
         main_window.on_filter_apply_clicked(move |col_idx| {
             let mut st = state.borrow_mut();
             if let Some(ui) = ui_handle.upgrade() {
                 let model = ui.get_filter_dialog_items();
                 let mut selected_vals = HashSet::new();
+                let mut include_empty = false;
+                let mut all_checked = true;
                 let count = model.row_count();
                 for i in 0..count {
                     if let Some(item) = model.row_data(i) {
                         if item.selected {
-                            selected_vals.insert(item.value.to_string());
+                            if item.value.is_empty() {
+                                include_empty = true;
+                            } else {
+                                selected_vals.insert(item.value.to_string());
+                            }
+                        } else {
+                            all_checked = false;
                         }
                     }
                 }
 
                 if let Some(tbl) = st.active_table_mut() {
-                    let cond = FilterCondition {
-                        selected_values: selected_vals,
-                        all_selected: false,
-                        include_empty: true,
-                        include_non_empty: true,
-                        text_search: String::new(),
-                    };
-                    tbl.active_filters.insert(col_idx as usize, cond);
+                    if all_checked && count > 0 {
+                        // All values selected -> filter is not restricting anything
+                        tbl.active_filters.remove(&(col_idx as usize));
+                    } else {
+                        let cond = FilterCondition {
+                            include_non_empty: !selected_vals.is_empty(),
+                            selected_values: selected_vals,
+                            all_selected: false,
+                            include_empty,
+                            text_search: String::new(),
+                        };
+                        tbl.active_filters.insert(col_idx as usize, cond);
+                    }
                 }
                 sync_ui(&ui, &st);
             }
@@ -797,40 +1710,20 @@ fn main() -> Result<(), slint::PlatformError> {
         let state = state.clone();
         main_window.on_run_rules_clicked(move || {
             let mut st = state.borrow_mut();
-            let all_tbls = st.tables.clone();
-
-            if let Some(tbl) = st.active_table_mut() {
-                let res = RuleEngine::execute(tbl, &all_tbls);
-                log_info("Rules", &format!("Regelprüfung abgeschlossen: {} Fehler/Warnungen.", res.highlights.len()));
-
-                if let Some(ui) = ui_handle.upgrade() {
-                    let summaries: Vec<RuleSummaryItem> = res
-                        .summaries
-                        .iter()
-                        .map(|s| RuleSummaryItem {
-                            id: slint::SharedString::from(&s.rule_id),
-                            description: slint::SharedString::from(&s.description),
-                            hits: s.hit_count as i32,
-                            errors: s.error_count as i32,
-                            warnings: s.warning_count as i32,
-                        })
-                        .collect();
-                    ui.set_rule_summaries(ModelRc::new(VecModel::from(summaries)));
-
-                    let proposals: Vec<ProposalItem> = res
-                        .proposals
-                        .iter()
-                        .enumerate()
-                        .map(|(i, p)| ProposalItem {
-                            source_table: slint::SharedString::from(&p.source_table),
-                            key_val: slint::SharedString::from(&p.key_value),
-                            preview: slint::SharedString::from(p.row_data.join(", ")),
-                            row_idx: i as i32,
-                        })
-                        .collect();
-                    ui.set_proposals(ModelRc::new(VecModel::from(proposals)));
-                    sync_ui(&ui, &st);
-                }
+            st.execute_all_rules();
+            if let Some(tbl) = st.active_table() {
+                log_info(
+                    "Rules",
+                    &format!(
+                        "Regelprüfung für '{}' abgeschlossen: {} Hervorhebungen, {} Regeln.",
+                        tbl.display_name,
+                        tbl.rule_highlights.len(),
+                        tbl.rule_summaries.len()
+                    ),
+                );
+            }
+            if let Some(ui) = ui_handle.upgrade() {
+                sync_ui(&ui, &st);
             }
         });
     }
@@ -844,6 +1737,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(tbl) = st.active_table_mut() {
                 tbl.set_cell(row as usize, col as usize, new_val.to_string());
             }
+            st.execute_all_rules();
             if let Some(ui) = ui_handle.upgrade() {
                 sync_ui(&ui, &st);
             }
@@ -883,6 +1777,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 fill_column(tbl, col_idx as usize, &marked, fill_mode);
                 log_info("Transform", &format!("Spalte {} befüllt.", col_idx + 1));
             }
+            st.execute_all_rules();
             if let Some(ui) = ui_handle.upgrade() {
                 sync_ui(&ui, &st);
             }
@@ -921,15 +1816,204 @@ fn main() -> Result<(), slint::PlatformError> {
         let ui_handle = main_window.as_weak();
         let state = state.clone();
         main_window.on_smart_add_row_clicked(move || {
-            let mut st = state.borrow_mut();
-            if let Some(tbl) = st.active_table_mut() {
-                let selected_row = tbl.marked_rows.iter().copied().next();
-                let new_idx = smart_add_row(tbl, selected_row);
-                log_info("Transform", &format!("Smart Add Zeile hinzugefügt (Index {}).", new_idx + 1));
-            }
+            let st = state.borrow();
+            let Some(tbl) = st.active_table() else {
+                return;
+            };
+            let dialog_state =
+                build_smart_add_dialog_state(tbl, st.only_marked, &st.search_query);
+
+            let slint_fields: Vec<SmartAddFieldItem> = dialog_state
+                .fields
+                .into_iter()
+                .map(|f| {
+                    let suggs: Vec<SmartAddSuggestionItem> = f
+                        .suggestions
+                        .into_iter()
+                        .map(|s| SmartAddSuggestionItem {
+                            value: slint::SharedString::from(s.value),
+                            display: slint::SharedString::from(s.display),
+                            count: s.count as i32,
+                            is_load_more: s.is_load_more,
+                        })
+                        .collect();
+                    SmartAddFieldItem {
+                        col_idx: f.col_idx as i32,
+                        column_name: slint::SharedString::from(f.column_name),
+                        concept_name: slint::SharedString::from(f.concept_name),
+                        value: slint::SharedString::from(f.value),
+                        suggestions: ModelRc::new(VecModel::from(suggs)),
+                        dropdown_open: false,
+                    }
+                })
+                .collect();
+
             if let Some(ui) = ui_handle.upgrade() {
-                sync_ui(&ui, &st);
+                ui.set_smart_add_basis_text(slint::SharedString::from(
+                    dialog_state.basis_description,
+                ));
+                ui.set_smart_add_row_count(1);
+                ui.set_smart_add_row_count_text(slint::SharedString::from("1"));
+                ui.set_smart_add_fields(ModelRc::new(VecModel::from(slint_fields)));
+                ui.set_smart_add_dialog_visible(true);
             }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        main_window.on_smart_add_field_edited(move |field_idx, new_val| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let model = ui.get_smart_add_fields();
+                let idx = field_idx as usize;
+                if let Some(mut item) = model.row_data(idx) {
+                    item.value = new_val;
+                    model.set_row_data(idx, item);
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        main_window.on_smart_add_toggle_dropdown(move |field_idx| {
+            if let Some(ui) = ui_handle.upgrade() {
+                let model = ui.get_smart_add_fields();
+                let target_idx = field_idx as usize;
+                let count = model.row_count();
+                for i in 0..count {
+                    if let Some(mut item) = model.row_data(i) {
+                        if i == target_idx {
+                            item.dropdown_open = !item.dropdown_open;
+                        } else {
+                            item.dropdown_open = false;
+                        }
+                        model.set_row_data(i, item);
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_smart_add_suggestion_selected(move |field_idx, sugg_idx| {
+            let Some(ui) = ui_handle.upgrade() else {
+                return;
+            };
+            let model = ui.get_smart_add_fields();
+            let f_idx = field_idx as usize;
+            let s_idx = sugg_idx as usize;
+            let Some(mut field_item) = model.row_data(f_idx) else {
+                return;
+            };
+            let Some(sugg_item) = field_item.suggestions.row_data(s_idx) else {
+                return;
+            };
+
+            if sugg_item.is_load_more {
+                // Load all suggestions from all (unfiltered) rows of the table
+                let st = state.borrow();
+                if let Some(tbl) = st.active_table() {
+                    let all_suggs =
+                        load_all_suggestions_for_column(tbl, field_item.col_idx as usize);
+                    let slint_suggs: Vec<SmartAddSuggestionItem> = all_suggs
+                        .into_iter()
+                        .map(|s| SmartAddSuggestionItem {
+                            value: slint::SharedString::from(s.value),
+                            display: slint::SharedString::from(s.display),
+                            count: s.count as i32,
+                            is_load_more: false,
+                        })
+                        .collect();
+                    field_item.suggestions = ModelRc::new(VecModel::from(slint_suggs));
+                    field_item.dropdown_open = true;
+                    model.set_row_data(f_idx, field_item);
+                }
+            } else {
+                field_item.value = sugg_item.value;
+                field_item.dropdown_open = false;
+                model.set_row_data(f_idx, field_item);
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        main_window.on_smart_add_clear_all_fields(move || {
+            if let Some(ui) = ui_handle.upgrade() {
+                let model = ui.get_smart_add_fields();
+                let count = model.row_count();
+                for i in 0..count {
+                    if let Some(mut item) = model.row_data(i) {
+                        item.value = slint::SharedString::default();
+                        item.dropdown_open = false;
+                        model.set_row_data(i, item);
+                    }
+                }
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_confirm_smart_add_rows(move |row_count| {
+            let Some(ui) = ui_handle.upgrade() else {
+                return;
+            };
+            let model = ui.get_smart_add_fields();
+            let mut col_values: Vec<(usize, String)> = Vec::new();
+            let count = model.row_count();
+            for i in 0..count {
+                if let Some(item) = model.row_data(i) {
+                    let val = item.value.to_string();
+                    if !val.is_empty() {
+                        col_values.push((item.col_idx as usize, val));
+                    }
+                }
+            }
+
+            let mut st = state.borrow_mut();
+            let only_marked = st.only_marked;
+            let search_q = st.search_query.clone();
+            let mut clear_search = false;
+
+            if let Some(tbl) = st.active_table_mut() {
+                let created_indices =
+                    execute_smart_add_rows(tbl, row_count.max(1) as usize, &col_values);
+                if only_marked {
+                    for &idx in &created_indices {
+                        tbl.marked_rows.insert(idx);
+                    }
+                }
+                if !search_q.trim().is_empty() {
+                    let q_low = search_q.trim().to_lowercase();
+                    if let Some(&first_new) = created_indices.first() {
+                        if let Some(new_row) = tbl.rows.get(first_new) {
+                            if !new_row.iter().any(|c| c.to_lowercase().contains(&q_low)) {
+                                clear_search = true;
+                            }
+                        }
+                    }
+                }
+                log_info(
+                    "SmartAdd",
+                    &format!(
+                        "{} neue Zeile(n) zu '{}' hinzugefügt.",
+                        created_indices.len(),
+                        tbl.display_name
+                    ),
+                );
+            }
+
+            if clear_search {
+                st.search_query.clear();
+                ui.set_search_query(slint::SharedString::default());
+            }
+
+            st.execute_all_rules();
+            ui.set_status_message(slint::SharedString::from(format!(
+                "{} neue Zeile(n) hinzugefügt.",
+                row_count.max(1)
+            )));
+            sync_ui(&ui, &st);
         });
     }
     {
@@ -949,6 +2033,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 tbl.is_dirty = true;
                 log_info("Transform", "Markierte Zeilen gelöscht.");
             }
+            st.execute_all_rules();
             if let Some(ui) = ui_handle.upgrade() {
                 sync_ui(&ui, &st);
             }
@@ -981,6 +2066,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         paste_clipboard_data(tbl, &text, tbl.rows.len(), 0);
                         log_info("Clipboard", "Daten aus der Zwischenablage eingefügt.");
                     }
+                    st.execute_all_rules();
                     if let Some(ui) = ui_handle.upgrade() {
                         sync_ui(&ui, &st);
                     }

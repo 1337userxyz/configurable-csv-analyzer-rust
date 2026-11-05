@@ -16,6 +16,27 @@ pub struct HighlightItem {
     pub severity: HighlightSeverity,
     pub message: String,
     pub rule_id: String,
+    #[serde(default)]
+    pub brush_key: Option<String>,
+    #[serde(default)]
+    pub priority: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleGroupSummary {
+    pub rule_id: String,
+    pub description: String,
+    pub hit_count: usize,
+    pub error_count: usize,
+    pub warning_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProposalRow {
+    pub source_table: String,
+    pub target_table: String,
+    pub key_value: String,
+    pub row_data: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,7 +52,7 @@ pub enum TextMarkerColor {
 }
 
 impl TextMarkerColor {
-    pub fn hex(&self) -> &'static str {
+    pub fn hex(&self) -> &str {
         match self {
             TextMarkerColor::None => "",
             TextMarkerColor::Yellow => "#fff59d",
@@ -40,7 +61,7 @@ impl TextMarkerColor {
             TextMarkerColor::Red => "#ffcdd2",
             TextMarkerColor::Orange => "#ffe0b2",
             TextMarkerColor::Purple => "#e1bee7",
-            TextMarkerColor::Custom(_) => "#b2ebf2",
+            TextMarkerColor::Custom(ref s) => s.as_str(),
         }
     }
 }
@@ -101,16 +122,10 @@ impl FilterCondition {
 
         if !self.all_selected {
             if is_empty {
-                if !self.include_empty {
-                    return false;
-                }
+                return self.include_empty || self.selected_values.contains("");
             } else {
-                if !self.include_non_empty && !self.selected_values.contains(val) {
-                    return false;
-                }
-                if self.include_non_empty && !self.selected_values.is_empty() && !self.selected_values.contains(val) {
-                    return false;
-                }
+                return self.selected_values.contains(val)
+                    || self.selected_values.contains(trimmed);
             }
         }
         true
@@ -732,7 +747,10 @@ pub struct TableData {
     pub marked_rows: HashSet<usize>,
     pub row_markers: HashMap<usize, TextMarkerColor>,
     pub cell_markers: HashMap<(usize, usize), TextMarkerColor>,
+    pub dirty_cells: HashSet<(usize, usize)>,
     pub rule_highlights: Vec<HighlightItem>,
+    pub rule_summaries: Vec<RuleGroupSummary>,
+    pub rule_proposals: Vec<ProposalRow>,
     pub active_filters: HashMap<usize, FilterCondition>,
     pub sort_column: Option<(usize, bool)>, // (col_index, ascending)
     pub is_dirty: bool,
@@ -759,7 +777,10 @@ impl TableData {
             marked_rows: HashSet::new(),
             row_markers: HashMap::new(),
             cell_markers: HashMap::new(),
+            dirty_cells: HashSet::new(),
             rule_highlights: Vec::new(),
+            rule_summaries: Vec::new(),
+            rule_proposals: Vec::new(),
             active_filters: HashMap::new(),
             sort_column: None,
             is_dirty: false,
@@ -775,14 +796,87 @@ impl TableData {
 
     /// Resolve column index by raw name or by abstract concept
     pub fn find_col_index(&self, name_or_concept: &str) -> Option<usize> {
+        let trimmed = name_or_concept.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
         // First check if it matches a concept mapping
-        if let Some(raw_name) = self.column_mappings.get(name_or_concept) {
+        if let Some(raw_name) = self.column_mappings.get(trimmed) {
             if let Some(idx) = self.headers.iter().position(|h| h.eq_ignore_ascii_case(raw_name)) {
                 return Some(idx);
             }
         }
+        for (k, raw_name) in &self.column_mappings {
+            if k.eq_ignore_ascii_case(trimmed) {
+                if let Some(idx) = self.headers.iter().position(|h| h.eq_ignore_ascii_case(raw_name)) {
+                    return Some(idx);
+                }
+            }
+        }
         // Then check raw header names directly
-        self.headers.iter().position(|h| h.eq_ignore_ascii_case(name_or_concept))
+        self.headers.iter().position(|h| h.eq_ignore_ascii_case(trimmed))
+    }
+
+    /// Compute row indices matching all active filters EXCEPT `ignore_col_idx`
+    pub fn rows_matching_other_filters(
+        &self,
+        ignore_col_idx: usize,
+        only_marked: bool,
+        search_query: &str,
+    ) -> Vec<usize> {
+        let query_lower = search_query.trim().to_lowercase();
+        (0..self.rows.len())
+            .filter(|&row_idx| {
+                if only_marked && !self.marked_rows.contains(&row_idx) {
+                    return false;
+                }
+                let row = &self.rows[row_idx];
+                if !query_lower.is_empty()
+                    && !row.iter().any(|cell| cell.to_lowercase().contains(&query_lower))
+                {
+                    return false;
+                }
+                for (&col_idx, filter) in &self.active_filters {
+                    if col_idx == ignore_col_idx || !filter.is_active() {
+                        continue;
+                    }
+                    let val = row.get(col_idx).map(|s| s.as_str()).unwrap_or("");
+                    if !filter.matches(val) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect()
+    }
+
+    /// Ensure that the specified row is not hidden by any active column filter
+    pub fn ensure_row_visible_in_filter(&mut self, row_idx: usize) {
+        let Some(row) = self.rows.get(row_idx) else {
+            return;
+        };
+        for (&col_idx, filter) in self.active_filters.iter_mut() {
+            if !filter.is_active() {
+                continue;
+            }
+            let val = row.get(col_idx).map(|s| s.as_str()).unwrap_or("");
+            if !filter.matches(val) {
+                let trimmed = val.trim();
+                if trimmed.is_empty() {
+                    filter.include_empty = true;
+                    filter.selected_values.insert(String::new());
+                } else {
+                    filter.selected_values.insert(val.to_string());
+                    filter.selected_values.insert(trimmed.to_string());
+                    filter.include_non_empty = true;
+                }
+                if !filter.text_search.is_empty()
+                    && !val.to_lowercase().contains(&filter.text_search.to_lowercase())
+                {
+                    filter.text_search.clear();
+                }
+            }
+        }
     }
 
     /// Compute filtered and sorted row indices
@@ -829,6 +923,7 @@ impl TableData {
             }
             if self.rows[row][col] != new_val {
                 self.rows[row][col] = new_val;
+                self.dirty_cells.insert((row, col));
                 self.is_dirty = true;
             }
         }

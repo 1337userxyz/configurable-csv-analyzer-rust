@@ -1,0 +1,44 @@
+Verteiler;HE;Gerät;Beschreibung;Zuordnung
+VT-A209;1;Steckdosenleiste;8 Steckdosen;x
+VT-A209;2;Rangierpanel;Kabelführung;x
+VT-A209;3;Patchfeld 1;24 Port Kat 6 Patchfeld;Schule
+VT-A209;4;Patchfeld 2;24 Port Kat 6 Patchfeld;Schule
+VT-A209;5;usw-pro-48-01;40x PoE+ (30W), 8x PoE++ (60W), 4x 10G SFP+;Schule
+VT-A209;6;Frei;;
+VT-A209;7;usw-pro-48-02;40x PoE+ (30W), 8x PoE++ (60W), 4x 10G SFP+;Schule
+VT-A209;8;Rangierpanel;;x
+VT-A209;9;Patchfeld 3;;Schule
+VT-A209;10;Patchfeld 4;;Schule
+VT-A209;11;Rangierpanel;;x
+VT-A209;12;Frei;;x
+VT-A209;13;usw-pro-48-xx;40x PoE+ (30W), 8x PoE++ (60W), 4x 10G SFP+;Schule
+VT-A209;14;Rangierpanel;;x
+VT-A209;15;Patchfeld 5;;Schule
+VT-A209;16;Patchfeld 6;;Schule
+VT-A209;17;Rangierpanel;;x
+VT-A209;18;Patchfeld 7;;Schule
+VT-A209;19;usw-pro-48-02;;Schule
+VT-A209;20;Rangierpanel;;x
+VT-A209;21;DLink-Extern;;extern
+VT-A209;22;Auerswald-TK;;extern
+VT-A209;23;Auerswald-TK;;extern
+VT-A209;24;Telefonie-Eföb;;extern
+VT-A209;25;EasyLan-LWL;6 Port LWL;x
+VT-A209;26;CobiNet-LWL;12Port LWL;x
+VT-A209;27;Fortinet Fortigate 80F;Internet Router;Schule
+VT-A209;28;Rad-Etx-203AM;Switch Alarmanlage;alarm
+VT-A209;29;Frei;;x
+VT-A209;30;Frei (unsauber platziert );;x
+VT-A209;31;Steckdosenleiste;;x
+VT-A209;32;Frei;;x
+VT-A209;33;Eaton 5P;USV Extern;extern
+VT-A209;34;Frei;;x
+VT-A209;35;FritzBox;;extern
+VT-A209;36;Frei;;x
+VT-A209;37;FritzBox Tk Anlage;;extern
+VT-A209;38;Frei;;x
+VT-A209;39;Primergy Rx 2540 m5;Logodidact Server;Schule
+VT-A209;40;Primergy Rx 2540 m5;Logodidact Server;Schule
+VT-A209;41;Frei;;x
+VT-A209;42;Frei;;x
+VT-A209;43 ( Boden );APC Smart-Ups C1000;USV Logodidact;Schule

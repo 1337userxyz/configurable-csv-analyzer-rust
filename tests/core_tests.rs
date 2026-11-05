@@ -363,3 +363,217 @@ fn test_virtual_columns_multi_step_joins() {
     assert!(autotext.contains("switches.csv"));
     assert!(autotext.contains("rooms.csv"));
 }
+
+#[test]
+fn test_create_and_load_ods() {
+    use configurable_csv_analyzer::core::io::ods::{create_ods_file, list_ods_sheets, load_ods_sheet};
+
+    let tmp_path = std::env::temp_dir().join("test_created_analyzer.ods");
+    let _ = std::fs::remove_file(&tmp_path);
+
+    let mut t1 = TableData::new("t1".into(), "Switches.csv".into());
+    t1.headers = vec!["Device".into(), "IP".into()];
+    t1.rows = vec![
+        vec!["SW-01".into(), "10.0.0.1".into()],
+        vec!["SW-02".into(), "10.0.0.2".into()],
+    ];
+
+    create_ods_file(&tmp_path, &[t1]).expect("create_ods_file sollte erfolgreich sein");
+    assert!(tmp_path.exists());
+
+    let sheets = list_ods_sheets(&tmp_path).expect("list_ods_sheets sollte erfolgreich sein");
+    assert_eq!(sheets, vec!["Switches"]);
+
+    let loaded = load_ods_sheet(&tmp_path, Some("Switches")).expect("load_ods_sheet sollte erfolgreich sein");
+    assert_eq!(loaded.headers, vec!["Device", "IP"]);
+    assert_eq!(loaded.rows.len(), 2);
+    assert_eq!(loaded.rows[0], vec!["SW-01", "10.0.0.1"]);
+
+    let _ = std::fs::remove_file(&tmp_path);
+}
+
+#[test]
+fn test_empty_0byte_ods() {
+    use configurable_csv_analyzer::core::io::ods::{list_ods_sheets, load_ods_sheet};
+    let tmp_0byte = std::env::temp_dir().join("test_empty_0byte.ods");
+    let _ = std::fs::write(&tmp_0byte, b""); // Create a 0-byte file
+    assert_eq!(std::fs::metadata(&tmp_0byte).unwrap().len(), 0);
+
+    let sheets = list_ods_sheets(&tmp_0byte).expect("0-byte ODS must be auto-initialized");
+    assert_eq!(sheets, vec!["Tabelle1"]);
+
+    let table = load_ods_sheet(&tmp_0byte, None).expect("0-byte ODS must load without error");
+    assert_eq!(table.headers, vec!["Spalte1", "Spalte2", "Spalte3"]);
+    let _ = std::fs::remove_file(&tmp_0byte);
+}
+
+#[test]
+fn test_filter_empty_rows_and_cross_filter_counts() {
+    let mut table = TableData::new("t_filter".into(), "FilterTest".into());
+    table.headers = vec!["Rack".into(), "Device".into()];
+    table.rows = vec![
+        vec!["R1".into(), "SW-01".into()],
+        vec!["R1".into(), "".into()],
+        vec!["R2".into(), "SW-02".into()],
+        vec!["".into(), "SW-03".into()],
+    ];
+
+    // Filter column 0 (Rack) to only "R1" (no empty)
+    let mut selected = std::collections::HashSet::new();
+    selected.insert("R1".to_string());
+    table.active_filters.insert(
+        0,
+        FilterCondition {
+            selected_values: selected,
+            all_selected: false,
+            include_empty: false,
+            include_non_empty: true,
+            text_search: String::new(),
+        },
+    );
+
+    // Visible rows should be 0 and 1 (row 3 has empty Rack and must be filtered out!)
+    let vis = table.visible_row_indices(false);
+    assert_eq!(vis, vec![0, 1]);
+
+    // Cross-filter counts for column 1 (Device) considering column 0's active filter ("R1")
+    let rows_for_col1 = table.rows_matching_other_filters(1, false, "");
+    assert_eq!(rows_for_col1, vec![0, 1]);
+
+    // Now also filter column 1 (Device) to exclude empty values
+    let mut selected_dev = std::collections::HashSet::new();
+    selected_dev.insert("SW-01".to_string());
+    table.active_filters.insert(
+        1,
+        FilterCondition {
+            selected_values: selected_dev,
+            all_selected: false,
+            include_empty: false,
+            include_non_empty: true,
+            text_search: String::new(),
+        },
+    );
+
+    // Only row 0 should remain visible (row 1 has empty Device!)
+    let vis_both = table.visible_row_indices(false);
+    assert_eq!(vis_both, vec![0]);
+}
+
+#[test]
+fn test_smart_add_dialog_logic_and_filter_visibility() {
+    let mut table = TableData::new("t_smart".into(), "SmartTest".into());
+    table.headers = vec![
+        "ID".into(),
+        "_Internal".into(),
+        "OriginalRowNumber".into(),
+        "Building".into(),
+        "Room".into(),
+        "Host".into(),
+    ];
+    table.is_virtual_col = vec![false, false, false, false, false, false];
+    table.rows = vec![
+        vec!["1".into(), "x".into(), "1".into(), "B1".into(), "101".into(), "srv-1".into()],
+        vec!["2".into(), "x".into(), "2".into(), "B1".into(), "101".into(), "srv-2".into()],
+        vec!["3".into(), "x".into(), "3".into(), "B2".into(), "202".into(), "srv-3".into()],
+    ];
+
+    // 1. Test with 2 marked rows (rows 0 and 1)
+    table.marked_rows.insert(0);
+    table.marked_rows.insert(1);
+
+    let state_multi = build_smart_add_dialog_state(&table, false, "");
+    // System columns ID, _Internal, OriginalRowNumber must be excluded -> only Building, Room, Host remain
+    assert_eq!(state_multi.fields.len(), 3);
+    assert_eq!(state_multi.fields[0].column_name, "Building");
+    assert_eq!(state_multi.fields[1].column_name, "Room");
+    assert_eq!(state_multi.fields[2].column_name, "Host");
+
+    // Both marked rows have Building="B1" and Room="101", so they must be auto-prefilled; Host differs so ""
+    assert_eq!(state_multi.fields[0].value, "B1");
+    assert_eq!(state_multi.fields[1].value, "101");
+    assert_eq!(state_multi.fields[2].value, "");
+
+    // Because only a subset of rows is marked, suggestions must end with "... (Alle anzeigen)"
+    assert!(state_multi.fields[0].suggestions.last().unwrap().is_load_more);
+
+    // LoadAllSuggestionsForColumn loads all 3 rows (B1 (2), B2 (1)) without "... (Alle anzeigen)"
+    let all_b_suggs = load_all_suggestions_for_column(&table, 3);
+    assert_eq!(all_b_suggs.len(), 2);
+    assert_eq!(all_b_suggs[0].display, "B1 (2)");
+    assert_eq!(all_b_suggs[1].display, "B2 (1)");
+
+    // 2. Test with 1 marked row (row 2) -> all non-empty values of row 2 are prefilled
+    table.marked_rows.clear();
+    table.marked_rows.insert(2);
+    let state_single = build_smart_add_dialog_state(&table, false, "");
+    assert_eq!(state_single.fields[0].value, "B2");
+    assert_eq!(state_single.fields[1].value, "202");
+    assert_eq!(state_single.fields[2].value, "srv-3");
+
+    // 3. Test execute_smart_add_rows with active filter & EnsureRowIsVisibleInFilter
+    let mut filter_b1 = std::collections::HashSet::new();
+    filter_b1.insert("B1".to_string());
+    table.active_filters.insert(
+        3,
+        FilterCondition {
+            selected_values: filter_b1,
+            all_selected: false,
+            include_empty: false,
+            include_non_empty: true,
+            text_search: String::new(),
+        },
+    );
+
+    // Add 3 new rows with Building="B3" (which was NOT in the active filter for Building!)
+    let created = execute_smart_add_rows(
+        &mut table,
+        3,
+        &[(3, "B3".to_string()), (4, "303".to_string()), (5, "srv-new".to_string())],
+    );
+    assert_eq!(created.len(), 3);
+    assert_eq!(table.rows.len(), 6);
+
+    // EnsureRowIsVisibleInFilter must have added "B3" to the active filter on column 3
+    let vis_after = table.visible_row_indices(false);
+    for &new_idx in &created {
+        assert!(vis_after.contains(&new_idx), "Neue Zeile {} muss im aktiven Filter sichtbar sein", new_idx);
+        assert!(table.dirty_cells.contains(&(new_idx, 3)));
+    }
+}
+
+#[test]
+fn test_multi_sheet_ods_unique_ids() {
+    use configurable_csv_analyzer::core::io::ods::{create_ods_file, list_ods_sheets, load_ods_sheet};
+    let dir = std::env::temp_dir().join("csv_analyzer_multi_ods_test");
+    let _ = std::fs::create_dir_all(&dir);
+    let ods_path = dir.join("multi_test.ods");
+
+    let mut t1 = TableData::new("t1".into(), "Tabelle A".into());
+    t1.headers = vec!["Col1".into(), "Col2".into()];
+    t1.rows = vec![vec!["A1".into(), "A2".into()]];
+
+    let mut t2 = TableData::new("t2".into(), "Tabelle B".into());
+    t2.headers = vec!["X".into(), "Y".into()];
+    t2.rows = vec![vec!["B1".into(), "B2".into()]];
+
+    create_ods_file(&ods_path, &[t1, t2]).unwrap();
+
+    let sheets = list_ods_sheets(&ods_path).unwrap();
+    assert_eq!(sheets.len(), 2);
+    assert_eq!(sheets[0], "Tabelle A");
+    assert_eq!(sheets[1], "Tabelle B");
+
+    let loaded_a = load_ods_sheet(&ods_path, Some(&sheets[0])).unwrap();
+    let loaded_b = load_ods_sheet(&ods_path, Some(&sheets[1])).unwrap();
+
+    // Verify unique IDs
+    assert_ne!(loaded_a.id, loaded_b.id);
+    assert!(loaded_a.id.ends_with("::Tabelle A"));
+    assert!(loaded_b.id.ends_with("::Tabelle B"));
+    assert_eq!(loaded_a.headers, vec!["Col1", "Col2"]);
+    assert_eq!(loaded_b.headers, vec!["X", "Y"]);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+

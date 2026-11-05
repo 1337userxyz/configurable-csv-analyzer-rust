@@ -1,0 +1,173 @@
+{
+  "InfoFileVersion": 1,
+  "CsvSettings": {
+    "FileName": "room-outlet-map.csv",
+    "Delimiter": ";",
+    "HasHeader": true,
+    "Encoding": "utf-8"
+  },
+  "ColumnMappings": {},
+  "ColumnSettings": [
+    {
+      "ColumnName": "Haus",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 0
+    },
+    {
+      "ColumnName": "Verteiler",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 1
+    },
+    {
+      "ColumnName": "Raum",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 2
+    },
+    {
+      "ColumnName": "Raumtyp",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 3
+    },
+    {
+      "ColumnName": "PortInfo",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 4
+    },
+    {
+      "ColumnName": "Patchfeld",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 5
+    },
+    {
+      "ColumnName": "Portnummer",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 6
+    },
+    {
+      "ColumnName": "Startport",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 7
+    },
+    {
+      "ColumnName": "Endport",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 8
+    },
+    {
+      "ColumnName": "Status",
+      "Width": 150,
+      "IsVisible": true,
+      "DisplayOrder": 9
+    },
+    {
+      "ColumnName": "Nutzung (patchpanel-switch-connection-ta -> room-outlet-map)",
+      "Width": 160,
+      "IsVisible": true,
+      "DisplayOrder": 10
+    },
+    {
+      "ColumnName": "Switch (patchpanel-switch-connection-ta -> room-outlet-map)",
+      "Width": 160,
+      "IsVisible": true,
+      "DisplayOrder": 11
+    },
+    {
+      "ColumnName": "Netztyp (patchpanel-switch-connection-ta -> room-outlet-map)",
+      "Width": 160,
+      "IsVisible": true,
+      "DisplayOrder": 12
+    }
+  ],
+  "SavedFilterPresets": [],
+  "Rules": [
+    {
+      "Type": "virtualRowJoin",
+      "id": "Join_1",
+      "description": "Join Join_1",
+      "action_group": null,
+      "is_active": true,
+      "is_highlighted": true,
+      "key_concept": "Patchfeld",
+      "target_table": "patchpanel-switch-connection-ta",
+      "target_key_concept": "Patchfeld",
+      "import_concepts": [
+        "Nutzung",
+        "Switch",
+        "Netztyp"
+      ],
+      "injected_column_names": [],
+      "LinkSteps": [
+        {
+          "TargetTableKey": "patchpanel-switch-connection-ta",
+          "KeyMappings": [
+            {
+              "HostConcept": "Patchfeld",
+              "RemoteConcept": "Patchfeld",
+              "ManualRemoteValue": null,
+              "IsCaseSensitive": false
+            },
+            {
+              "HostConcept": "Portnummer",
+              "RemoteConcept": "Portnummer",
+              "ManualRemoteValue": null,
+              "IsCaseSensitive": false
+            }
+          ]
+        }
+      ],
+      "VirtualColumns": [
+        {
+          "RemoteColumnConcept": "Nutzung",
+          "VirtualColumnHeader": "Nutzung (patchpanel-switch-connection-ta -> room-outlet-map)",
+          "VirtualColumnKey": "v_first_nutzung_from_patchpanel_switch_connection_ta_to_room_outlet_map",
+          "MultiResultDisplay": "First",
+          "BrushKey": "WarningBrush",
+          "Priority": 5
+        },
+        {
+          "RemoteColumnConcept": "Switch",
+          "VirtualColumnHeader": "Switch (patchpanel-switch-connection-ta -> room-outlet-map)",
+          "VirtualColumnKey": "v_first_switch_from_patchpanel_switch_connection_ta_to_room_outlet_map",
+          "MultiResultDisplay": "First",
+          "BrushKey": "WarningBrush",
+          "Priority": 5
+        },
+        {
+          "RemoteColumnConcept": "Netztyp",
+          "VirtualColumnHeader": "Netztyp (patchpanel-switch-connection-ta -> room-outlet-map)",
+          "VirtualColumnKey": "v_first_netztyp_from_patchpanel_switch_connection_ta_to_room_outlet_map",
+          "MultiResultDisplay": "First",
+          "BrushKey": "WarningBrush",
+          "Priority": 5
+        }
+      ]
+    },
+    {
+      "Type": "highlight",
+      "id": "verbunden",
+      "description": "Highlight Highlight_2",
+      "action_group": null,
+      "is_active": true,
+      "is_highlighted": true,
+      "column_concept": "Status",
+      "condition": "Equals",
+      "value_to_match": "verbunden",
+      "multiple_values": [],
+      "invert_condition": false,
+      "brush_key": "PositiveBrush",
+      "target": "Cell",
+      "priority": 50
+    }
+  ],
+  "DirtyCellBrushKey": null,
+  "StorageModeOverride": null
+}

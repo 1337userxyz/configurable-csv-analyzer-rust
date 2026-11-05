@@ -13,7 +13,8 @@ import {
     SlintApplyRuleItem,
     SlintKeyMappingItem,
     SlintLinkStepItem,
-    SlintVirtualColumnItem
+    SlintVirtualColumnItem,
+    SlintValueCountItem
 } from "info_editor.slint";
 
 export {
@@ -33,7 +34,8 @@ export {
     SlintApplyRuleItem,
     SlintKeyMappingItem,
     SlintLinkStepItem,
-    SlintVirtualColumnItem
+    SlintVirtualColumnItem,
+    SlintValueCountItem
 }
 
 export struct TabItem {
@@ -42,6 +44,8 @@ export struct TabItem {
     is_dirty: bool,
     error_count: int,
     is_active: bool,
+    is_ods: bool,
+    file_type: string,
 }
 
 export struct HeaderItem {
@@ -92,7 +96,210 @@ export struct LogViewItem {
 
 export struct FilterChoiceItem {
     value: string,
+    display_text: string,
+    count: int,
     selected: bool,
+    visible: bool,
+}
+
+export struct SmartAddSuggestionItem {
+    value: string,
+    display: string,
+    count: int,
+    is_load_more: bool,
+}
+
+export struct SmartAddFieldItem {
+    col_idx: int,
+    column_name: string,
+    concept_name: string,
+    value: string,
+    suggestions: [SmartAddSuggestionItem],
+    dropdown_open: bool,
+}
+
+component SingleTab inherits Rectangle {
+    in property <TabItem> tab;
+    in property <int> tab_idx;
+    in property <int> total_tabs;
+    callback selected(string);
+    callback move_left(string);
+    callback move_right(string);
+    callback close_clicked(string);
+    callback commit_edit();
+
+    min-width: 140px;
+    max-width: 260px;
+    height: 32px;
+    background: root.tab.is_active ? #223a66 : (tab_touch.has-hover ? #252d42 : #1b2132);
+    border-radius: 6px;
+    border-width: root.tab.is_active ? 1.5px : 1px;
+    border-color: root.tab.is_active ? #60a5fa : (tab_touch.has-hover ? #47557a : #333d54);
+
+    // Active top indicator stripe
+    if root.tab.is_active: Rectangle {
+        y: 0px;
+        height: 3px;
+        width: parent.width - 8px;
+        x: 4px;
+        border-radius: 1.5px;
+        background: #60a5fa;
+    }
+
+    tab_touch := TouchArea {
+        width: parent.width - 66px;
+        clicked => {
+            root.commit_edit();
+            root.selected(root.tab.id);
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 6px;
+        spacing: 6px;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: 5px;
+            alignment: start;
+            horizontal-stretch: 1;
+
+            // Mode badge [CSV] / [ODS]
+            Rectangle {
+                width: 28px;
+                height: 16px;
+                y: 8px;
+                border-radius: 3px;
+                background: root.tab.is_ods ? #451a03 : #064e3b;
+                border-width: 1px;
+                border-color: root.tab.is_ods ? #b45309 : #059669;
+                Text {
+                    text: root.tab.is_ods ? "ODS" : "CSV";
+                    color: root.tab.is_ods ? #fcd34d : #6ee7b7;
+                    font-size: 9px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                text: root.tab.title;
+                color: root.tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
+                font-weight: root.tab.is_active ? 700 : 500;
+                font-size: 12px;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+            if root.tab.is_dirty: Text {
+                text: "*";
+                color: #fbbf24;
+                font-weight: 700;
+                font-size: 14px;
+                vertical-alignment: center;
+            }
+            if root.tab.error_count > 0: VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    min-width: 18px;
+                    height: 18px;
+                    border-radius: 9px;
+                    background: #ef4444;
+                    Text {
+                        text: root.tab.error_count;
+                        color: #ffffff;
+                        font-size: 10px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 2px;
+            alignment: end;
+
+            // Move Left (◀)
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 4px;
+                    background: root.tab_idx > 0 && tab_left_hover.has-hover ? #3b82f6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    opacity: root.tab_idx > 0 ? 1.0 : 0.35;
+                    Text {
+                        text: "◀";
+                        color: tab_left_hover.has-hover ? #ffffff : #cbd5e1;
+                        font-size: 9px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    tab_left_hover := TouchArea {
+                        mouse-cursor: root.tab_idx > 0 ? pointer : default;
+                        clicked => {
+                            if root.tab_idx > 0 {
+                                root.move_left(root.tab.id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Move Right (▶)
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 4px;
+                    background: root.tab_idx < root.total_tabs - 1 && tab_right_hover.has-hover ? #3b82f6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    opacity: root.tab_idx < root.total_tabs - 1 ? 1.0 : 0.35;
+                    Text {
+                        text: "▶";
+                        color: tab_right_hover.has-hover ? #ffffff : #cbd5e1;
+                        font-size: 9px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    tab_right_hover := TouchArea {
+                        mouse-cursor: root.tab_idx < root.total_tabs - 1 ? pointer : default;
+                        clicked => {
+                            if root.tab_idx < root.total_tabs - 1 {
+                                root.move_right(root.tab.id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Close Tab (✕)
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 9px;
+                    background: tab_close_hover.has-hover ? #ef4444 : (root.tab.is_active ? #384b73 : #283044);
+                    Text {
+                        text: "✕";
+                        color: tab_close_hover.has-hover ? #ffffff : (root.tab.is_active ? #cbd5e1 : #8893a7);
+                        font-size: 10px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    tab_close_hover := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.close_clicked(root.tab.id); }
+                    }
+                }
+            }
+        }
+    }
 }
 
 export component MainWindow inherits Window {
@@ -111,9 +318,15 @@ export component MainWindow inherits Window {
     callback save_as_clicked();
     callback revert_clicked();
     callback open_libreoffice_clicked();
+    callback export_csv_to_ods_clicked();
+    callback export_ods_to_csv_clicked();
+    callback view_mode_changed(int);
 
     callback tab_selected(string);
     callback tab_close_clicked(string);
+    callback tab_move_left(string);
+    callback tab_move_right(string);
+    callback view_selected(string);
 
     callback select_all_toggled(bool);
     callback only_marked_toggled(bool);
@@ -132,6 +345,9 @@ export component MainWindow inherits Window {
     callback filter_apply_clicked(int);
     callback filter_clear_all_clicked();
     callback filter_toggle_item(int, bool);
+    callback filter_search_changed(string);
+    callback filter_select_all(bool);
+    callback filter_reset_column(int);
 
     callback cell_edited(int, int, string);
 
@@ -142,6 +358,12 @@ export component MainWindow inherits Window {
     callback apply_split_column(int, string, string);
 
     callback smart_add_row_clicked();
+    callback smart_add_field_edited(int, string);
+    callback smart_add_toggle_dropdown(int);
+    callback smart_add_suggestion_selected(int, int);
+    callback smart_add_clear_all_fields();
+    callback confirm_smart_add_rows(int);
+
     callback delete_marked_rows_clicked();
 
     callback show_ods_sheet_dialog_clicked();
@@ -164,7 +386,20 @@ export component MainWindow inherits Window {
 
     // Properties exposed to Rust
     in-out property <[TabItem]> tabs: [];
+    in-out property <[TabItem]> csv_tabs: [];
+    in-out property <[TabItem]> ods_tabs: [];
+    in-out property <length> csv_tab_scroll_x: 0px;
+    in-out property <length> ods_tab_scroll_x: 0px;
     in-out property <string> active_tab_id: "";
+    in-out property <[string]> available_views: [];
+    in-out property <string> active_view_name: "";
+    in-out property <int> active_view_mode: 0; // 0: Alle, 1: CSV, 2: ODS
+    in-out property <string> active_mode_label: "Alle";
+    in-out property <int> csv_tab_count: 0;
+    in-out property <int> ods_tab_count: 0;
+    in-out property <bool> active_table_is_ods: false;
+    in-out property <length> tab_scroll_x: 0px;
+    in-out property <bool> all_tables_popup_open: false;
     in-out property <[HeaderItem]> headers: [];
     in-out property <[RowItem]> rows: [];
     in-out property <int> total_row_count: 0;
@@ -172,6 +407,17 @@ export component MainWindow inherits Window {
     in-out property <bool> only_marked_active: false;
     in-out property <string> search_query: "";
     in-out property <string> status_message: "Bereit";
+
+    // Marker Menu properties
+    in-out property <bool> marker_menu_visible: false;
+    in-out property <[ColorChoiceItem]> marker_choices: [
+        { key: "Gelb", hex_value: "#fff59d", color: #fff59d },
+        { key: "Grün", hex_value: "#c8e6c9", color: #c8e6c9 },
+        { key: "Blau", hex_value: "#bbdefb", color: #bbdefb },
+        { key: "Rot", hex_value: "#ffcdd2", color: #ffcdd2 },
+        { key: "Orange", hex_value: "#ffe0b2", color: #ffe0b2 },
+        { key: "Lila", hex_value: "#e1bee7", color: #e1bee7 },
+    ];
 
     // Dock properties
     in-out property <bool> dock_collapsed: false;
@@ -186,6 +432,14 @@ export component MainWindow inherits Window {
     in-out property <string> filter_dialog_col_name: "";
     in-out property <[FilterChoiceItem]> filter_dialog_items: [];
     in-out property <string> filter_dialog_search: "";
+    in-out property <int> filter_dialog_total_hits: 0;
+
+    // Smart Add Modal
+    in-out property <bool> smart_add_dialog_visible: false;
+    in-out property <string> smart_add_basis_text: "";
+    in-out property <int> smart_add_row_count: 1;
+    in-out property <string> smart_add_row_count_text: "1";
+    in-out property <[SmartAddFieldItem]> smart_add_fields: [];
 
     // Fill Column Modal
     in-out property <bool> fill_dialog_visible: false;
@@ -216,17 +470,31 @@ export component MainWindow inherits Window {
     in-out property <int> editing_row: -1;
     in-out property <int> editing_col: -1;
     in-out property <string> editing_text: "";
+    in-out property <bool> editing_dirty: false;
+
+    function commit_active_edit() {
+        if (root.editing_row >= 0 && root.editing_col >= 0 && root.editing_dirty) {
+            root.cell_edited(root.editing_row, root.editing_col, root.editing_text);
+        }
+        root.editing_row = -1;
+        root.editing_col = -1;
+        root.editing_dirty = false;
+    }
+
+    function set_smart_row_count(new_count: int) {
+        let clamped = max(1, new_count);
+        root.smart_add_row_count = clamped;
+        root.smart_add_row_count_text = "" + clamped;
+    }
 
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
 
-        // TOP BAR / MENU & ACTIONS
+        // ROW 1: FILE OPERATIONS & EXPORT & CONFIG
         Rectangle {
-            height: 48px;
+            height: 42px;
             background: #25252d;
-            
-            
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -234,86 +502,302 @@ export component MainWindow inherits Window {
                 alignment: space-between;
 
                 HorizontalLayout {
-                    spacing: 8px;
+                    spacing: 6px;
                     alignment: start;
 
                     Button {
                         text: "CSV öffnen";
-                        clicked => { root.open_csv_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.open_csv_clicked();
+                        }
                     }
                     Button {
                         text: "ODS öffnen";
-                        clicked => { root.open_ods_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.open_ods_clicked();
+                        }
                     }
                     Button {
-                        text: "Ordner importieren";
-                        clicked => { root.open_folder_clicked(); }
+                        text: "Ordner";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.open_folder_clicked();
+                        }
                     }
                     Button {
                         text: "Speichern";
                         primary: true;
-                        clicked => { root.save_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.save_clicked();
+                        }
                     }
                     Button {
                         text: "Revert";
-                        clicked => { root.revert_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.revert_clicked();
+                        }
                     }
                     Button {
                         text: "LibreOffice";
-                        clicked => { root.open_libreoffice_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.open_libreoffice_clicked();
+                        }
                     }
 
-                    Rectangle { width: 1px; background: #444452; height: 26px; }
+                    Rectangle { width: 1px; background: #444452; height: 24px; }
 
                     Button {
-                        text: "+ Zeile (Smart)";
-                        clicked => { root.smart_add_row_clicked(); }
+                        text: "📤 CSV ➔ ODS";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.export_csv_to_ods_clicked();
+                        }
                     }
                     Button {
-                        text: "Spalte füllen";
-                        clicked => { root.show_fill_dialog_clicked(); }
-                    }
-                    Button {
-                        text: "Spalte teilen";
-                        clicked => { root.show_split_dialog_clicked(); }
-                    }
-                    Button {
-                        text: "Zeilen löschen";
-                        clicked => { root.delete_marked_rows_clicked(); }
+                        text: "📥 ODS ➔ CSV";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.export_ods_to_csv_clicked();
+                        }
                     }
                 }
 
                 HorizontalLayout {
-                    spacing: 8px;
+                    spacing: 6px;
                     alignment: end;
 
                     Button {
                         text: "Diff / Sync";
-                        clicked => { root.show_diff_dialog_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.show_diff_dialog_clicked();
+                        }
                     }
                     Button {
                         text: "⚙ Konfiguration";
-                        clicked => { root.show_config_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.show_config_clicked();
+                        }
                     }
                     Button {
                         text: ".info Editor";
-                        clicked => { root.show_info_editor_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.show_info_editor_clicked();
+                        }
                     }
                     Button {
                         text: "Kopieren (TSV)";
-                        clicked => { root.copy_clipboard_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.copy_clipboard_clicked();
+                        }
                     }
                     Button {
                         text: "Einfügen";
-                        clicked => { root.paste_clipboard_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.paste_clipboard_clicked();
+                        }
                     }
                 }
             }
         }
 
-        // TAB BAR
+        // ROW 2: KOLLEKTION & MODUS-UMSCHALTER & BEARBEITEN
         Rectangle {
             height: 42px;
+            background: #1c1c24;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    if root.available_views.length > 0: HorizontalLayout {
+                        spacing: 6px;
+                        alignment: center;
+                        Text {
+                            text: "📁 Kollektion:";
+                            color: #93c5fd;
+                            font-size: 12px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        ComboBox {
+                            width: 160px;
+                            model: root.available_views;
+                            current-value: root.active_view_name;
+                            selected(val) => {
+                                root.commit_active_edit();
+                                root.active_view_name = val;
+                                root.view_selected(val);
+                            }
+                        }
+                        Rectangle {
+                            width: 1px;
+                            height: 22px;
+                            background: #2e3044;
+                        }
+                    }
+
+                    // Mode Switcher Pill
+                    HorizontalLayout {
+                        spacing: 2px;
+                        alignment: center;
+
+                        Rectangle {
+                            height: 30px;
+                            background: #13141c;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: #2e3044;
+
+                            HorizontalLayout {
+                                padding: 2px;
+                                spacing: 3px;
+
+                                // 0: Alle
+                                Rectangle {
+                                    width: 72px;
+                                    height: 24px;
+                                    border-radius: 4px;
+                                    background: root.active_view_mode == 0 ? #2563eb : (m_all.has-hover ? #222638 : transparent);
+                                    Text {
+                                        text: "🗂 Alle (" + (root.csv_tab_count + root.ods_tab_count) + ")";
+                                        font-size: 11px;
+                                        font-weight: root.active_view_mode == 0 ? 700 : 500;
+                                        color: root.active_view_mode == 0 ? #ffffff : #94a3b8;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                    m_all := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.view_mode_changed(0); }
+                                    }
+                                }
+
+                                // 1: CSV
+                                Rectangle {
+                                    width: 76px;
+                                    height: 24px;
+                                    border-radius: 4px;
+                                    background: root.active_view_mode == 1 ? #059669 : (m_csv.has-hover ? #143526 : transparent);
+                                    Text {
+                                        text: "📄 CSV (" + root.csv_tab_count + ")";
+                                        font-size: 11px;
+                                        font-weight: root.active_view_mode == 1 ? 700 : 500;
+                                        color: root.active_view_mode == 1 ? #ffffff : #94a3b8;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                    m_csv := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.view_mode_changed(1); }
+                                    }
+                                }
+
+                                // 2: ODS
+                                Rectangle {
+                                    width: 76px;
+                                    height: 24px;
+                                    border-radius: 4px;
+                                    background: root.active_view_mode == 2 ? #d97706 : (m_ods.has-hover ? #382713 : transparent);
+                                    Text {
+                                        text: "📊 ODS (" + root.ods_tab_count + ")";
+                                        font-size: 11px;
+                                        font-weight: root.active_view_mode == 2 ? 700 : 500;
+                                        color: root.active_view_mode == 2 ? #ffffff : #94a3b8;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                    m_ods := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.view_mode_changed(2); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Level Badge
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 4px;
+                        background: root.active_table_is_ods ? #451a03 : #064e3b;
+                        border-width: 1px;
+                        border-color: root.active_table_is_ods ? #d97706 : #059669;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            Text {
+                                text: root.active_table_is_ods ? "📊 ODS-Ebene" : "📄 CSV-Ebene";
+                                color: root.active_table_is_ods ? #fcd34d : #6ee7b7;
+                                font-weight: 700;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+
+                    Button {
+                        text: "🖍 Marker ▼";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.marker_menu_visible = !root.marker_menu_visible;
+                        }
+                    }
+                    Button {
+                        text: "+ Zeile (Smart)";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.smart_add_row_clicked();
+                        }
+                    }
+                    Button {
+                        text: "Spalte füllen";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.show_fill_dialog_clicked();
+                        }
+                    }
+                    Button {
+                        text: "Spalte teilen";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.show_split_dialog_clicked();
+                        }
+                    }
+                    Button {
+                        text: "Zeilen löschen";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.delete_marked_rows_clicked();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ROW 3: TAB BAR (CSV-EBENE UND ODS-EBENE)
+        Rectangle {
+            height: (root.active_view_mode == 0 && root.ods_tabs.length > 0 && root.csv_tabs.length > 0) ? 84px : 44px;
             background: #14161f;
 
             // Bottom border for tab bar
@@ -323,88 +807,219 @@ export component MainWindow inherits Window {
                 background: #2a3147;
             }
 
-            ScrollView {
-                HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    padding-top: 4px;
-                    padding-bottom: 4px;
-                    spacing: 6px;
+            VerticalLayout {
+                spacing: 0px;
 
-                    for tab in root.tabs: Rectangle {
-                        min-width: 150px;
-                        height: 34px;
-                        background: tab.is_active ? #223a66 : (tab_touch.has-hover ? #252d42 : #1b2132);
-                        border-radius: 6px;
-                        border-width: tab.is_active ? 1.5px : 1px;
-                        border-color: tab.is_active ? #60a5fa : (tab_touch.has-hover ? #47557a : #333d54);
+                // 1. CSV Tab-Zeile (Sichtbar bei Modus "Alle" [0] oder "CSV" [1])
+                if (root.active_view_mode == 0 || root.active_view_mode == 1) && (root.csv_tabs.length > 0 || root.active_view_mode == 1): Rectangle {
+                    height: 42px;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 6px;
 
-                        // Active top indicator stripe
-                        if tab.is_active: Rectangle {
-                            y: 0px;
-                            height: 3px;
-                            width: parent.width - 8px;
-                            x: 4px;
-                            border-radius: 1.5px;
-                            background: #60a5fa;
-                        }
-
-                        tab_touch := TouchArea {
-                            clicked => { root.tab_selected(tab.id); }
-                        }
-
-                        HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 8px;
-                            alignment: space-between;
-
-                            HorizontalLayout {
-                                spacing: 4px;
-                                alignment: start;
-                                Text {
-                                    text: "📄 " + tab.title;
-                                    color: tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
-                                    font-weight: tab.is_active ? 700 : 500;
-                                    font-size: 13px;
-                                    vertical-alignment: center;
-                                }
-                                if tab.is_dirty: Text {
-                                    text: "*";
-                                    color: #fbbf24;
-                                    font-weight: 700;
-                                    font-size: 14px;
-                                    vertical-alignment: center;
-                                }
-                                if tab.error_count > 0: Rectangle {
-                                    min-width: 18px;
-                                    height: 18px;
-                                    border-radius: 9px;
-                                    background: #ef4444;
-                                    Text {
-                                        text: tab.error_count;
-                                        color: #ffffff;
-                                        font-size: 10px;
-                                        font-weight: 700;
-                                        horizontal-alignment: center;
-                                        vertical-alignment: center;
-                                    }
-                                }
-                            }
-
+                        // Zeilen-Kennung CSV
+                        VerticalLayout {
+                            alignment: center;
                             Rectangle {
-                                width: 18px;
-                                height: 18px;
-                                border-radius: 9px;
-                                background: tab_close_hover.has-hover ? #ef4444 : (tab.is_active ? #384b73 : #283044);
+                                width: 72px;
+                                height: 24px;
+                                border-radius: 4px;
+                                background: #064e3b;
+                                border-width: 1px;
+                                border-color: #059669;
                                 Text {
-                                    text: "✕";
-                                    color: tab_close_hover.has-hover ? #ffffff : (tab.is_active ? #cbd5e1 : #8893a7);
+                                    text: "📄 CSV (" + root.csv_tabs.length + ")";
+                                    color: #6ee7b7;
                                     font-size: 10px;
+                                    font-weight: 700;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
-                                tab_close_hover := TouchArea {
-                                    clicked => { root.tab_close_clicked(tab.id); }
+                            }
+                        }
+
+                        // Scroll Left (◀)
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 22px;
+                                height: 28px;
+                                border-radius: 4px;
+                                background: tab_scroll_csv_l.has-hover ? #2e3549 : #1a1e2d;
+                                border-width: 1px;
+                                border-color: #333d54;
+                                Text {
+                                    text: "◀";
+                                    font-size: 10px;
+                                    color: #94a3b8;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                tab_scroll_csv_l := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.csv_tab_scroll_x = min(0px, root.csv_tab_scroll_x + 180px);
+                                    }
+                                }
+                            }
+                        }
+
+                        ScrollView {
+                            horizontal-stretch: 1;
+                            content-x <=> root.csv_tab_scroll_x;
+                            HorizontalLayout {
+                                padding-top: 4px;
+                                padding-bottom: 4px;
+                                spacing: 6px;
+                                alignment: start;
+
+                                for tab[tab_idx] in root.csv_tabs: SingleTab {
+                                    tab: tab;
+                                    tab_idx: tab_idx;
+                                    total_tabs: root.csv_tabs.length;
+                                    selected(id) => { root.tab_selected(id); }
+                                    move_left(id) => { root.tab_move_left(id); }
+                                    move_right(id) => { root.tab_move_right(id); }
+                                    close_clicked(id) => { root.tab_close_clicked(id); }
+                                    commit_edit => { root.commit_active_edit(); }
+                                }
+                            }
+                        }
+
+                        // Scroll Right (▶)
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 22px;
+                                height: 28px;
+                                border-radius: 4px;
+                                background: tab_scroll_csv_r.has-hover ? #2e3549 : #1a1e2d;
+                                border-width: 1px;
+                                border-color: #333d54;
+                                Text {
+                                    text: "▶";
+                                    font-size: 10px;
+                                    color: #94a3b8;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                tab_scroll_csv_r := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.csv_tab_scroll_x = root.csv_tab_scroll_x - 180px;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Trennlinie wenn beide Zeilen im Modus "Alle" sichtbar sind
+                if root.active_view_mode == 0 && root.csv_tabs.length > 0 && root.ods_tabs.length > 0: Rectangle {
+                    height: 1px;
+                    background: #252b3d;
+                }
+
+                // 2. ODS Tab-Zeile (Sichtbar bei Modus "Alle" [0] oder "ODS" [2])
+                if (root.active_view_mode == 0 && root.ods_tabs.length > 0) || root.active_view_mode == 2: Rectangle {
+                    height: 42px;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 6px;
+
+                        // Zeilen-Kennung ODS
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 72px;
+                                height: 24px;
+                                border-radius: 4px;
+                                background: #451a03;
+                                border-width: 1px;
+                                border-color: #d97706;
+                                Text {
+                                    text: "📊 ODS (" + root.ods_tabs.length + ")";
+                                    color: #fcd34d;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Scroll Left (◀)
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 22px;
+                                height: 28px;
+                                border-radius: 4px;
+                                background: tab_scroll_ods_l.has-hover ? #2e3549 : #1a1e2d;
+                                border-width: 1px;
+                                border-color: #333d54;
+                                Text {
+                                    text: "◀";
+                                    font-size: 10px;
+                                    color: #94a3b8;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                tab_scroll_ods_l := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.ods_tab_scroll_x = min(0px, root.ods_tab_scroll_x + 180px);
+                                    }
+                                }
+                            }
+                        }
+
+                        ScrollView {
+                            horizontal-stretch: 1;
+                            content-x <=> root.ods_tab_scroll_x;
+                            HorizontalLayout {
+                                padding-top: 4px;
+                                padding-bottom: 4px;
+                                spacing: 6px;
+                                alignment: start;
+
+                                for tab[tab_idx] in root.ods_tabs: SingleTab {
+                                    tab: tab;
+                                    tab_idx: tab_idx;
+                                    total_tabs: root.ods_tabs.length;
+                                    selected(id) => { root.tab_selected(id); }
+                                    move_left(id) => { root.tab_move_left(id); }
+                                    move_right(id) => { root.tab_move_right(id); }
+                                    close_clicked(id) => { root.tab_close_clicked(id); }
+                                    commit_edit => { root.commit_active_edit(); }
+                                }
+                            }
+                        }
+
+                        // Scroll Right (▶)
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 22px;
+                                height: 28px;
+                                border-radius: 4px;
+                                background: tab_scroll_ods_r.has-hover ? #2e3549 : #1a1e2d;
+                                border-width: 1px;
+                                border-color: #333d54;
+                                Text {
+                                    text: "▶";
+                                    font-size: 10px;
+                                    color: #94a3b8;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                tab_scroll_ods_r := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.ods_tab_scroll_x = root.ods_tab_scroll_x - 180px;
+                                    }
                                 }
                             }
                         }
@@ -417,8 +1032,6 @@ export component MainWindow inherits Window {
         Rectangle {
             height: 42px;
             background: #23232b;
-            
-            
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -431,10 +1044,35 @@ export component MainWindow inherits Window {
                     spacing: 10px;
                     alignment: start;
 
+                    // Active Level Badge (CSV-Ebene oder ODS-Ebene)
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 4px;
+                        background: root.active_table_is_ods ? #451a03 : #064e3b;
+                        border-width: 1px;
+                        border-color: root.active_table_is_ods ? #d97706 : #059669;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 4px;
+                            Text {
+                                text: root.active_table_is_ods ? "📊 ODS-Ebene" : "📄 CSV-Ebene";
+                                color: root.active_table_is_ods ? #fcd34d : #6ee7b7;
+                                font-weight: 700;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
                     CheckBox {
                         text: "Nur Markierte";
                         checked: root.only_marked_active;
-                        toggled => { root.only_marked_toggled(self.checked); }
+                        toggled => {
+                            root.commit_active_edit();
+                            root.only_marked_toggled(self.checked);
+                        }
                     }
 
                     Rectangle {
@@ -444,7 +1082,7 @@ export component MainWindow inherits Window {
                             padding-left: 8px;
                             padding-right: 8px;
                             Text {
-                                text: root.marked_row_count + " von " + root.total_row_count + " Zeilen markiert";
+                                text: root.marked_row_count + " von " + root.total_row_count + " Zeilen markiert (" + root.rows.length + " sichtbar)";
                                 color: #d1d1e0;
                                 vertical-alignment: center;
                             }
@@ -452,53 +1090,18 @@ export component MainWindow inherits Window {
                     }
 
                     Button {
-                        text: "Leere Zeilen";
-                        clicked => { root.mark_empty_rows_clicked(); }
+                        text: "Leere Zeilen markieren";
+                        clicked => {
+                            root.commit_active_edit();
+                            root.mark_empty_rows_clicked();
+                        }
                     }
                     Button {
                         text: "Auswahl aufheben";
-                        clicked => { root.clear_selection_clicked(); }
-                    }
-                }
-
-                // Textmarker Palette
-                HorizontalLayout {
-                    spacing: 4px;
-                    alignment: center;
-
-                    Text {
-                        text: "Marker:";
-                        color: #9999a8;
-                        vertical-alignment: center;
-                    }
-
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #fff59d;
-                        TouchArea { clicked => { root.apply_marker_color("#fff59d"); } }
-                    }
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #c8e6c9;
-                        TouchArea { clicked => { root.apply_marker_color("#c8e6c9"); } }
-                    }
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #bbdefb;
-                        TouchArea { clicked => { root.apply_marker_color("#bbdefb"); } }
-                    }
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #ffcdd2;
-                        TouchArea { clicked => { root.apply_marker_color("#ffcdd2"); } }
-                    }
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #ffe0b2;
-                        TouchArea { clicked => { root.apply_marker_color("#ffe0b2"); } }
-                    }
-                    Rectangle {
-                        width: 22px; height: 22px; border-radius: 11px; background: #e1bee7;
-                        TouchArea { clicked => { root.apply_marker_color("#e1bee7"); } }
-                    }
-                    Button {
-                        text: "Löschen";
-                        clicked => { root.clear_markers_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.clear_selection_clicked();
+                        }
                     }
                 }
 
@@ -508,19 +1111,28 @@ export component MainWindow inherits Window {
                     alignment: end;
 
                     LineEdit {
-                        width: 180px;
+                        width: 200px;
                         placeholder-text: "Schnellsuche...";
                         text: root.search_query;
-                        edited(s) => { root.search_text_changed(s); }
+                        edited(s) => {
+                            root.commit_active_edit();
+                            root.search_text_changed(s);
+                        }
                     }
                     Button {
                         text: "Filter leeren";
-                        clicked => { root.filter_clear_all_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.filter_clear_all_clicked();
+                        }
                     }
                     Button {
                         text: "Regeln prüfen";
                         primary: true;
-                        clicked => { root.run_rules_clicked(); }
+                        clicked => {
+                            root.commit_active_edit();
+                            root.run_rules_clicked();
+                        }
                     }
                 }
             }
@@ -555,7 +1167,10 @@ export component MainWindow inherits Window {
                             preferred-width: 38px;
                             background: #252838;
                             CheckBox {
-                                toggled => { root.select_all_toggled(self.checked); }
+                                toggled => {
+                                    root.commit_active_edit();
+                                    root.select_all_toggled(self.checked);
+                                }
                             }
                             Rectangle {
                                 x: parent.width - 1px;
@@ -597,7 +1212,11 @@ export component MainWindow inherits Window {
                             }
 
                             TouchArea {
-                                clicked => { root.header_sort_clicked(h.id); }
+                                width: parent.width - 30px;
+                                clicked => {
+                                    root.commit_active_edit();
+                                    root.header_sort_clicked(h.id);
+                                }
                             }
 
                             HorizontalLayout {
@@ -624,8 +1243,11 @@ export component MainWindow inherits Window {
                                 Button {
                                     width: 24px;
                                     height: 24px;
-                                    text: "▼";
-                                    clicked => { root.open_filter_popup(h.id); }
+                                    text: h.is_filtered ? "⏷" : "▼";
+                                    clicked => {
+                                        root.commit_active_edit();
+                                        root.open_filter_popup(h.id);
+                                    }
                                 }
                             }
                         }
@@ -655,7 +1277,10 @@ export component MainWindow inherits Window {
                                     preferred-width: 38px;
                                     CheckBox {
                                         checked: row.is_marked;
-                                        toggled => { root.row_mark_toggled(row.original_idx, self.checked); }
+                                        toggled => {
+                                            root.commit_active_edit();
+                                            root.row_mark_toggled(row.original_idx, self.checked);
+                                        }
                                     }
                                     Rectangle {
                                         x: parent.width - 1px;
@@ -688,7 +1313,12 @@ export component MainWindow inherits Window {
                                     max-width: self.min-width;
                                     preferred-width: self.min-width;
                                     clip: true;
-                                    background: cell.bg_color != transparent ? cell.bg_color : (cell.has_error ? #4d1f24 : cell.has_warning ? #4d441f : cell.has_info ? #1f3b4d : transparent);
+                                    border-width: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? 1.5px : 0px;
+                                    border-color: #60a5fa;
+                                    background: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? #141824 :
+                                        cell.bg_color != transparent ? cell.bg_color :
+                                        (cell.has_error ? #4d1f24 : cell.has_warning ? #4d441f : cell.has_info ? #1f3b4d :
+                                        (cell_touch.has-hover ? #25293a : transparent));
 
                                     Rectangle {
                                         x: parent.width - 1px;
@@ -696,33 +1326,50 @@ export component MainWindow inherits Window {
                                         background: #2a2c3a;
                                     }
 
-                                    HorizontalLayout {
+                                    // Display mode (when not editing this cell)
+                                    if root.editing_row != row.original_idx || root.editing_col != col_idx: HorizontalLayout {
                                         padding-left: 8px;
                                         padding-right: 8px;
-
-                                        if root.editing_row == row.original_idx && root.editing_col == col_idx: LineEdit {
-                                            text: root.editing_text;
-                                            edited(val) => { root.editing_text = val; }
-                                            accepted => {
-                                                root.cell_edited(row.original_idx, col_idx, self.text);
-                                                root.editing_row = -1;
-                                                root.editing_col = -1;
-                                            }
-                                        }
-
-                                        if root.editing_row != row.original_idx || root.editing_col != col_idx: Text {
+                                        Text {
                                             text: cell.text;
-                                            color: cell.has_error ? #ff8a80 : cell.has_warning ? #ffd54f : #d1d1de;
+                                            color: cell.bg_color != transparent ? #ffffff : (cell.has_error ? #ff8a80 : cell.has_warning ? #ffd54f : #d1d1de);
+                                            font-weight: cell.bg_color != transparent ? 600 : 400;
                                             vertical-alignment: center;
                                             overflow: elide;
                                         }
                                     }
 
-                                    TouchArea {
-                                        double-clicked => {
+                                    cell_touch := TouchArea {
+                                        visible: root.editing_row != row.original_idx || root.editing_col != col_idx;
+                                        mouse-cursor: text;
+                                        clicked => {
+                                            root.commit_active_edit();
                                             root.editing_row = row.original_idx;
                                             root.editing_col = col_idx;
                                             root.editing_text = cell.text;
+                                            root.editing_dirty = false;
+                                        }
+                                    }
+
+                                    // Edit mode (LineEdit on top, without TouchArea blocking it)
+                                    if root.editing_row == row.original_idx && root.editing_col == col_idx: LineEdit {
+                                        x: 2px;
+                                        y: 1px;
+                                        width: parent.width - 4px;
+                                        height: parent.height - 2px;
+                                        text: root.editing_text;
+                                        init => {
+                                            self.focus();
+                                        }
+                                        edited(val) => {
+                                            root.editing_text = val;
+                                            root.editing_dirty = true;
+                                        }
+                                        accepted => {
+                                            root.cell_edited(row.original_idx, col_idx, self.text);
+                                            root.editing_row = -1;
+                                            root.editing_col = -1;
+                                            root.editing_dirty = false;
                                         }
                                     }
                                 }
@@ -737,8 +1384,6 @@ export component MainWindow inherits Window {
         Rectangle {
             height: root.dock_collapsed ? 32px : 180px;
             background: #202027;
-            
-            
 
             VerticalLayout {
                 // Dock Header / Tab buttons
@@ -801,6 +1446,7 @@ export component MainWindow inherits Window {
                                         text: r.id + ": " + r.description;
                                         color: #e0e0ec;
                                         vertical-alignment: center;
+                                        overflow: elide;
                                     }
 
                                     HorizontalLayout {
@@ -820,6 +1466,14 @@ export component MainWindow inherits Window {
                                             HorizontalLayout {
                                                 padding-left: 6px; padding-right: 6px;
                                                 Text { text: r.warnings + " Warnungen"; color: #ffffff; vertical-alignment: center; }
+                                            }
+                                        }
+                                        if r.hits > 0 && r.errors == 0 && r.warnings == 0: Rectangle {
+                                            background: #1e3a5f;
+                                            border-radius: 3px;
+                                            HorizontalLayout {
+                                                padding-left: 8px; padding-right: 8px;
+                                                Text { text: r.hits + " Treffer"; color: #93c5fd; font-weight: 600; vertical-alignment: center; }
                                             }
                                         }
                                         if r.hits == 0: Text {
@@ -897,8 +1551,6 @@ export component MainWindow inherits Window {
         Rectangle {
             height: 24px;
             background: #18181f;
-            
-            
 
             HorizontalLayout {
                 padding-left: 10px;
@@ -921,16 +1573,135 @@ export component MainWindow inherits Window {
         }
     }
 
+    // --- MARKER DROPDOWN MENU OVERLAY (triggered from top bar button "🖍 Marker ▼") ---
+    if root.marker_menu_visible: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        TouchArea {
+            clicked => { root.marker_menu_visible = false; }
+        }
+
+        Rectangle {
+            x: 430px;
+            y: 46px;
+            width: 230px;
+            background: #252634;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #4b5563;
+            drop-shadow-blur: 14px;
+            drop-shadow-color: #000000aa;
+
+            VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+
+                Text {
+                    text: "Textmarker-Farbe wählen:";
+                    color: #9ca3af;
+                    font-size: 11px;
+                    font-weight: 600;
+                }
+
+                for mc in root.marker_choices: Rectangle {
+                    height: 30px;
+                    border-radius: 5px;
+                    background: mc_touch.has-hover ? #34384e : transparent;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 10px;
+                        alignment: start;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 4px;
+                                background: mc.color;
+                                border-width: 1px;
+                                border-color: #ffffff55;
+                            }
+                        }
+
+                        Text {
+                            text: mc.key;
+                            color: #f3f4f6;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+
+                        Text {
+                            text: mc.hex_value;
+                            color: #8b92a8;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    mc_touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.apply_marker_color(mc.hex_value);
+                            root.marker_menu_visible = false;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #3f445a;
+                }
+
+                Rectangle {
+                    height: 30px;
+                    border-radius: 5px;
+                    background: clear_marker_touch.has-hover ? #4d232a : transparent;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 8px;
+                        Text {
+                            text: "✕ Marker von Auswahl löschen";
+                            color: #fca5a5;
+                            font-size: 12px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    clear_marker_touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.clear_markers_clicked();
+                            root.marker_menu_visible = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // --- MODALS / DIALOGS OVERLAYS ---
 
-    // 1. Column Filter Dialog
+    // 1. Column Filter Dialog (with hit counts & other active filters support)
     if root.filter_dialog_visible: Rectangle {
         background: #000000aa;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
+        TouchArea {}
+
         Rectangle {
-            width: 360px;
-            height: 440px;
+            width: 430px;
+            height: 520px;
             background: #252530;
             border-radius: 8px;
             border-width: 1px;
@@ -940,27 +1711,122 @@ export component MainWindow inherits Window {
                 padding: 16px;
                 spacing: 10px;
 
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Spaltenfilter: " + root.filter_dialog_col_name;
+                        font-size: 15px;
+                        font-weight: 700;
+                        color: #ffffff;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        background: #1e3a5f;
+                        border-radius: 4px;
+                        height: 22px;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            Text {
+                                text: root.filter_dialog_total_hits + " Treffer";
+                                color: #93c5fd;
+                                font-size: 11px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
                 Text {
-                    text: "Filter: " + root.filter_dialog_col_name;
-                    font-size: 15px;
-                    font-weight: 600;
-                    color: #ffffff;
+                    text: "Trefferanzahl berücksichtigt alle anderen aktiven Filter.";
+                    color: #9ca3af;
+                    font-size: 11px;
                 }
 
                 LineEdit {
-                    placeholder-text: "Werte suchen...";
+                    placeholder-text: "Werte in dieser Spalte suchen...";
                     text: root.filter_dialog_search;
-                    edited(s) => { root.filter_dialog_search = s; }
+                    edited(s) => {
+                        root.filter_dialog_search = s;
+                        root.filter_search_changed(s);
+                    }
                 }
 
-                ScrollView {
+                HorizontalLayout {
+                    spacing: 6px;
+                    Button {
+                        text: "Alle auswählen";
+                        clicked => { root.filter_select_all(true); }
+                    }
+                    Button {
+                        text: "Keine auswählen";
+                        clicked => { root.filter_select_all(false); }
+                    }
+                    Button {
+                        text: "Spaltenfilter zurücksetzen";
+                        clicked => {
+                            root.filter_reset_column(root.filter_dialog_col_idx);
+                            root.filter_dialog_visible = false;
+                        }
+                    }
+                }
+
+                Rectangle {
                     vertical-stretch: 1;
-                    VerticalLayout {
-                        spacing: 2px;
-                        for item[idx] in root.filter_dialog_items: CheckBox {
-                            text: item.value == "" ? "(Leere)" : item.value;
-                            checked: item.selected;
-                            toggled => { root.filter_toggle_item(idx, self.checked); }
+                    background: #1c1d26;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #34374a;
+
+                    ScrollView {
+                        VerticalLayout {
+                            padding: 6px;
+                            spacing: 2px;
+                            alignment: start;
+                            for item[idx] in root.filter_dialog_items: VerticalLayout {
+                                if item.visible: Rectangle {
+                                    height: 28px;
+                                    border-radius: 4px;
+                                    background: item.selected ? #263147 : transparent;
+
+                                    HorizontalLayout {
+                                        padding-left: 6px;
+                                        padding-right: 8px;
+                                        spacing: 8px;
+                                        alignment: space-between;
+
+                                        CheckBox {
+                                            horizontal-stretch: 1;
+                                            text: item.display_text;
+                                            checked: item.selected;
+                                            toggled => { root.filter_toggle_item(idx, self.checked); }
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                min-width: 30px;
+                                                height: 20px;
+                                                border-radius: 10px;
+                                                background: item.count > 0 ? #313d5a : #2a2b36;
+                                                HorizontalLayout {
+                                                    padding-left: 6px;
+                                                    padding-right: 6px;
+                                                    Text {
+                                                        text: item.count;
+                                                        color: item.count > 0 ? #93c5fd : #6b7280;
+                                                        font-size: 11px;
+                                                        font-weight: 600;
+                                                        horizontal-alignment: center;
+                                                        vertical-alignment: center;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -973,7 +1839,7 @@ export component MainWindow inherits Window {
                         clicked => { root.filter_dialog_visible = false; }
                     }
                     Button {
-                        text: "Anwenden";
+                        text: "Filter anwenden";
                         primary: true;
                         clicked => {
                             root.filter_apply_clicked(root.filter_dialog_col_idx);
@@ -985,7 +1851,304 @@ export component MainWindow inherits Window {
         }
     }
 
-    // 2. Fill Column Dialog
+    // 2. Smart Add Rows Dialog (C# SmartAddDialog port)
+    if root.smart_add_dialog_visible: Rectangle {
+        background: #000000bb;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        TouchArea {}
+
+        Rectangle {
+            width: min(parent.width - 60px, 760px);
+            height: min(parent.height - 60px, 640px);
+            background: #232533;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: #47506b;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
+
+                // Dialog Header
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 3px;
+                        Text {
+                            text: "Neue Zeilen hinzufügen (Smart Add)";
+                            font-size: 17px;
+                            font-weight: 700;
+                            color: #ffffff;
+                        }
+                        Text {
+                            text: root.smart_add_basis_text;
+                            font-size: 12px;
+                            color: #93c5fd;
+                        }
+                    }
+
+                    Button {
+                        text: "Alle Felder leeren";
+                        clicked => { root.smart_add_clear_all_fields(); }
+                    }
+                }
+
+                // RowCount Bar (- / LineEdit / + / +3 / +5 / +10 / +15)
+                Rectangle {
+                    height: 46px;
+                    background: #1b1d29;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #33384d;
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 8px;
+                        alignment: space-between;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+
+                            Text {
+                                text: "Zeilenanzahl:";
+                                color: #e2e8f0;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+
+                            Button {
+                                width: 32px;
+                                text: "−";
+                                clicked => {
+                                    root.set_smart_row_count(root.smart_add_row_count - 1);
+                                }
+                            }
+
+                            LineEdit {
+                                width: 64px;
+                                text: root.smart_add_row_count_text;
+                                edited(val) => {
+                                    root.smart_add_row_count_text = val;
+                                    if (val != "" && val.to-float() >= 1) {
+                                        root.smart_add_row_count = Math.round(val.to-float());
+                                    }
+                                }
+                            }
+
+                            Button {
+                                width: 32px;
+                                text: "+";
+                                clicked => {
+                                    root.set_smart_row_count(root.smart_add_row_count + 1);
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+
+                            Text {
+                                text: "Schnellwahl:";
+                                color: #94a3b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                            Button {
+                                text: "1";
+                                clicked => { root.set_smart_row_count(1); }
+                            }
+                            Button {
+                                text: "+3";
+                                clicked => { root.set_smart_row_count(root.smart_add_row_count + 3); }
+                            }
+                            Button {
+                                text: "+5";
+                                clicked => { root.set_smart_row_count(root.smart_add_row_count + 5); }
+                            }
+                            Button {
+                                text: "+10";
+                                clicked => { root.set_smart_row_count(root.smart_add_row_count + 10); }
+                            }
+                            Button {
+                                text: "+15";
+                                clicked => { root.set_smart_row_count(root.smart_add_row_count + 15); }
+                            }
+                        }
+                    }
+                }
+
+                // Columns and Editable Suggestion Inputs
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: #191b26;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #32374d;
+
+                    ScrollView {
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 8px;
+                            alignment: start;
+
+                            for field[field_idx] in root.smart_add_fields: Rectangle {
+                                background: field.dropdown_open ? #252b3d : #212432;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: field.dropdown_open ? #60a5fa : #2f354a;
+
+                                VerticalLayout {
+                                    padding: 8px;
+                                    spacing: 6px;
+
+                                    HorizontalLayout {
+                                        spacing: 10px;
+
+                                        // Column Name + Concept
+                                        VerticalLayout {
+                                            width: 210px;
+                                            alignment: center;
+                                            Text {
+                                                text: field.column_name;
+                                                color: #f1f5f9;
+                                                font-weight: 600;
+                                                overflow: elide;
+                                            }
+                                            if field.concept_name != "": Text {
+                                                text: "[" + field.concept_name + "]";
+                                                color: #60a5fa;
+                                                font-size: 11px;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        // Value input + clear + suggestion dropdown toggle
+                                        LineEdit {
+                                            horizontal-stretch: 1;
+                                            placeholder-text: "(Leer lassen zum Ignorieren)";
+                                            text: field.value;
+                                            edited(val) => {
+                                                root.smart_add_field_edited(field_idx, val);
+                                            }
+                                        }
+
+                                        if field.value != "": Button {
+                                            width: 30px;
+                                            text: "✕";
+                                            clicked => {
+                                                root.smart_add_field_edited(field_idx, "");
+                                            }
+                                        }
+
+                                        Button {
+                                            width: 90px;
+                                            text: (field.dropdown_open ? "▲ " : "▼ ") + field.suggestions.length;
+                                            clicked => {
+                                                root.smart_add_toggle_dropdown(field_idx);
+                                            }
+                                        }
+                                    }
+
+                                    // Expandable suggestions list with counts & "... (Alle anzeigen)"
+                                    if field.dropdown_open: Rectangle {
+                                        height: min(170px, max(36px, field.suggestions.length * 28px + 8px));
+                                        background: #161822;
+                                        border-radius: 5px;
+                                        border-width: 1px;
+                                        border-color: #3b4461;
+
+                                        ScrollView {
+                                            VerticalLayout {
+                                                padding: 4px;
+                                                spacing: 2px;
+
+                                                if field.suggestions.length == 0: Text {
+                                                    text: "Keine vorhandenen Werte in den Basiszeilen.";
+                                                    color: #64748b;
+                                                    font-size: 12px;
+                                                    horizontal-alignment: center;
+                                                }
+
+                                                for sugg[sugg_idx] in field.suggestions: Rectangle {
+                                                    height: 26px;
+                                                    border-radius: 4px;
+                                                    background: sugg_touch.has-hover ? (sugg.is_load_more ? #1e3a5f : #2a334d) : transparent;
+
+                                                    HorizontalLayout {
+                                                        padding-left: 8px;
+                                                        padding-right: 8px;
+                                                        alignment: space-between;
+
+                                                        Text {
+                                                            text: sugg.is_load_more ? "🔄 " + sugg.display : sugg.value;
+                                                            color: sugg.is_load_more ? #60a5fa : #e2e8f0;
+                                                            font-weight: sugg.is_load_more ? 700 : 400;
+                                                            vertical-alignment: center;
+                                                            overflow: elide;
+                                                        }
+
+                                                        if !sugg.is_load_more: Text {
+                                                            text: sugg.count + "×";
+                                                            color: #93c5fd;
+                                                            font-size: 11px;
+                                                            font-weight: 600;
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+
+                                                    sugg_touch := TouchArea {
+                                                        mouse-cursor: pointer;
+                                                        clicked => {
+                                                            root.smart_add_suggestion_selected(field_idx, sugg_idx);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Footer Actions
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: space-between;
+
+                    Text {
+                        text: "Hinweis: Aktive Spaltenfilter werden automatisch erweitert, damit neue Zeilen sofort sichtbar bleiben.";
+                        color: #94a3b8;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: "Abbrechen";
+                            clicked => { root.smart_add_dialog_visible = false; }
+                        }
+                        Button {
+                            text: "+ " + root.smart_add_row_count + (root.smart_add_row_count == 1 ? " Zeile hinzufügen" : " Zeilen hinzufügen");
+                            primary: true;
+                            clicked => {
+                                root.confirm_smart_add_rows(root.smart_add_row_count);
+                                root.smart_add_dialog_visible = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Fill Column Dialog
     if root.fill_dialog_visible: Rectangle {
         background: #000000aa;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
@@ -1105,7 +2268,7 @@ export component MainWindow inherits Window {
         }
     }
 
-    // 3. Split Column Dialog
+    // 4. Split Column Dialog
     if root.split_dialog_visible: Rectangle {
         background: #000000aa;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
@@ -1171,7 +2334,7 @@ export component MainWindow inherits Window {
         }
     }
 
-    // 4. Sheet Selection Dialog
+    // 5. Sheet Selection Dialog
     if root.sheet_dialog_visible: Rectangle {
         background: #000000aa;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
@@ -1217,7 +2380,7 @@ export component MainWindow inherits Window {
         }
     }
 
-    // 5. Diff Dialog
+    // 6. Diff Dialog
     if root.diff_dialog_visible: Rectangle {
         background: #000000aa;
         x: 0px; y: 0px; width: parent.width; height: parent.height;

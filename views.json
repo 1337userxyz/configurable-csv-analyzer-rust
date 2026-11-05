@@ -1,0 +1,50 @@
+{
+  "Views": [
+    {
+      "Name": "Standard-Kollektion",
+      "IsDefaultView": true,
+      "Files": [
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\AndroidDevices.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\AndroidDevices.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\patchpanel-switch-connection-ta.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\patchpanel-switch-connection-ta.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\RackElevation.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\RackElevation.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\switch_daten.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\switch_daten.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\verbindungstabelle.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\verbindungstabelle.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        }
+      ],
+      "SpreadsheetPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\ods\\09g18.ods",
+      "ColorPattern": "None",
+      "ExportColorPattern": "None",
+      "ExportPaths": []
+    }
+  ]
+}

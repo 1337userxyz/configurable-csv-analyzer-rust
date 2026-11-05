@@ -1,0 +1,128 @@
+{
+  "SelectedStorageMode": "Dateipfad",
+  "CentralConfigDirectory": "./Configs",
+  "MarkerHighlightPriority": 100,
+  "CheckFileAssociationsOnStartup": false,
+  "Brushes": [
+    {
+      "Key": "ZebraRowBrush",
+      "HexValue": "#222430",
+      "Category": "UI",
+      "IsSystem": true
+    },
+    {
+      "Key": "SelectionBrush",
+      "HexValue": "#3949ab",
+      "Category": "UI",
+      "IsSystem": true
+    },
+    {
+      "Key": "FilterActiveBrush",
+      "HexValue": "#ff9800",
+      "Category": "UI",
+      "IsSystem": true
+    },
+    {
+      "Key": "ErrorBrush",
+      "HexValue": "#ef5350",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "WarningBrush",
+      "HexValue": "#ffb74d",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "ProblemBrush",
+      "HexValue": "#ab47bc",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "PositiveBrush",
+      "HexValue": "#66bb6a",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "EmptyCellBrush",
+      "HexValue": "#424242",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "DirtyCellBrush",
+      "HexValue": "#26a69a",
+      "Category": "Status",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerGelb",
+      "HexValue": "#fff59d",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerGruen",
+      "HexValue": "#c8e6c9",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerBlau",
+      "HexValue": "#bbdefb",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerRot",
+      "HexValue": "#ffcdd2",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerOrange",
+      "HexValue": "#ffe0b2",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "MarkerLila",
+      "HexValue": "#e1bee7",
+      "Category": "Textmarker",
+      "IsSystem": true
+    },
+    {
+      "Key": "CrossTableMismatchBrush",
+      "HexValue": "#e57373",
+      "Category": "Analyse",
+      "IsSystem": true
+    },
+    {
+      "Key": "UniquenessViolationBrush",
+      "HexValue": "#ba68c8",
+      "Category": "Analyse",
+      "IsSystem": true
+    },
+    {
+      "Key": "LogErrorBrush",
+      "HexValue": "#ef5350",
+      "Category": "Logging",
+      "IsSystem": true
+    },
+    {
+      "Key": "LogWarningBrush",
+      "HexValue": "#ffb74d",
+      "Category": "Logging",
+      "IsSystem": true
+    },
+    {
+      "Key": "LogInfoBrush",
+      "HexValue": "#42a5f5",
+      "Category": "Logging",
+      "IsSystem": true
+    }
+  ]
+}

@@ -3,15 +3,16 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
-use configurable_csv_analyzer::core::color_cache::cached_color;
-use configurable_csv_analyzer::core::io::csv::find_all_csvs_in_dir;
+use configurable_csv_analyzer::core::color_cache::{cached_color, get_global_color_cache};
+use configurable_csv_analyzer::core::io::csv::{find_all_csvs_in_dir, load_csv};
 use configurable_csv_analyzer::core::io::info::{
     check_file_integrity, default_config_path, default_info_path_for_table, default_views_path,
     diff_info_files, move_info_file, save_app_config, save_views_file,
 };
-use configurable_csv_analyzer::core::logging::log_info;
+use configurable_csv_analyzer::core::io::ods::{create_ods_file, ensure_valid_ods_file};
+use configurable_csv_analyzer::core::logging::{log_error, log_info};
 use configurable_csv_analyzer::core::model::{
-    BrushCategory, BrushDefinition, InfoFileStorageMode, ViewDefinition, ViewFileItem,
+    BrushCategory, BrushDefinition, InfoFileStorageMode, TableData, ViewDefinition, ViewFileItem,
 };
 
 use crate::{
@@ -19,6 +20,55 @@ use crate::{
     SlintBrushItem, SlintViewFileItem, SlintViewItem,
 };
 use crate::dialogs::info_editor::open_info_editor_for_table_or_path;
+
+/// Stellt sicher, dass mindestens eine Kollektion (View) existiert und gibt den gültigen Index zurück.
+pub fn ensure_selected_view(window: &ConfigurationWindow, state: &mut AppState) -> usize {
+    if state.views_config.views.is_empty() {
+        let storage_mode_str = state.app_config.selected_storage_mode.as_str().to_string();
+        let mut initial_files = Vec::new();
+        for tab_id in &state.tab_order {
+            if let Some(tbl) = state.tables.get(tab_id) {
+                if let Some(ref p) = tbl.file_path {
+                    let path_str = p.to_string_lossy().to_string();
+                    if !initial_files.iter().any(|f: &ViewFileItem| f.relative_path == path_str) {
+                        initial_files.push(ViewFileItem {
+                            relative_path: path_str.clone(),
+                            full_path: Some(path_str),
+                            info_file_path: None,
+                            storage_mode: Some(storage_mode_str.clone()),
+                        });
+                    }
+                }
+            }
+        }
+
+        let name = state
+            .active_view_name
+            .clone()
+            .unwrap_or_else(|| "Standard-Kollektion".to_string());
+        state.views_config.views.push(ViewDefinition {
+            name: name.clone(),
+            is_default_view: true,
+            files: initial_files,
+            spreadsheet_path: None,
+            color_pattern: Some("None".into()),
+            export_color_pattern: Some("None".into()),
+            export_paths: Vec::new(),
+        });
+        state.active_view_name = Some(name);
+        window.set_selected_view_idx(0);
+        return 0;
+    }
+
+    let raw_idx = window.get_selected_view_idx();
+    let clamped = if raw_idx < 0 {
+        0
+    } else {
+        (raw_idx as usize).min(state.views_config.views.len() - 1)
+    };
+    window.set_selected_view_idx(clamped as i32);
+    clamped
+}
 
 pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
     // 1. Views
@@ -32,31 +82,55 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
             name: slint::SharedString::from(&v.name),
             is_default: v.is_default_view,
             file_count: v.files.len() as i32,
-            spreadsheet_path: slint::SharedString::from(v.spreadsheet_path.as_deref().unwrap_or("")),
+            spreadsheet_path: slint::SharedString::from(
+                v.spreadsheet_path.as_deref().unwrap_or(""),
+            ),
             color_pattern: slint::SharedString::from(v.color_pattern.as_deref().unwrap_or("None")),
-            export_color_pattern: slint::SharedString::from(v.export_color_pattern.as_deref().unwrap_or("None")),
+            export_color_pattern: slint::SharedString::from(
+                v.export_color_pattern.as_deref().unwrap_or("None"),
+            ),
         })
         .collect();
 
     window.set_views(ModelRc::new(VecModel::from(view_items)));
 
-    let cur_idx = window.get_selected_view_idx() as usize;
+    let raw_idx = window.get_selected_view_idx();
+    let cur_idx = if raw_idx < 0 || state.views_config.views.is_empty() {
+        0
+    } else {
+        (raw_idx as usize).min(state.views_config.views.len() - 1)
+    };
+    if !state.views_config.views.is_empty() && raw_idx != cur_idx as i32 {
+        window.set_selected_view_idx(cur_idx as i32);
+    }
+
     if let Some(v) = state.views_config.views.get(cur_idx) {
-        window.set_current_spreadsheet_path(slint::SharedString::from(v.spreadsheet_path.as_deref().unwrap_or("")));
-        window.set_current_color_pattern(slint::SharedString::from(v.color_pattern.as_deref().unwrap_or("None")));
-        window.set_current_export_color_pattern(slint::SharedString::from(v.export_color_pattern.as_deref().unwrap_or("None")));
+        window.set_current_spreadsheet_path(slint::SharedString::from(
+            v.spreadsheet_path.as_deref().unwrap_or(""),
+        ));
+        let pat = v.color_pattern.as_deref().unwrap_or("None");
+        let exp_pat = v.export_color_pattern.as_deref().unwrap_or("None");
+        window.set_current_color_pattern(slint::SharedString::from(
+            if pat.trim().is_empty() { "None" } else { pat },
+        ));
+        window.set_current_export_color_pattern(slint::SharedString::from(
+            if exp_pat.trim().is_empty() { "None" } else { exp_pat },
+        ));
 
         let file_items: Vec<SlintViewFileItem> = v
             .files
             .iter()
             .enumerate()
             .map(|(f_idx, f)| {
-                let status = check_file_integrity(&f.relative_path, f.info_file_path.as_deref(), None);
+                let status =
+                    check_file_integrity(&f.relative_path, f.info_file_path.as_deref(), None);
                 let sm = f.storage_mode.as_deref().unwrap_or("Standard");
                 SlintViewFileItem {
                     id: f_idx as i32,
                     relative_path: slint::SharedString::from(&f.relative_path),
-                    info_file_path: slint::SharedString::from(f.info_file_path.as_deref().unwrap_or("")),
+                    info_file_path: slint::SharedString::from(
+                        f.info_file_path.as_deref().unwrap_or(""),
+                    ),
                     storage_mode: slint::SharedString::from(sm),
                     integrity_status: slint::SharedString::from(status),
                 }
@@ -64,6 +138,7 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
             .collect();
         window.set_current_view_files(ModelRc::new(VecModel::from(file_items)));
     } else {
+        window.set_current_spreadsheet_path(slint::SharedString::from(""));
         window.set_current_view_files(ModelRc::new(VecModel::from(Vec::<SlintViewFileItem>::new())));
     }
 
@@ -75,7 +150,9 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
         InfoFileStorageMode::BenutzerEntscheidet => 3,
     };
     window.set_selected_storage_mode(mode_idx);
-    window.set_central_directory_path(slint::SharedString::from(&state.app_config.central_config_directory));
+    window.set_central_directory_path(slint::SharedString::from(
+        &state.app_config.central_config_directory,
+    ));
 
     // 3. Brushes
     refresh_brushes_list(window, state);
@@ -133,9 +210,15 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_add_view_clicked(move |name| {
             let mut st = state.borrow_mut();
+            let trimmed = name.trim();
+            let view_name = if trimmed.is_empty() {
+                format!("Kollektion {}", st.views_config.views.len() + 1)
+            } else {
+                trimmed.to_string()
+            };
             let is_default = st.views_config.views.is_empty();
             st.views_config.views.push(ViewDefinition {
-                name: name.to_string(),
+                name: view_name.clone(),
                 is_default_view: is_default,
                 files: Vec::new(),
                 spreadsheet_path: None,
@@ -143,9 +226,11 @@ pub fn setup_configuration_window(
                 export_color_pattern: Some("None".into()),
                 export_paths: Vec::new(),
             });
-            win.set_selected_view_idx((st.views_config.views.len() - 1) as i32);
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let new_idx = st.views_config.views.len() - 1;
+            win.set_selected_view_idx(new_idx as i32);
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            log_info("Config", &format!("Neue Kollektion '{}' angelegt.", view_name));
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -156,13 +241,16 @@ pub fn setup_configuration_window(
             let mut st = state.borrow_mut();
             let i = idx as usize;
             if i < st.views_config.views.len() {
-                st.views_config.views.remove(i);
+                let removed = st.views_config.views.remove(i);
+                log_info("Config", &format!("Kollektion '{}' gelöscht.", removed.name));
                 if win.get_selected_view_idx() >= st.views_config.views.len() as i32 {
-                    win.set_selected_view_idx((st.views_config.views.len().saturating_sub(1)) as i32);
+                    win.set_selected_view_idx(
+                        (st.views_config.views.len().saturating_sub(1)) as i32,
+                    );
                 }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -175,8 +263,8 @@ pub fn setup_configuration_window(
             for (i, v) in st.views_config.views.iter_mut().enumerate() {
                 v.is_default_view = i == target_idx;
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -189,9 +277,9 @@ pub fn setup_configuration_window(
             if i > 0 && i < st.views_config.views.len() {
                 st.views_config.views.swap(i, i - 1);
                 win.set_selected_view_idx((i - 1) as i32);
+                let _ = save_views_file(&default_views_path(), &st.views_config);
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -204,28 +292,135 @@ pub fn setup_configuration_window(
             if i + 1 < st.views_config.views.len() {
                 st.views_config.views.swap(i, i + 1);
                 win.set_selected_view_idx((i + 1) as i32);
+                let _ = save_views_file(&default_views_path(), &st.views_config);
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            sync_configuration_ui(&win, &st);
+        });
+    }
+
+    // ODS Picker (allows selecting an existing .ods OR typing a new .ods filename to create it!)
+    // --- ODS AUSWÄHLEN (Bestehend) ---
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_browse_spreadsheet_clicked(move || {
+            let file = rfd::FileDialog::new()
+                .set_title("Bestehende ODS-Datei für diese Kollektion auswählen")
+                .add_filter("LibreOffice Calc (.ods)", &["ods"])
+                .add_filter("Alle Dateien", &["*"])
+                .pick_file();
+
+            if let Some(path) = file {
+                let _ = ensure_valid_ods_file(&path, &[]);
+                let path_str = path.to_string_lossy().to_string();
+                let mut st = state.borrow_mut();
+                let cur_idx = ensure_selected_view(&win, &mut st);
+                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                    v.spreadsheet_path = Some(path_str.clone());
+                    log_info(
+                        "ODS",
+                        &format!("ODS-Datei '{}' mit Kollektion '{}' verknüpft.", path.display(), v.name),
+                    );
+                }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    // --- ODS NEU ERSTELLEN ---
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_create_spreadsheet_clicked(move || {
+            let default_name = {
+                let mut st = state.borrow_mut();
+                let cur_idx = ensure_selected_view(&win, &mut st);
+                st.views_config
+                    .views
+                    .get(cur_idx)
+                    .map(|v| format!("{}.ods", v.name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")))
+                    .unwrap_or_else(|| "Kollektion.ods".to_string())
+            };
+
+            let file = rfd::FileDialog::new()
+                .set_title("Neue ODS-Datei für Kollektion erstellen (Speicherort wählen)")
+                .add_filter("LibreOffice Calc (.ods)", &["ods"])
+                .set_file_name(&default_name)
+                .save_file();
+
+            if let Some(mut path) = file {
+                if path.extension().is_none() {
+                    path.set_extension("ods");
+                }
+                let mut st = state.borrow_mut();
+                let cur_idx = ensure_selected_view(&win, &mut st);
+
+                let mut tables_for_ods: Vec<TableData> = Vec::new();
+                if let Some(v) = st.views_config.views.get(cur_idx) {
+                    for f in &v.files {
+                        let fp = PathBuf::from(&f.relative_path);
+                        if let Some(open_tbl) = st.tables.values().find(|t| t.file_path.as_ref() == Some(&fp)) {
+                            tables_for_ods.push(open_tbl.clone());
+                        } else if fp.exists() {
+                            if let Ok(loaded) = load_csv(&fp, None, None, true) {
+                                tables_for_ods.push(loaded);
+                            }
+                        }
+                    }
+                }
+                if tables_for_ods.is_empty() {
+                    for id in &st.tab_order {
+                        if let Some(t) = st.tables.get(id) {
+                            tables_for_ods.push(t.clone());
+                        }
+                    }
+                }
+
+                match create_ods_file(&path, &tables_for_ods) {
+                    Ok(_) => {
+                        log_info(
+                            "ODS",
+                            &format!(
+                                "Neue ODS-Datei erstellt unter {:?} ({} Tabellenblätter)",
+                                path,
+                                tables_for_ods.len().max(1)
+                            ),
+                        );
+                    }
+                    Err(e) => {
+                        log_error(
+                            "ODS",
+                            &format!("Fehler beim Erstellen der ODS-Datei {:?}: {}", path, e),
+                        );
+                    }
+                }
+
+                let path_str = path.to_string_lossy().to_string();
+                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                    v.spreadsheet_path = Some(path_str);
+                }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
+            }
         });
     }
 
     {
         let win = config_window.clone();
         let state = state.clone();
-        config_window.on_browse_spreadsheet_clicked(move || {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("LibreOffice Calc", &["ods"])
-                .pick_file()
-            {
-                let mut st = state.borrow_mut();
-                let cur_idx = win.get_selected_view_idx() as usize;
-                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
-                    v.spreadsheet_path = Some(path.to_string_lossy().to_string());
-                }
-                drop(st);
-                sync_configuration_ui(&win, &state.borrow());
+        config_window.on_spreadsheet_path_edited(move |new_path| {
+            let mut st = state.borrow_mut();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                let trimmed = new_path.trim();
+                v.spreadsheet_path = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                };
             }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
         });
     }
 
@@ -234,12 +429,12 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_clear_spreadsheet_clicked(move || {
             let mut st = state.borrow_mut();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 v.spreadsheet_path = None;
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -248,11 +443,12 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_view_patterns_changed(move |color_p, export_p| {
             let mut st = state.borrow_mut();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 v.color_pattern = Some(color_p.to_string());
                 v.export_color_pattern = Some(export_p.to_string());
             }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
         });
     }
 
@@ -261,26 +457,42 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_add_csv_to_view_clicked(move || {
-            if let Some(file) = rfd::FileDialog::new()
-                .add_filter("CSV Dateien", &["csv", "tsv", "txt"])
-                .pick_file()
-            {
+            let files = rfd::FileDialog::new()
+                .set_title("CSV- oder ODS-Dateien zur Kollektion hinzufügen (Mehrfachauswahl möglich)")
+                .add_filter("Tabellen-Dateien (.csv, .tsv, .txt, .ods)", &["csv", "tsv", "txt", "ods"])
+                .add_filter("Alle Dateien", &["*"])
+                .pick_files();
+
+            if let Some(files) = files {
                 let mut st = state.borrow_mut();
                 let storage_mode_str = st.app_config.selected_storage_mode.as_str().to_string();
-                let cur_idx = win.get_selected_view_idx() as usize;
+                let cur_idx = ensure_selected_view(&win, &mut st);
+                let mut added_count = 0;
                 if let Some(v) = st.views_config.views.get_mut(cur_idx) {
-                    let rel = file.to_string_lossy().to_string();
-                    if !v.files.iter().any(|f| f.relative_path == rel) {
-                        v.files.push(ViewFileItem {
-                            relative_path: rel,
-                            full_path: Some(file.to_string_lossy().to_string()),
-                            info_file_path: None,
-                            storage_mode: Some(storage_mode_str),
-                        });
+                    for file in files {
+                        let rel = file.to_string_lossy().to_string();
+                        if !v.files.iter().any(|f| f.relative_path.eq_ignore_ascii_case(&rel)) {
+                            v.files.push(ViewFileItem {
+                                relative_path: rel.clone(),
+                                full_path: Some(rel),
+                                info_file_path: None,
+                                storage_mode: Some(storage_mode_str.clone()),
+                            });
+                            added_count += 1;
+                        }
                     }
+                    log_info(
+                        "Config",
+                        &format!(
+                            "{} Datei(en) zur Kollektion '{}' hinzugefügt (Gesamt: {}).",
+                            added_count,
+                            v.name,
+                            v.files.len()
+                        ),
+                    );
                 }
-                drop(st);
-                sync_configuration_ui(&win, &state.borrow());
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
             }
         });
     }
@@ -289,27 +501,75 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_add_folder_to_view_clicked(move || {
-            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+            let folder = rfd::FileDialog::new()
+                .set_title("Ordner mit CSV-Dateien zur Kollektion hinzufügen")
+                .pick_folder();
+
+            if let Some(folder) = folder {
                 let csvs = find_all_csvs_in_dir(&folder);
                 let mut st = state.borrow_mut();
                 let storage_mode_str = st.app_config.selected_storage_mode.as_str().to_string();
-                let cur_idx = win.get_selected_view_idx() as usize;
+                let cur_idx = ensure_selected_view(&win, &mut st);
+                let mut added_count = 0;
                 if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                     for path in csvs {
                         let rel = path.to_string_lossy().to_string();
-                        if !v.files.iter().any(|f| f.relative_path == rel) {
+                        if !v.files.iter().any(|f| f.relative_path.eq_ignore_ascii_case(&rel)) {
                             v.files.push(ViewFileItem {
-                                relative_path: rel,
-                                full_path: Some(path.to_string_lossy().to_string()),
+                                relative_path: rel.clone(),
+                                full_path: Some(rel),
                                 info_file_path: None,
                                 storage_mode: Some(storage_mode_str.clone()),
                             });
+                            added_count += 1;
                         }
                     }
+                    log_info(
+                        "Config",
+                        &format!(
+                            "{} CSV-Datei(en) aus Ordner {:?} zur Kollektion '{}' hinzugefügt.",
+                            added_count, folder, v.name
+                        ),
+                    );
                 }
-                drop(st);
-                sync_configuration_ui(&win, &state.borrow());
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
             }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_import_open_tabs_to_view_clicked(move || {
+            let mut st = state.borrow_mut();
+            let storage_mode_str = st.app_config.selected_storage_mode.as_str().to_string();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            let open_paths: Vec<String> = st
+                .tab_order
+                .iter()
+                .filter_map(|id| st.tables.get(id))
+                .filter_map(|t| t.file_path.as_ref().map(|p| p.to_string_lossy().to_string()))
+                .collect();
+
+            if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                for rel in open_paths {
+                    if !v.files.iter().any(|f| f.relative_path.eq_ignore_ascii_case(&rel)) {
+                        v.files.push(ViewFileItem {
+                            relative_path: rel.clone(),
+                            full_path: Some(rel),
+                            info_file_path: None,
+                            storage_mode: Some(storage_mode_str.clone()),
+                        });
+                    }
+                }
+                log_info(
+                    "Config",
+                    &format!("Geöffnete Tabs in Kollektion '{}' übernommen.", v.name),
+                );
+            }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -318,15 +578,15 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_remove_file_from_view_clicked(move |f_idx| {
             let mut st = state.borrow_mut();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 let idx = f_idx as usize;
                 if idx < v.files.len() {
                     v.files.remove(idx);
                 }
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -335,15 +595,16 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_move_file_up(move |f_idx| {
             let mut st = state.borrow_mut();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 let idx = f_idx as usize;
                 if idx > 0 && idx < v.files.len() {
                     v.files.swap(idx, idx - 1);
+                    win.set_selected_file_idx((idx - 1) as i32);
                 }
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -352,15 +613,16 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_move_file_down(move |f_idx| {
             let mut st = state.borrow_mut();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 let idx = f_idx as usize;
                 if idx + 1 < v.files.len() {
                     v.files.swap(idx, idx + 1);
+                    win.set_selected_file_idx((idx + 1) as i32);
                 }
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -371,7 +633,7 @@ pub fn setup_configuration_window(
         config_window.on_migrate_info_file_clicked(move |f_idx| {
             let mut st = state.borrow_mut();
             let central = PathBuf::from(&st.app_config.central_config_directory);
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 let idx = f_idx as usize;
                 if let Some(f) = v.files.get_mut(idx) {
@@ -393,7 +655,10 @@ pub fn setup_configuration_window(
                         Ok(new_p) => {
                             f.info_file_path = Some(new_p.to_string_lossy().to_string());
                             f.storage_mode = Some(target_mode.as_str().to_string());
-                            log_info("InfoMigrate", &format!("Info-Datei migriert nach {:?}", new_p));
+                            log_info(
+                                "InfoMigrate",
+                                &format!("Info-Datei migriert nach {:?}", new_p),
+                            );
                         }
                         Err(e) => {
                             log_info("InfoMigrate", &format!("Fehler bei Migration: {}", e));
@@ -401,8 +666,8 @@ pub fn setup_configuration_window(
                     }
                 }
             }
-            drop(st);
-            sync_configuration_ui(&win, &state.borrow());
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 
@@ -412,14 +677,18 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_diff_info_file_clicked(move |f_idx| {
             let st = state.borrow();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = win.get_selected_view_idx().max(0) as usize;
             if let Some(v) = st.views_config.views.get(cur_idx) {
                 let idx = f_idx as usize;
                 if let Some(f) = v.files.get(idx) {
                     let csv_p = PathBuf::from(&f.relative_path);
                     let local_info = default_info_path_for_table(&csv_p);
-                    let central_info = PathBuf::from(&st.app_config.central_config_directory)
-                        .join(format!("{}.info", csv_p.file_name().unwrap_or_default().to_string_lossy()));
+                    let central_info = PathBuf::from(&st.app_config.central_config_directory).join(
+                        format!(
+                            "{}.info",
+                            csv_p.file_name().unwrap_or_default().to_string_lossy()
+                        ),
+                    );
 
                     match diff_info_files(&local_info, &central_info) {
                         Ok(diff_text) => {
@@ -454,12 +723,18 @@ pub fn setup_configuration_window(
         let main_ui = main_window_weak.clone();
         config_window.on_open_info_editor_for_file_clicked(move |f_idx| {
             let st = state.borrow();
-            let cur_idx = win.get_selected_view_idx() as usize;
+            let cur_idx = win.get_selected_view_idx().max(0) as usize;
             if let Some(v) = st.views_config.views.get(cur_idx) {
                 let idx = f_idx as usize;
                 if let Some(f) = v.files.get(idx) {
                     let csv_path = PathBuf::from(&f.relative_path);
-                    open_info_editor_for_table_or_path(&info_win, Some(&csv_path), &state, main_ui.clone());
+                    drop(st);
+                    open_info_editor_for_table_or_path(
+                        &info_win,
+                        Some(&csv_path),
+                        &state,
+                        main_ui.clone(),
+                    );
                     let _ = info_win.show();
                 }
             }
@@ -532,12 +807,19 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_update_brush_clicked(move |key, hex, cat| {
             let mut st = state.borrow_mut();
-            if let Some(b) = st.app_config.brushes.iter_mut().find(|b| b.key == key.as_str()) {
+            if let Some(b) = st
+                .app_config
+                .brushes
+                .iter_mut()
+                .find(|b| b.key == key.as_str())
+            {
                 b.hex_value = hex.to_string();
                 b.category = BrushCategory::from_str_lenient(&cat);
             }
-            drop(st);
-            refresh_brushes_list(&win, &state.borrow());
+            if let Ok(mut cache) = get_global_color_cache().lock() {
+                cache.update_from_brushes(&st.app_config.brushes);
+            }
+            refresh_brushes_list(&win, &st);
         });
     }
 
@@ -548,16 +830,27 @@ pub fn setup_configuration_window(
             let trimmed = key.trim();
             if !trimmed.is_empty() {
                 let mut st = state.borrow_mut();
-                if !st.app_config.brushes.iter().any(|b| b.key.eq_ignore_ascii_case(trimmed)) {
+                if !st
+                    .app_config
+                    .brushes
+                    .iter()
+                    .any(|b| b.key.eq_ignore_ascii_case(trimmed))
+                {
                     st.app_config.brushes.push(BrushDefinition {
                         key: trimmed.to_string(),
-                        hex_value: if hex.trim().is_empty() { "#ffffff".to_string() } else { hex.trim().to_string() },
+                        hex_value: if hex.trim().is_empty() {
+                            "#ffffff".to_string()
+                        } else {
+                            hex.trim().to_string()
+                        },
                         category: BrushCategory::from_str_lenient(&cat),
                         is_system: false,
                     });
                 }
-                drop(st);
-                refresh_brushes_list(&win, &state.borrow());
+                if let Ok(mut cache) = get_global_color_cache().lock() {
+                    cache.update_from_brushes(&st.app_config.brushes);
+                }
+                refresh_brushes_list(&win, &st);
             }
         });
     }
@@ -567,9 +860,10 @@ pub fn setup_configuration_window(
         let state = state.clone();
         config_window.on_delete_brush_clicked(move |key| {
             let mut st = state.borrow_mut();
-            st.app_config.brushes.retain(|b| !(b.key == key.as_str() && !b.is_system));
-            drop(st);
-            refresh_brushes_list(&win, &state.borrow());
+            st.app_config
+                .brushes
+                .retain(|b| !(b.key == key.as_str() && !b.is_system));
+            refresh_brushes_list(&win, &st);
         });
     }
 
@@ -593,7 +887,6 @@ pub fn setup_configuration_window(
     {
         let win = config_window.clone();
         config_window.on_register_associations_now(move || {
-            // Register file associations (or set clean status on Windows)
             win.set_association_status_message(slint::SharedString::from(
                 "Dateiverknüpfungen für .csv und .csv.info erfolgreich im System registriert.",
             ));
@@ -605,11 +898,24 @@ pub fn setup_configuration_window(
     {
         let win = config_window.clone();
         let state = state.clone();
+        let main_ui = main_window_weak.clone();
         config_window.on_save_and_close_clicked(move || {
-            let st = state.borrow();
+            let mut st = state.borrow_mut();
             let _ = save_app_config(&default_config_path(), &st.app_config);
             let _ = save_views_file(&default_views_path(), &st.views_config);
-            log_info("Config", "Hauptkonfiguration & Views gespeichert.");
+            if let Ok(mut cache) = get_global_color_cache().lock() {
+                cache.update_from_brushes(&st.app_config.brushes);
+            }
+
+            let cur_idx = win.get_selected_view_idx().max(0) as usize;
+            if cur_idx < st.views_config.views.len() {
+                st.activate_and_load_view(cur_idx);
+            }
+
+            log_info("Config", "Hauptkonfiguration & Kollektionen gespeichert und angewandt.");
+            if let Some(ui) = main_ui.upgrade() {
+                crate::sync_ui(&ui, &st);
+            }
             let _ = win.hide();
         });
     }

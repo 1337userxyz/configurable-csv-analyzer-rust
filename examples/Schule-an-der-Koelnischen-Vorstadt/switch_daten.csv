@@ -1,0 +1,13 @@
+SwitchName,Raum,Verteiler,IP,MAC,Lan Ports,Lan Ports 100mbit,Lan Ports 1GB,SFP Ports,Hersteller,Typ (Modell),Netztyp
+usw-mur-sw1,Technikraum,VT-MUR,10.18.0.1,28:70:4e:88:80:b9,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-mur-sw2,Technikraum,VT-MUR,10.18.0.2,28:70:4e:88:80:c2,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-mur-sw3,Technikraum,VT-MUR,10.18.0.3,28:70:4e:88:81:67,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-pro-48-01,A209,VT-A209,10.17.20.20,78:45:58:4f:01:ce,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-pro-48-02,A209,VT-A209,10.17.20.21,24:5a:4c:1d:f1:ec,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-pro-48-03,A209,VT-A209,10.17.1.2,24:5a:4c:17:94:58,48,,,4,Unifi,USW Pro 48 PoE,Schule
+usw-pro-48-xx,A209,VT-A209,10.17.20.22,78:45:58:4f:00:99,48,,,4,Unifi,USW Pro 48 PoE,Schule
+Switch Telefone,Technikraum,VT-MUR,,,x,24,4,4,D-Link,DGS-1210-28P,Telefon
+Dahme-Unifi,Technikraum,VT-MUR,,,48,,,4,Unifi,USW Pro 48 PoE,Dahme-09K18
+DLink-Extern,A209,VT-A209,,,48,8,,2,DLink,DGS-1210-08P,Telefon
+Auerswald-TK,A209,VT-A209,,,,,,,Auerswald,Compact 5500R,Extern
+Rad-Etx-203AM,A209,VT-A209,,,,,,,RAD,Etx-203AM,Extern

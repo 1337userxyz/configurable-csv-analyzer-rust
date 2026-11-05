@@ -1,3 +1,6 @@
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use chrono::Local;
 
@@ -34,23 +37,37 @@ pub struct LogEntry {
 pub struct LogBuffer {
     entries: Arc<Mutex<Vec<LogEntry>>>,
     max_entries: usize,
+    log_file_path: PathBuf,
 }
 
 impl LogBuffer {
     pub fn new(max_entries: usize) -> Self {
+        let log_file_path = crate::core::io::info::get_base_project_dir().join("analyzer.log");
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_file_path) {
+            let now = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            let _ = writeln!(file, "\n=== Session gestartet: {} ===", now);
+        }
         Self {
             entries: Arc::new(Mutex::new(Vec::with_capacity(max_entries))),
             max_entries,
+            log_file_path,
         }
     }
 
     pub fn add(&self, level: LogLevel, target: &str, message: &str) {
+        let now = Local::now();
         let entry = LogEntry {
-            timestamp: Local::now().format("%H:%M:%S%.3f").to_string(),
-            level,
+            timestamp: now.format("%H:%M:%S%.3f").to_string(),
+            level: level.clone(),
             message: message.to_string(),
             target: target.to_string(),
         };
+
+        // Write to analyzer.log in project directory
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&self.log_file_path) {
+            let full_ts = now.format("%Y-%m-%d %H:%M:%S%.3f");
+            let _ = writeln!(file, "[{}] [{}] {}: {}", full_ts, level.as_str(), target, message);
+        }
 
         if let Ok(mut lock) = self.entries.lock() {
             if lock.len() >= self.max_entries {

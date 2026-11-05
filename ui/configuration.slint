@@ -26,11 +26,36 @@ export struct SlintBrushItem {
     color: color,
 }
 
+component ConfigDeleteButton inherits Rectangle {
+    callback clicked();
+
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    background: ta.has-hover ? #dc2626 : #352227;
+    border-width: 1px;
+    border-color: ta.has-hover ? #f87171 : #5c2b33;
+
+    Text {
+        text: "✕";
+        color: ta.has-hover ? #ffffff : #fca5a5;
+        font-size: 12px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
 export component ConfigurationWindow inherits Window {
     title: "Hauptkonfiguration - Configurable CSV & ODS Analyzer";
     min-width: 980px;
     min-height: 680px;
-    preferred-width: 1040px;
+    preferred-width: 1060px;
     preferred-height: 720px;
     background: #1e1e24;
     default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
@@ -60,11 +85,14 @@ export component ConfigurationWindow inherits Window {
     callback move_view_up(int);
     callback move_view_down(int);
     callback browse_spreadsheet_clicked();
+    callback create_spreadsheet_clicked();
+    callback spreadsheet_path_edited(string);
     callback clear_spreadsheet_clicked();
     callback view_patterns_changed(string, string);
 
     callback add_csv_to_view_clicked();
     callback add_folder_to_view_clicked();
+    callback import_open_tabs_to_view_clicked();
     callback remove_file_from_view_clicked(int);
     callback move_file_up(int);
     callback move_file_down(int);
@@ -132,18 +160,18 @@ export component ConfigurationWindow inherits Window {
                         font-size: 16px;
                         font-weight: 700;
                         color: #ffffff;
-
+                        vertical-alignment: center;
                     }
                     Text {
                         text: "|";
                         color: #55556a;
-
+                        vertical-alignment: center;
                     }
                     Text {
-                        text: "Sammlungen (Views), Speicherorte, Farbkatalog & System";
+                        text: "Kollektionen (Views), Speicherorte, Farbkatalog & System";
                         font-size: 12px;
                         color: #9e9eb4;
-
+                        vertical-alignment: center;
                     }
                 }
 
@@ -202,7 +230,7 @@ export component ConfigurationWindow inherits Window {
                         spacing: 8px;
 
                         Text {
-                            text: "Definierte Ansichten (Views)";
+                            text: "Kollektionen / Ansichten (Views)";
                             font-weight: 600;
                             color: #ffffff;
                         }
@@ -211,16 +239,26 @@ export component ConfigurationWindow inherits Window {
                         HorizontalLayout {
                             spacing: 6px;
                             LineEdit {
-                                placeholder-text: "Neue Ansicht...";
-                                text: root.new_view_name_input;
+                                horizontal-stretch: 1;
+                                placeholder-text: "Neue Kollektion...";
+                                text <=> root.new_view_name_input;
                                 edited(s) => { root.new_view_name_input = s; }
+                                accepted => {
+                                    if root.new_view_name_input != "" {
+                                        root.add_view_clicked(root.new_view_name_input);
+                                        root.new_view_name_input = "";
+                                    }
+                                }
                             }
                             Button {
                                 text: "+";
+                                primary: true;
                                 clicked => {
                                     if root.new_view_name_input != "" {
                                         root.add_view_clicked(root.new_view_name_input);
                                         root.new_view_name_input = "";
+                                    } else {
+                                        root.add_view_clicked("Neue Kollektion");
                                     }
                                 }
                             }
@@ -257,19 +295,23 @@ export component ConfigurationWindow inherits Window {
                                                 text: v.name;
                                                 font-weight: root.selected_view_idx == idx ? 600 : 400;
                                                 color: root.selected_view_idx == idx ? #ffffff : #d0d0e0;
-
+                                                vertical-alignment: center;
+                                                overflow: elide;
                                             }
-                                            if v.is_default: Rectangle {
-                                                width: 50px;
-                                                height: 18px;
-                                                background: #1e3a2f;
-                                                border-radius: 3px;
-                                                Text {
-                                                    text: "Standard";
-                                                    font-size: 10px;
-                                                    color: #66bb6a;
-                                                    horizontal-alignment: center;
-
+                                            if v.is_default: VerticalLayout {
+                                                alignment: center;
+                                                Rectangle {
+                                                    width: 54px;
+                                                    height: 18px;
+                                                    background: #1e3a2f;
+                                                    border-radius: 3px;
+                                                    Text {
+                                                        text: "Standard";
+                                                        font-size: 10px;
+                                                        color: #66bb6a;
+                                                        horizontal-alignment: center;
+                                                        vertical-alignment: center;
+                                                    }
                                                 }
                                             }
                                         }
@@ -278,7 +320,7 @@ export component ConfigurationWindow inherits Window {
                                             text: v.file_count + " Tab.";
                                             font-size: 11px;
                                             color: #8c8ca0;
-
+                                            vertical-alignment: center;
                                         }
                                     }
                                 }
@@ -324,23 +366,30 @@ export component ConfigurationWindow inherits Window {
 
                         // View Meta Settings
                         HorizontalLayout {
-                            spacing: 12px;
-
+                            spacing: 10px;
 
                             Text {
                                 text: "Verknüpftes ODS:";
                                 color: #b0b0c4;
-
+                                vertical-alignment: center;
                             }
                             LineEdit {
                                 horizontal-stretch: 1;
-                                text: root.current_spreadsheet_path;
-                                placeholder-text: "Keine ODS-Datei verknüpft (optional)";
-                                enabled: false;
+                                text <=> root.current_spreadsheet_path;
+                                placeholder-text: "Pfad zu bestehender oder neuer .ods-Datei...";
+                                edited(s) => {
+                                    root.current_spreadsheet_path = s;
+                                    root.spreadsheet_path_edited(s);
+                                }
                             }
                             Button {
-                                text: "Durchsuchen...";
+                                text: "📂 ODS wählen...";
                                 clicked => { root.browse_spreadsheet_clicked(); }
+                            }
+                            Button {
+                                text: "➕ Neu erstellen...";
+                                primary: true;
+                                clicked => { root.create_spreadsheet_clicked(); }
                             }
                             Button {
                                 text: "Entfernen";
@@ -352,14 +401,14 @@ export component ConfigurationWindow inherits Window {
                         HorizontalLayout {
                             spacing: 16px;
 
-
                             HorizontalLayout {
                                 spacing: 8px;
                                 Text { text: "Farbmuster Grid:"; color: #b0b0c4; vertical-alignment: center; }
-                                LineEdit {
-                                    width: 140px;
-                                    text: root.current_color_pattern;
-                                    edited(s) => {
+                                ComboBox {
+                                    width: 160px;
+                                    model: ["None", "Original", "OriginalPlusZebra", "Zebra"];
+                                    current-value: root.current_color_pattern;
+                                    selected(s) => {
                                         root.current_color_pattern = s;
                                         root.view_patterns_changed(s, root.current_export_color_pattern);
                                     }
@@ -369,10 +418,11 @@ export component ConfigurationWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 Text { text: "Export-Farbmuster:"; color: #b0b0c4; vertical-alignment: center; }
-                                LineEdit {
-                                    width: 140px;
-                                    text: root.current_export_color_pattern;
-                                    edited(s) => {
+                                ComboBox {
+                                    width: 160px;
+                                    model: ["None", "Original", "OriginalPlusZebra", "Zebra"];
+                                    current-value: root.current_export_color_pattern;
+                                    selected(s) => {
                                         root.current_export_color_pattern = s;
                                         root.view_patterns_changed(root.current_color_pattern, s);
                                     }
@@ -386,21 +436,25 @@ export component ConfigurationWindow inherits Window {
                         HorizontalLayout {
                             alignment: space-between;
                             Text {
-                                text: "Zugeordnete Tabellendateien (Tabs im Hauptfenster):";
+                                text: "Zugeordnete Tabellendateien (Reihenfolge = Tabs im Hauptfenster):";
                                 font-weight: 600;
                                 color: #ffffff;
-
+                                vertical-alignment: center;
                             }
                             HorizontalLayout {
                                 spacing: 6px;
                                 Button {
-                                    text: "+ CSV hinzufügen";
+                                    text: "+ CSV / ODS hinzufügen";
                                     primary: true;
                                     clicked => { root.add_csv_to_view_clicked(); }
                                 }
                                 Button {
                                     text: "+ Ordner importieren";
                                     clicked => { root.add_folder_to_view_clicked(); }
+                                }
+                                Button {
+                                    text: "Geöffnete Tabs übernehmen";
+                                    clicked => { root.import_open_tabs_to_view_clicked(); }
                                 }
                             }
                         }
@@ -416,10 +470,10 @@ export component ConfigurationWindow inherits Window {
                                 padding-right: 10px;
                                 spacing: 10px;
 
-                                Text { width: 280px; text: "CSV-Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 140px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 120px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { horizontal-stretch: 1; text: "Aktionen"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 260px; text: "Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 120px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 105px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { horizontal-stretch: 1; text: "Aktionen & Reihenfolge"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
                             }
                         }
 
@@ -436,43 +490,46 @@ export component ConfigurationWindow inherits Window {
                                     border-color: #60a5fa;
 
                                     TouchArea {
+                                        width: parent.width - 260px;
                                         clicked => { root.selected_file_idx = f_idx; }
                                     }
 
                                     HorizontalLayout {
                                         padding-left: 10px;
-                                        padding-right: 10px;
+                                        padding-right: 8px;
                                         spacing: 10px;
 
-
                                         Text {
-                                            width: 280px;
+                                            width: 260px;
                                             text: f.relative_path;
                                             color: #ffffff;
                                             overflow: elide;
-
+                                            vertical-alignment: center;
                                         }
 
                                         Text {
-                                            width: 140px;
+                                            width: 120px;
                                             text: f.storage_mode;
                                             color: #9fa8da;
-
+                                            vertical-alignment: center;
                                         }
 
                                         // Status badge
-                                        Rectangle {
-                                            width: 120px;
-                                            height: 24px;
-                                            background: f.integrity_status == "Gültig" ? #1b382b : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d);
-                                            border-radius: 4px;
-                                            Text {
-                                                text: f.integrity_status;
-                                                font-size: 11px;
-                                                font-weight: 600;
-                                                color: f.integrity_status == "Gültig" ? #66bb6a : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350);
-                                                horizontal-alignment: center;
-
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 105px;
+                                                height: 24px;
+                                                background: f.integrity_status == "Gültig" ? #1b382b : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d);
+                                                border-radius: 4px;
+                                                Text {
+                                                    text: f.integrity_status;
+                                                    font-size: 11px;
+                                                    font-weight: 600;
+                                                    color: f.integrity_status == "Gültig" ? #66bb6a : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350);
+                                                    horizontal-alignment: center;
+                                                    vertical-alignment: center;
+                                                }
                                             }
                                         }
 
@@ -482,9 +539,8 @@ export component ConfigurationWindow inherits Window {
                                             spacing: 4px;
                                             alignment: end;
 
-
                                             Button {
-                                                text: "⚙ .info Editor";
+                                                text: "⚙ .info";
                                                 clicked => { root.open_info_editor_for_file_clicked(f_idx); }
                                             }
                                             Button {
@@ -505,9 +561,11 @@ export component ConfigurationWindow inherits Window {
                                                 enabled: f_idx < root.current_view_files.length - 1;
                                                 clicked => { root.move_file_down(f_idx); }
                                             }
-                                            Button {
-                                                text: "✕";
-                                                clicked => { root.remove_file_from_view_clicked(f_idx); }
+                                            VerticalLayout {
+                                                alignment: center;
+                                                ConfigDeleteButton {
+                                                    clicked => { root.remove_file_from_view_clicked(f_idx); }
+                                                }
                                             }
                                         }
                                     }
@@ -637,7 +695,7 @@ export component ConfigurationWindow inherits Window {
                             }
                             VerticalLayout {
                                 Text { text: "4. Interaktive Benutzerabfrage"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert werden soll."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert soll."; font-size: 11px; color: #9c9cb2; }
                             }
                         }
                     }
@@ -696,7 +754,6 @@ export component ConfigurationWindow inherits Window {
                                 text: "Farbkatalog (Brushes)";
                                 font-weight: 600;
                                 color: #ffffff;
-
                             }
                             HorizontalLayout {
                                 spacing: 6px;
@@ -704,9 +761,6 @@ export component ConfigurationWindow inherits Window {
                                 LineEdit {
                                     width: 60px;
                                     text: root.marker_priority;
-                                    edited(s) => {
-                                        // Update priority
-                                    }
                                 }
                             }
                         }
@@ -745,15 +799,17 @@ export component ConfigurationWindow inherits Window {
                                         padding-right: 10px;
                                         spacing: 10px;
 
-
                                         // Color Preview Box
-                                        Rectangle {
-                                            width: 20px;
-                                            height: 20px;
-                                            background: b.color;
-                                            border-radius: 3px;
-                                            border-width: 1px;
-                                            border-color: #ffffff44;
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 20px;
+                                                height: 20px;
+                                                background: b.color;
+                                                border-radius: 3px;
+                                                border-width: 1px;
+                                                border-color: #ffffff44;
+                                            }
                                         }
 
                                         Text {
@@ -762,7 +818,7 @@ export component ConfigurationWindow inherits Window {
                                             font-weight: 600;
                                             color: #ffffff;
                                             overflow: elide;
-
+                                            vertical-alignment: center;
                                         }
 
                                         Text {
@@ -770,7 +826,7 @@ export component ConfigurationWindow inherits Window {
                                             text: b.hex_value;
                                             color: #ffca28;
                                             font-family: "Consolas, Courier New, monospace";
-
+                                            vertical-alignment: center;
                                         }
 
                                         Text {
@@ -778,14 +834,14 @@ export component ConfigurationWindow inherits Window {
                                             text: b.category;
                                             color: #90caf9;
                                             font-size: 11px;
-
+                                            vertical-alignment: center;
                                         }
 
                                         if b.is_system: Text {
                                             text: "System";
                                             font-size: 10px;
                                             color: #7986cb;
-
+                                            vertical-alignment: center;
                                         }
                                     }
                                 }
@@ -913,7 +969,6 @@ export component ConfigurationWindow inherits Window {
                         padding: 16px;
                         spacing: 16px;
 
-
                         CheckBox {
                             text: "Beim Start automatisch prüfen, ob Dateiendungen (.csv, .csv.info) verknüpft sind";
                             checked: root.check_associations_on_startup;
@@ -928,7 +983,6 @@ export component ConfigurationWindow inherits Window {
                 HorizontalLayout {
                     spacing: 12px;
 
-
                     Button {
                         text: "🔗 Dateiverknüpfungen jetzt im Betriebssystem registrieren";
                         primary: true;
@@ -939,7 +993,7 @@ export component ConfigurationWindow inherits Window {
                         text: root.association_status_message;
                         color: #64b5f6;
                         font-weight: 600;
-
+                        vertical-alignment: center;
                     }
                 }
 
@@ -961,14 +1015,13 @@ export component ConfigurationWindow inherits Window {
                 spacing: 10px;
                 alignment: end;
 
-
                 Button {
                     text: "Abbrechen";
                     clicked => { root.cancel_clicked(); }
                 }
 
                 Button {
-                    text: "Speichern & Schließen";
+                    text: "✓ Speichern & Kollektion laden";
                     primary: true;
                     clicked => { root.save_and_close_clicked(); }
                 }

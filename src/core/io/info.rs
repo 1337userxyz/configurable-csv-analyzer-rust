@@ -1,14 +1,23 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use crate::core::model::{AppConfig, InfoFile, InfoFileStorageMode, TableData, ViewsFile};
 
+static BASE_PROJECT_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn get_base_project_dir() -> PathBuf {
+    BASE_PROJECT_DIR
+        .get_or_init(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+        .clone()
+}
+
 pub fn default_config_path() -> PathBuf {
-    PathBuf::from("config.json")
+    get_base_project_dir().join("config.json")
 }
 
 pub fn default_views_path() -> PathBuf {
-    PathBuf::from("views.json")
+    get_base_project_dir().join("views.json")
 }
 
 pub fn load_app_config(path: &Path) -> Result<AppConfig, Box<dyn std::error::Error>> {

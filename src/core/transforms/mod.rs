@@ -352,3 +352,262 @@ pub fn compare_tables(source: &TableData, target: &TableData, key_col: Option<&s
         rows,
     }
 }
+
+// ============================================================================
+// SmartAddDialog / SmartAddDialogViewModel Logic (ported from C# project)
+// ============================================================================
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmartAddSuggestion {
+    pub value: String,
+    pub count: usize,
+    pub display: String,
+    pub is_load_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmartAddColumnField {
+    pub col_idx: usize,
+    pub column_name: String,
+    pub concept_name: String,
+    pub value: String,
+    pub suggestions: Vec<SmartAddSuggestion>,
+    pub has_more_suggestions: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SmartAddDialogState {
+    pub basis_description: String,
+    pub is_filtered_subset: bool,
+    pub fields: Vec<SmartAddColumnField>,
+}
+
+/// Filters out internal system columns (ID, OriginalRowNumber, OriginalCsvRowNumber,
+/// columns starting with '_', and virtual columns).
+pub fn is_system_or_excluded_column(col_name: &str, is_virtual: bool) -> bool {
+    if is_virtual {
+        return true;
+    }
+    let trimmed = col_name.trim();
+    trimmed.starts_with('_')
+        || trimmed.eq_ignore_ascii_case("ID")
+        || trimmed.eq_ignore_ascii_case("OriginalRowNumber")
+        || trimmed.eq_ignore_ascii_case("OriginalCsvRowNumber")
+}
+
+/// SuggestionGenerator.AnalyzeColumn:
+/// Analyzes the given `row_indices` for `col_idx` and returns distinct non-empty values
+/// sorted by frequency descending, then alphabetically ascending, including `(count)`.
+/// If `include_load_more` is true, appends `"... (Alle anzeigen)"` at the end.
+pub fn analyze_column_suggestions(
+    table: &TableData,
+    col_idx: usize,
+    row_indices: &[usize],
+    include_load_more: bool,
+) -> Vec<SmartAddSuggestion> {
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for &r_idx in row_indices {
+        if let Some(row) = table.rows.get(r_idx) {
+            if let Some(cell) = row.get(col_idx) {
+                let trimmed = cell.trim();
+                if !trimmed.is_empty() {
+                    *counts.entry(trimmed.to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    let mut pairs: Vec<(String, usize)> = counts.into_iter().collect();
+    pairs.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
+            .then_with(|| a.0.cmp(&b.0))
+    });
+
+    let mut suggestions: Vec<SmartAddSuggestion> = pairs
+        .into_iter()
+        .map(|(val, count)| SmartAddSuggestion {
+            display: format!("{} ({})", val, count),
+            value: val,
+            count,
+            is_load_more: false,
+        })
+        .collect();
+
+    if include_load_more {
+        suggestions.push(SmartAddSuggestion {
+            value: "... (Alle anzeigen)".to_string(),
+            count: 0,
+            display: "... (Alle anzeigen)".to_string(),
+            is_load_more: true,
+        });
+    }
+
+    suggestions
+}
+
+/// LoadAllSuggestionsForColumn:
+/// Loads suggestions from ALL (unfiltered) rows of the table for `col_idx`.
+pub fn load_all_suggestions_for_column(
+    table: &TableData,
+    col_idx: usize,
+) -> Vec<SmartAddSuggestion> {
+    let all_indices: Vec<usize> = (0..table.rows.len()).collect();
+    analyze_column_suggestions(table, col_idx, &all_indices, false)
+}
+
+/// Builds the initial SmartAddDialogState based on marked rows (if any) or visible/filtered rows.
+pub fn build_smart_add_dialog_state(
+    table: &TableData,
+    only_marked: bool,
+    search_query: &str,
+) -> SmartAddDialogState {
+    let has_marked = !table.marked_rows.is_empty();
+    let base_rows: Vec<usize> = if has_marked {
+        let mut m: Vec<usize> = table
+            .marked_rows
+            .iter()
+            .copied()
+            .filter(|&r| r < table.rows.len())
+            .collect();
+        m.sort_unstable();
+        m
+    } else {
+        let mut vis = table.visible_row_indices(only_marked);
+        let q = search_query.trim().to_lowercase();
+        if !q.is_empty() {
+            vis.retain(|&r_idx| {
+                table
+                    .rows
+                    .get(r_idx)
+                    .map(|row| row.iter().any(|c| c.to_lowercase().contains(&q)))
+                    .unwrap_or(false)
+            });
+        }
+        vis
+    };
+
+    let any_active_filter = table.active_filters.values().any(|f| f.is_active())
+        || only_marked
+        || !search_query.trim().is_empty();
+    let is_filtered_subset = has_marked || any_active_filter || base_rows.len() < table.rows.len();
+
+    let basis_description = if table.marked_rows.len() == 1 {
+        "Basis: 1 markierte Zeile (nicht-leere Werte direkt vorbelegt)".to_string()
+    } else if table.marked_rows.len() > 1 {
+        format!(
+            "Basis: {} markierte Zeilen (identische Spaltenwerte vorbelegt)",
+            table.marked_rows.len()
+        )
+    } else if any_active_filter {
+        format!(
+            "Basis: {} sichtbare (gefilterte) von {} Zeilen",
+            base_rows.len(),
+            table.rows.len()
+        )
+    } else {
+        format!("Basis: Alle {} Zeilen der Tabelle", base_rows.len())
+    };
+
+    let mut fields = Vec::new();
+    for (col_idx, col_name) in table.headers.iter().enumerate() {
+        let is_virtual = table.is_virtual_col.get(col_idx).copied().unwrap_or(false);
+        if is_system_or_excluded_column(col_name, is_virtual) {
+            continue;
+        }
+
+        let concept_name = table
+            .column_mappings
+            .iter()
+            .find(|(_, target)| target.eq_ignore_ascii_case(col_name))
+            .map(|(concept, _)| concept.clone())
+            .unwrap_or_default();
+
+        let suggestions =
+            analyze_column_suggestions(table, col_idx, &base_rows, is_filtered_subset);
+
+        // Automatic prefill (Value):
+        // - 1 row marked: all non-empty values of that row are directly prefilled.
+        // - Multiple/no rows marked: if all considered base_rows have the exact same non-empty value in this column, prefill it.
+        let prefill_value = if table.marked_rows.len() == 1 {
+            base_rows
+                .first()
+                .and_then(|&r_idx| table.rows.get(r_idx))
+                .and_then(|r| r.get(col_idx))
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
+        } else if !base_rows.is_empty() {
+            let first_val = table
+                .rows
+                .get(base_rows[0])
+                .and_then(|r| r.get(col_idx))
+                .map(|s| s.trim())
+                .unwrap_or("");
+            if !first_val.is_empty()
+                && base_rows.iter().all(|&r_idx| {
+                    table
+                        .rows
+                        .get(r_idx)
+                        .and_then(|r| r.get(col_idx))
+                        .map(|s| s.trim())
+                        .unwrap_or("")
+                        == first_val
+                })
+            {
+                first_val.to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        fields.push(SmartAddColumnField {
+            col_idx,
+            column_name: col_name.clone(),
+            concept_name,
+            value: prefill_value,
+            suggestions,
+            has_more_suggestions: is_filtered_subset,
+        });
+    }
+
+    SmartAddDialogState {
+        basis_description,
+        is_filtered_subset,
+        fields,
+    }
+}
+
+/// Creates `row_count` new rows with the given `(col_idx, value)` pairs, marks modified cells,
+/// and ensures the new rows remain visible in active column filters (`EnsureRowIsVisibleInFilter`).
+pub fn execute_smart_add_rows(
+    table: &mut TableData,
+    row_count: usize,
+    col_values: &[(usize, String)],
+) -> Vec<usize> {
+    let count = row_count.max(1);
+    let mut created_indices = Vec::with_capacity(count);
+
+    let mut template_row = vec![String::new(); table.headers.len()];
+    let mut modified_cols = Vec::new();
+    for &(col_idx, ref val) in col_values {
+        if !val.is_empty() && col_idx < template_row.len() {
+            template_row[col_idx] = val.clone();
+            modified_cols.push(col_idx);
+        }
+    }
+
+    for _ in 0..count {
+        let new_idx = table.rows.len();
+        table.rows.push(template_row.clone());
+        for &c_idx in &modified_cols {
+            table.dirty_cells.insert((new_idx, c_idx));
+        }
+        table.ensure_row_visible_in_filter(new_idx);
+        created_indices.push(new_idx);
+    }
+
+    table.is_dirty = true;
+    created_indices
+}

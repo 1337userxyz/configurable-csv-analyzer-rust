@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use crate::core::logging::{log_info, log_warn};
+pub use crate::core::model::{ProposalRow, RuleGroupSummary};
 use crate::core::model::{
     HighlightItem, HighlightSeverity, KeyMapping, LinkStep, RuleDefinition, TableData,
     VirtualColumnMapping,
@@ -22,23 +24,6 @@ pub struct ChainAnalysisResult {
     pub host_total_rows: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct RuleGroupSummary {
-    pub rule_id: String,
-    pub description: String,
-    pub hit_count: usize,
-    pub error_count: usize,
-    pub warning_count: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct ProposalRow {
-    pub source_table: String,
-    pub target_table: String,
-    pub key_value: String,
-    pub row_data: Vec<String>,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct RuleEngineResult {
     pub highlights: Vec<HighlightItem>,
@@ -54,9 +39,49 @@ impl RuleEngine {
         all_tables: &HashMap<String, TableData>,
     ) -> RuleEngineResult {
         let mut result = RuleEngineResult::default();
+
+        // Remove any previously injected virtual columns before re-running rules
+        if current_table.is_virtual_col.len() < current_table.headers.len() {
+            current_table.is_virtual_col.resize(current_table.headers.len(), false);
+        }
+        if current_table.is_virtual_col.iter().any(|&v| v) {
+            let mut keep_indices = Vec::new();
+            let mut removed_names = HashSet::new();
+            for (idx, &is_virt) in current_table.is_virtual_col.iter().enumerate() {
+                if !is_virt {
+                    keep_indices.push(idx);
+                } else if let Some(h) = current_table.headers.get(idx) {
+                    removed_names.insert(h.to_lowercase());
+                }
+            }
+            current_table.headers = keep_indices.iter().filter_map(|&i| current_table.headers.get(i).cloned()).collect();
+            current_table.is_virtual_col = vec![false; current_table.headers.len()];
+            current_table.column_settings.retain(|c| !removed_names.contains(&c.column_name.to_lowercase()));
+            for row in &mut current_table.rows {
+                let new_row: Vec<String> = keep_indices.iter().map(|&i| row.get(i).cloned().unwrap_or_default()).collect();
+                *row = new_row;
+            }
+        }
+
         let rules = current_table.rules.clone();
+        if !rules.is_empty() {
+            log_info(
+                "RuleEngine",
+                &format!(
+                    "Starte Regelausführung für Tabelle '{}' ({} Regeln definiert, {} Tabellen im Kontext)",
+                    current_table.display_name,
+                    rules.len(),
+                    all_tables.len()
+                ),
+            );
+        }
 
         for rule in &rules {
+            if !rule.is_active() {
+                log_info("RuleEngine", &format!("Regel '{}' ist deaktiviert und wird übersprungen.", rule.id()));
+                continue;
+            }
+
             match rule {
                 RuleDefinition::BulkField {
                     id,
@@ -102,9 +127,13 @@ impl RuleEngine {
                                     severity: HighlightSeverity::Error,
                                     message: msg,
                                     rule_id: id.clone(),
+                                    brush_key: Some("ErrorBrush".to_string()),
+                                    priority: 90,
                                 });
                             }
                         }
+                    } else {
+                        log_warn("RuleEngine", &format!("BulkField '{}': Spalte/Konzept '{}' nicht in '{}' gefunden.", id, concept, current_table.display_name));
                     }
 
                     result.summaries.push(RuleGroupSummary {
@@ -131,6 +160,7 @@ impl RuleEngine {
                         Some(idx) => idx,
                         None => {
                             let new_idx = current_table.headers.len();
+                            current_table.is_virtual_col.resize(new_idx, false);
                             current_table.headers.push(target_column.clone());
                             current_table.is_virtual_col.push(true);
                             current_table.column_settings.push(crate::core::model::ColumnSetting {
@@ -146,6 +176,17 @@ impl RuleEngine {
                         }
                     };
 
+                    // Normalize braced placeholders {Col} -> Col
+                    let mut clean_formula = formula.clone();
+                    for h in &current_table.headers {
+                        let clean_h = h.replace(|c: char| !c.is_alphanumeric() && c != '_', "_");
+                        clean_formula = clean_formula.replace(&format!("{{{}}}", h), &clean_h);
+                    }
+                    for (concept, csv_col) in &current_table.column_mappings {
+                        let clean_h = csv_col.replace(|c: char| !c.is_alphanumeric() && c != '_', "_");
+                        clean_formula = clean_formula.replace(&format!("{{{}}}", concept), &clean_h);
+                    }
+
                     for r_idx in 0..current_table.rows.len() {
                         let mut ctx: HashMapContext<DefaultNumericTypes> = HashMapContext::new();
 
@@ -155,7 +196,6 @@ impl RuleEngine {
                                 continue;
                             }
                             let cell_val = current_table.rows[r_idx].get(c_idx).map(|s| s.as_str()).unwrap_or("");
-                            // Try int or float first
                             let clean_h = h.replace(|c: char| !c.is_alphanumeric() && c != '_', "_");
                             if let Ok(i) = cell_val.parse::<i64>() {
                                 let _ = ctx.set_value(clean_h, Value::Int(i));
@@ -166,7 +206,7 @@ impl RuleEngine {
                             }
                         }
 
-                        match eval_with_context(formula, &ctx) {
+                        match eval_with_context(&clean_formula, &ctx) {
                             Ok(val) => {
                                 let val_str = match val {
                                     Value::String(s) => s,
@@ -187,6 +227,8 @@ impl RuleEngine {
                                     severity: HighlightSeverity::Warning,
                                     message: format!("Formelfehler in Zeile {}: {}", r_idx + 1, e),
                                     rule_id: id.clone(),
+                                    brush_key: Some("WarningBrush".to_string()),
+                                    priority: 70,
                                 });
                             }
                         }
@@ -209,11 +251,18 @@ impl RuleEngine {
                     unique_concept,
                     numeric_range,
                     group_consistency,
+                    mismatch_brush_key,
+                    mismatch_target,
+                    mismatch_priority,
+                    is_highlighted,
                     ..
                 } => {
                     let mut hits = 0;
                     let mut errors = 0;
                     let mut warnings = 0;
+                    let b_key = mismatch_brush_key.clone().or_else(|| Some("UniquenessViolationBrush".to_string()));
+                    let prio = mismatch_priority.unwrap_or(90);
+                    let row_target = mismatch_target.as_deref().map(|t| t.eq_ignore_ascii_case("row")).unwrap_or(false);
 
                     let grp_col = current_table.find_col_index(group_by_concept);
                     if let Some(grp_c) = grp_col {
@@ -241,13 +290,17 @@ impl RuleEngine {
                                         if let Some(&first_seen) = seen_values.get(val) {
                                             hits += 1;
                                             errors += 1;
-                                            result.highlights.push(HighlightItem {
-                                                row: r_idx,
-                                                col: Some(check_col),
-                                                severity: HighlightSeverity::Error,
-                                                message: format!("Duplikat von '{}' (bereits in Zeile {})", val, first_seen + 1),
-                                                rule_id: id.clone(),
-                                            });
+                                            if *is_highlighted {
+                                                result.highlights.push(HighlightItem {
+                                                    row: r_idx,
+                                                    col: if row_target { None } else { Some(check_col) },
+                                                    severity: HighlightSeverity::Error,
+                                                    message: format!("Duplikat von '{}' (bereits in Zeile {})", val, first_seen + 1),
+                                                    rule_id: id.clone(),
+                                                    brush_key: b_key.clone(),
+                                                    priority: prio,
+                                                });
+                                            }
                                         } else {
                                             seen_values.insert(val.to_string(), r_idx);
                                         }
@@ -276,13 +329,17 @@ impl RuleEngine {
                                         if out_of_range {
                                             hits += 1;
                                             warnings += 1;
-                                            result.highlights.push(HighlightItem {
-                                                row: r_idx,
-                                                col: Some(target_col),
-                                                severity: HighlightSeverity::Warning,
-                                                message: format!("Wert {} liegt außerhalb des gültigen Bereichs [min: {:?}, max: {:?}]", num, range.min, range.max),
-                                                rule_id: id.clone(),
-                                            });
+                                            if *is_highlighted {
+                                                result.highlights.push(HighlightItem {
+                                                    row: r_idx,
+                                                    col: if row_target { None } else { Some(target_col) },
+                                                    severity: HighlightSeverity::Warning,
+                                                    message: format!("Wert {} liegt außerhalb des gültigen Bereichs [min: {:?}, max: {:?}]", num, range.min, range.max),
+                                                    rule_id: id.clone(),
+                                                    brush_key: b_key.clone(),
+                                                    priority: prio,
+                                                });
+                                            }
                                         }
                                     }
                                 }
@@ -300,13 +357,17 @@ impl RuleEngine {
                                             if cur_val != first_val {
                                                 hits += 1;
                                                 warnings += 1;
-                                                result.highlights.push(HighlightItem {
-                                                    row: r_idx,
-                                                    col: Some(cons_col),
-                                                    severity: HighlightSeverity::Warning,
-                                                    message: format!("Inkonsistenter Wert '{}' in Gruppe '{}' (erwartet: '{}')", cur_val, grp_key, first_val),
-                                                    rule_id: id.clone(),
-                                                });
+                                                if *is_highlighted {
+                                                    result.highlights.push(HighlightItem {
+                                                        row: r_idx,
+                                                        col: if row_target { None } else { Some(cons_col) },
+                                                        severity: HighlightSeverity::Warning,
+                                                        message: format!("Inkonsistenter Wert '{}' in Gruppe '{}' (erwartet: '{}')", cur_val, grp_key, first_val),
+                                                        rule_id: id.clone(),
+                                                        brush_key: b_key.clone(),
+                                                        priority: prio,
+                                                    });
+                                                }
                                             }
                                         }
                                     }
@@ -327,6 +388,7 @@ impl RuleEngine {
                 RuleDefinition::VirtualRowJoin {
                     id,
                     description,
+                    is_highlighted,
                     key_concept,
                     target_table: target_table_name,
                     target_key_concept,
@@ -369,6 +431,7 @@ impl RuleEngine {
                                 Some(idx) => idx,
                                 None => {
                                     let new_idx = current_table.headers.len();
+                                    current_table.is_virtual_col.resize(new_idx, false);
                                     current_table.headers.push(virt_header.clone());
                                     current_table.is_virtual_col.push(true);
                                     current_table.column_settings.push(crate::core::model::ColumnSetting {
@@ -397,6 +460,15 @@ impl RuleEngine {
                                 let tgt_table = match RuleEngine::resolve_table(&step.target_table_key, current_table, all_tables) {
                                     Some(t) => t,
                                     None => {
+                                        if r_idx == 0 {
+                                            log_warn(
+                                                "RuleEngine",
+                                                &format!(
+                                                    "Join '{}' in '{}': Zieltabelle '{}' nicht geöffnet.",
+                                                    id, current_table.display_name, step.target_table_key
+                                                ),
+                                            );
+                                        }
                                         intermediate_rows.clear();
                                         break;
                                     }
@@ -494,15 +566,19 @@ impl RuleEngine {
                                     String::new()
                                 };
 
-                                if let Some(ref bk) = v.brush_key {
-                                    if !bk.is_empty() && bk != "Keine" && !intermediate_rows.is_empty() {
-                                        result.highlights.push(HighlightItem {
-                                            row: r_idx,
-                                            col: Some(col_idx),
-                                            severity: HighlightSeverity::Info,
-                                            message: format!("Virtuelle Spalte '{}': Treffer", v.virtual_column_header),
-                                            rule_id: id.clone(),
-                                        });
+                                if *is_highlighted {
+                                    if let Some(ref bk) = v.brush_key {
+                                        if !bk.is_empty() && bk != "Keine" && !intermediate_rows.is_empty() {
+                                            result.highlights.push(HighlightItem {
+                                                row: r_idx,
+                                                col: Some(col_idx),
+                                                severity: HighlightSeverity::Info,
+                                                message: format!("Virtuelle Spalte '{}': Treffer", v.virtual_column_header),
+                                                rule_id: id.clone(),
+                                                brush_key: Some(bk.clone()),
+                                                priority: v.priority.unwrap_or(5),
+                                            });
+                                        }
                                     }
                                 }
 
@@ -520,6 +596,17 @@ impl RuleEngine {
                         }
                     }
 
+                    log_info(
+                        "RuleEngine",
+                        &format!(
+                            "Join-Regel '{}' auf '{}' ausgeführt: {} Treffer ({} virtuelle Spalten).",
+                            id,
+                            current_table.display_name,
+                            total_hits,
+                            v_cols.len()
+                        ),
+                    );
+
                     result.summaries.push(RuleGroupSummary {
                         rule_id: id.clone(),
                         description: description.clone(),
@@ -532,16 +619,22 @@ impl RuleEngine {
                 RuleDefinition::CrossTableComparison {
                     id,
                     description,
+                    is_highlighted,
                     key_concept,
                     target_table: target_table_name,
                     target_key_concept,
-                    compare_concepts: _,
+                    mismatch_brush_key,
+                    mismatch_target,
+                    mismatch_priority,
                     ..
                 } => {
                     let mut hits = 0;
                     let mut warnings = 0;
+                    let b_key = mismatch_brush_key.clone().or_else(|| Some("CrossTableMismatchBrush".to_string()));
+                    let prio = mismatch_priority.unwrap_or(80);
+                    let row_target = mismatch_target.as_deref().map(|t| t.eq_ignore_ascii_case("row")).unwrap_or(false);
 
-                    if let Some(target_tbl) = all_tables.get(target_table_name) {
+                    if let Some(target_tbl) = RuleEngine::resolve_table(target_table_name, current_table, all_tables) {
                         let cur_k = current_table.find_col_index(key_concept);
                         let tgt_k = target_tbl.find_col_index(target_key_concept);
 
@@ -575,16 +668,23 @@ impl RuleEngine {
                             for (c_idx, c_row) in current_table.rows.iter().enumerate() {
                                 let key_val = c_row.get(ck).map(|s| s.trim()).unwrap_or("");
                                 if !key_val.is_empty() && !tgt_keys.contains(key_val) {
-                                    result.highlights.push(HighlightItem {
-                                        row: c_idx,
-                                        col: Some(ck),
-                                        severity: HighlightSeverity::Info,
-                                        message: format!("Datensatz mit Schlüssel '{}' existiert nicht in '{}'", key_val, target_table_name),
-                                        rule_id: id.clone(),
-                                    });
+                                    hits += 1;
+                                    if *is_highlighted {
+                                        result.highlights.push(HighlightItem {
+                                            row: c_idx,
+                                            col: if row_target { None } else { Some(ck) },
+                                            severity: HighlightSeverity::Info,
+                                            message: format!("Datensatz mit Schlüssel '{}' existiert nicht in '{}'", key_val, target_table_name),
+                                            rule_id: id.clone(),
+                                            brush_key: b_key.clone(),
+                                            priority: prio,
+                                        });
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        log_warn("RuleEngine", &format!("CrossTableComparison '{}': Zieltabelle '{}' nicht geöffnet.", id, target_table_name));
                     }
 
                     result.summaries.push(RuleGroupSummary {
@@ -599,30 +699,68 @@ impl RuleEngine {
                 RuleDefinition::Highlight {
                     id,
                     description,
+                    is_highlighted,
                     column_concept,
                     condition,
                     value_to_match,
                     multiple_values,
                     invert_condition,
-                    brush_key: _,
+                    brush_key,
                     target,
-                    priority: _,
+                    priority,
                     ..
                 } => {
                     let mut hits = 0;
                     let col_idx = current_table.find_col_index(column_concept);
                     if let Some(col) = col_idx {
+                        let needle = value_to_match.trim();
                         for (r_idx, row) in current_table.rows.iter().enumerate() {
                             let val = row.get(col).map(|s| s.trim()).unwrap_or("");
-                            let mut matches = match condition.to_lowercase().as_str() {
-                                "equals" => val.eq_ignore_ascii_case(value_to_match),
-                                "contains" => val.to_lowercase().contains(&value_to_match.to_lowercase()),
-                                "startswith" => val.to_lowercase().starts_with(&value_to_match.to_lowercase()),
-                                "endswith" => val.to_lowercase().ends_with(&value_to_match.to_lowercase()),
+                            let mut matches = match condition.trim().to_lowercase().as_str() {
+                                "equals" | "==" => {
+                                    if needle.is_empty() {
+                                        val.is_empty()
+                                    } else {
+                                        RuleEngine::values_match(val, needle, false)
+                                    }
+                                }
+                                "contains" => val.to_lowercase().contains(&needle.to_lowercase()),
+                                "startswith" => val.to_lowercase().starts_with(&needle.to_lowercase()),
+                                "endswith" => val.to_lowercase().ends_with(&needle.to_lowercase()),
                                 "isempty" => val.is_empty(),
                                 "isnotempty" => !val.is_empty(),
-                                "inlist" => multiple_values.iter().any(|v| val.eq_ignore_ascii_case(v.trim())),
-                                _ => val.to_lowercase().contains(&value_to_match.to_lowercase()),
+                                "inlist" => {
+                                    if !multiple_values.is_empty() {
+                                        multiple_values.iter().any(|v| val.eq_ignore_ascii_case(v.trim()))
+                                    } else {
+                                        needle.split(|c| c == ',' || c == ';').any(|v| val.eq_ignore_ascii_case(v.trim()))
+                                    }
+                                }
+                                "greaterthan" | ">" => {
+                                    if let (Ok(v_num), Ok(n_num)) = (val.parse::<f64>(), needle.parse::<f64>()) {
+                                        v_num > n_num
+                                    } else {
+                                        !val.is_empty() && val > needle
+                                    }
+                                }
+                                "lessthan" | "<" => {
+                                    if let (Ok(v_num), Ok(n_num)) = (val.parse::<f64>(), needle.parse::<f64>()) {
+                                        v_num < n_num
+                                    } else {
+                                        !val.is_empty() && val < needle
+                                    }
+                                }
+                                "regex" => {
+                                    // Simple wildcard/substring match fallback
+                                    if needle.contains('*') {
+                                        let parts: Vec<&str> = needle.split('*').filter(|s| !s.is_empty()).collect();
+                                        let lower_v = val.to_lowercase();
+                                        parts.iter().all(|p| lower_v.contains(&p.to_lowercase()))
+                                    } else {
+                                        val.to_lowercase().contains(&needle.to_lowercase())
+                                    }
+                                }
+                                _ => val.to_lowercase().contains(&needle.to_lowercase()),
                             };
                             if *invert_condition {
                                 matches = !matches;
@@ -630,16 +768,40 @@ impl RuleEngine {
 
                             if matches {
                                 hits += 1;
-                                let c_opt = if target.eq_ignore_ascii_case("row") { None } else { Some(col) };
-                                result.highlights.push(HighlightItem {
-                                    row: r_idx,
-                                    col: c_opt,
-                                    severity: HighlightSeverity::Info,
-                                    message: format!("Highlight: {}", description),
-                                    rule_id: id.clone(),
-                                });
+                                if *is_highlighted {
+                                    let c_opt = if target.eq_ignore_ascii_case("row") { None } else { Some(col) };
+                                    let resolved_brush = if brush_key.trim().is_empty() {
+                                        "WarningBrush".to_string()
+                                    } else {
+                                        brush_key.clone()
+                                    };
+                                    result.highlights.push(HighlightItem {
+                                        row: r_idx,
+                                        col: c_opt,
+                                        severity: HighlightSeverity::Info,
+                                        message: format!("Highlight: {}", description),
+                                        rule_id: id.clone(),
+                                        brush_key: Some(resolved_brush),
+                                        priority: *priority,
+                                    });
+                                }
                             }
                         }
+                        log_info(
+                            "RuleEngine",
+                            &format!(
+                                "Highlight-Regel '{}' auf '{}'.'{}' ({} '{}', invert={}) ausgeführt: {} Treffer (Brush: '{}', Ziel: '{}').",
+                                id, current_table.display_name, column_concept, condition, value_to_match, invert_condition, hits, brush_key, target
+                            ),
+                        );
+                    } else {
+                        log_warn(
+                            "RuleEngine",
+                            &format!(
+                                "Highlight-Regel '{}': Spalte/Konzept '{}' existiert nicht in '{}'.",
+                                id, column_concept, current_table.display_name
+                            ),
+                        );
                     }
 
                     result.summaries.push(RuleGroupSummary {
@@ -668,6 +830,8 @@ impl RuleEngine {
         }
 
         current_table.rule_highlights = result.highlights.clone();
+        current_table.rule_summaries = result.summaries.clone();
+        current_table.rule_proposals = result.proposals.clone();
         result
     }
 
@@ -740,7 +904,10 @@ impl RuleEngine {
         if key == "$self" {
             return Some(current_table);
         }
+        let clean_key = key.trim_end_matches(".csv").trim_end_matches(".ods").trim_end_matches(".tsv");
+        let cur_clean = current_table.display_name.trim_end_matches(".csv").trim_end_matches(".ods").trim_end_matches(".tsv");
         if current_table.display_name.eq_ignore_ascii_case(key)
+            || cur_clean.eq_ignore_ascii_case(clean_key)
             || current_table.id.eq_ignore_ascii_case(key)
             || current_table.file_path.as_ref().map(|p| p.file_name().unwrap_or_default().to_string_lossy().eq_ignore_ascii_case(key)).unwrap_or(false)
         {
@@ -750,7 +917,9 @@ impl RuleEngine {
             return Some(t);
         }
         all_tables.values().find(|t| {
+            let t_clean = t.display_name.trim_end_matches(".csv").trim_end_matches(".ods").trim_end_matches(".tsv");
             t.display_name.eq_ignore_ascii_case(key)
+                || t_clean.eq_ignore_ascii_case(clean_key)
                 || t.id.eq_ignore_ascii_case(key)
                 || t.file_path.as_ref().map(|p| p.file_name().unwrap_or_default().to_string_lossy().eq_ignore_ascii_case(key)).unwrap_or(false)
         })

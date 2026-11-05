@@ -1,0 +1,8 @@
+Source VT,Source SW,SourceSWPort,Medium,Destination VT,Destination SW,Destination Port,Topology (via)
+VT-A209,usw-pro-48-02,51,LWL,VT-MUR,usw-mur-sw1,49,Panel EasyLan-LWL:2 (VT-A209) <-> Panel LWL1:2 (VT-MUR)
+VT-A209,DLink-Extern,10,LWL,VT-MUR,MUR-Telefon,27,PanelEasyLan-LWL:1 (VT-A209) <-> Panel LWL1:1 (VT-MUR)
+VT-MUR,usw-mur-sw1,51,LWL,VT-MUR,usw-mur-sw2,49,direct
+VT-MUR,usw-mur-sw2,52,LWL,VT-MUR,usw-mur-sw3,49,direct
+VT-MUR,Rad-Etx-203AM,1,LWL,VT-MUR,,,Panel CobiNet-LWL:1 (VT-A209) <->
+VT-A209,Server,1,copper,VT-A209,usw-pro-48-02,2,direct
+VT-A209,usw-pro-48-02,,,VT-A209,usw-pro-48-poe-a209-1,,direct
