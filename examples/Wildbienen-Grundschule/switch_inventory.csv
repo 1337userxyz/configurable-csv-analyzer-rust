@@ -1,0 +1,8 @@
+Switch,Rack,Room,MAC,IP,Network,Vendor,Type,Lan 100Mbit,Lan 1GB,Sfp Ports,Name,NN,Password,Firmware,Kernel,Webinterface,Programm,Serialnr
+a014-sw-unifi,vt-a014,a014,0c:ea:14:84:1c:be,10.16.14.255,,Unifi,USW Pro 48 PoE,,,,,,,,,,,
+a306-sw-unifi,vt-a306,a306,0c:ea:14:77:2b:b5,10.16.36.101,,Unifi,USW Pro 48 PoE,,,,,,,,,,,
+a014-dlink,vt-a014,a014,,,,,,,,,,,,,,,,
+a014-HP-A5120,vt-a014,a014,,,,HP,,,,,,,,,,,,
+a014-hpe-1820,vt-a014,a014,,,,HP,Office Connect 1820,,,,,,,,,,,
+a306-hpe-1820,vt-a306,a306,,,,HP,Office Connect 1820,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,

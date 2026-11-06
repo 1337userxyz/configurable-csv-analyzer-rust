@@ -45,6 +45,52 @@
       "ColorPattern": "None",
       "ExportColorPattern": "None",
       "ExportPaths": []
+    },
+    {
+      "Name": "09g31",
+      "IsDefaultView": false,
+      "Files": [
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\09G31_WLAN-SBETGE.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\09G31_WLAN-SBETGE.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\iPads.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\iPads.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\network_topology.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\network_topology.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\patchpanel_switch_connection_table.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\patchpanel_switch_connection_table.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\room_outlet_map.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\room_outlet_map.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        },
+        {
+          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\switch_inventory.csv",
+          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\switch_inventory.csv",
+          "InfoFilePath": null,
+          "StorageMode": "Dateipfad"
+        }
+      ],
+      "SpreadsheetPath": null,
+      "ColorPattern": "None",
+      "ExportColorPattern": "None",
+      "ExportPaths": []
     }
   ]
 }
