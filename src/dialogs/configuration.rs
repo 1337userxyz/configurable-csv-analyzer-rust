@@ -12,12 +12,13 @@ use configurable_csv_analyzer::core::io::info::{
 use configurable_csv_analyzer::core::io::ods::{create_ods_file, ensure_valid_ods_file};
 use configurable_csv_analyzer::core::logging::{log_error, log_info};
 use configurable_csv_analyzer::core::model::{
-    BrushCategory, BrushDefinition, InfoFileStorageMode, TableData, ViewDefinition, ViewFileItem,
+    BrushCategory, BrushDefinition, ExternalAppConfig, InfoFileStorageMode, TableData,
+    ViewDefinition, ViewFileItem,
 };
 
 use crate::{
     AppState, ConfigurationWindow, InfoFileEditorWindow, MainWindow,
-    SlintBrushItem, SlintViewFileItem, SlintViewItem,
+    SlintBrushItem, SlintExternalAppItem, SlintViewFileItem, SlintViewItem,
 };
 use crate::dialogs::info_editor::open_info_editor_for_table_or_path;
 
@@ -160,6 +161,35 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
 
     // 4. Associations
     window.set_check_associations_on_startup(state.app_config.check_file_associations_on_startup);
+
+    // 5. External Apps
+    let app_items: Vec<SlintExternalAppItem> = state
+        .app_config
+        .external_apps
+        .iter()
+        .enumerate()
+        .map(|(idx, a)| SlintExternalAppItem {
+            id: idx as i32,
+            name: slint::SharedString::from(&a.name),
+            command_or_path: slint::SharedString::from(&a.command_or_path),
+            arguments: slint::SharedString::from(&a.arguments),
+        })
+        .collect();
+    window.set_external_apps(ModelRc::new(VecModel::from(app_items)));
+
+    let raw_app_idx = window.get_selected_app_idx();
+    if raw_app_idx >= 0 && (raw_app_idx as usize) < state.app_config.external_apps.len() {
+        let app = &state.app_config.external_apps[raw_app_idx as usize];
+        window.set_edit_app_name(slint::SharedString::from(&app.name));
+        window.set_edit_app_path(slint::SharedString::from(&app.command_or_path));
+        window.set_edit_app_arguments(slint::SharedString::from(&app.arguments));
+    } else if raw_app_idx < 0 && !state.app_config.external_apps.is_empty() {
+        window.set_selected_app_idx(0);
+        let app = &state.app_config.external_apps[0];
+        window.set_edit_app_name(slint::SharedString::from(&app.name));
+        window.set_edit_app_path(slint::SharedString::from(&app.command_or_path));
+        window.set_edit_app_arguments(slint::SharedString::from(&app.arguments));
+    }
 }
 
 fn refresh_brushes_list(window: &ConfigurationWindow, state: &AppState) {
@@ -891,6 +921,127 @@ pub fn setup_configuration_window(
                 "Dateiverknüpfungen für .csv und .csv.info erfolgreich im System registriert.",
             ));
             log_info("Associations", "Dateiverknüpfungen registriert.");
+        });
+    }
+
+    // --- EXTERNAL APPS CONFIGURATION ---
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_select_app(move |idx| {
+            let st = state.borrow();
+            let i = idx as usize;
+            if let Some(app) = st.app_config.external_apps.get(i) {
+                win.set_selected_app_idx(idx);
+                win.set_edit_app_name(slint::SharedString::from(&app.name));
+                win.set_edit_app_path(slint::SharedString::from(&app.command_or_path));
+                win.set_edit_app_arguments(slint::SharedString::from(&app.arguments));
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_add_app_clicked(move |name, path, args| {
+            let mut st = state.borrow_mut();
+            let app_name = name.trim().to_string();
+            if app_name.is_empty() {
+                return;
+            }
+            st.app_config.external_apps.push(ExternalAppConfig {
+                name: app_name,
+                command_or_path: path.trim().to_string(),
+                arguments: args.trim().to_string(),
+            });
+            let new_idx = (st.app_config.external_apps.len() - 1) as i32;
+            win.set_selected_app_idx(new_idx);
+            let _ = save_app_config(&default_config_path(), &st.app_config);
+            sync_configuration_ui(&win, &st);
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_update_app_clicked(move |idx, name, path, args| {
+            let mut st = state.borrow_mut();
+            let i = idx as usize;
+            if i < st.app_config.external_apps.len() {
+                let app_name = name.trim().to_string();
+                if app_name.is_empty() {
+                    return;
+                }
+                st.app_config.external_apps[i] = ExternalAppConfig {
+                    name: app_name,
+                    command_or_path: path.trim().to_string(),
+                    arguments: args.trim().to_string(),
+                };
+                let _ = save_app_config(&default_config_path(), &st.app_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_delete_app_clicked(move |idx| {
+            let mut st = state.borrow_mut();
+            let i = idx as usize;
+            if i < st.app_config.external_apps.len() {
+                st.app_config.external_apps.remove(i);
+                let new_idx = if st.app_config.external_apps.is_empty() {
+                    -1
+                } else {
+                    (i.min(st.app_config.external_apps.len() - 1)) as i32
+                };
+                win.set_selected_app_idx(new_idx);
+                let _ = save_app_config(&default_config_path(), &st.app_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_move_app_up(move |idx| {
+            let mut st = state.borrow_mut();
+            let i = idx as usize;
+            if i > 0 && i < st.app_config.external_apps.len() {
+                st.app_config.external_apps.swap(i, i - 1);
+                win.set_selected_app_idx((i - 1) as i32);
+                let _ = save_app_config(&default_config_path(), &st.app_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_move_app_down(move |idx| {
+            let mut st = state.borrow_mut();
+            let i = idx as usize;
+            if i + 1 < st.app_config.external_apps.len() {
+                st.app_config.external_apps.swap(i, i + 1);
+                win.set_selected_app_idx((i + 1) as i32);
+                let _ = save_app_config(&default_config_path(), &st.app_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        config_window.on_browse_app_path_clicked(move || {
+            let file = rfd::FileDialog::new()
+                .add_filter("Ausführbare Dateien (*.exe, *.cmd, *.bat)", &["exe", "cmd", "bat"])
+                .pick_file();
+            if let Some(p) = file {
+                win.set_edit_app_path(slint::SharedString::from(p.to_string_lossy().as_ref()));
+            }
         });
     }
 

@@ -26,6 +26,13 @@ export struct SlintBrushItem {
     color: color,
 }
 
+export struct SlintExternalAppItem {
+    id: int,
+    name: string,
+    command_or_path: string,
+    arguments: string,
+}
+
 component ConfigDeleteButton inherits Rectangle {
     callback clicked();
 
@@ -130,6 +137,21 @@ export component ConfigurationWindow inherits Window {
     callback toggle_associations_startup(bool);
     callback register_associations_now();
 
+    // External Apps State (Tab 4)
+    in-out property <[SlintExternalAppItem]> external_apps: [];
+    in-out property <int> selected_app_idx: -1;
+    in-out property <string> edit_app_name: "";
+    in-out property <string> edit_app_path: "";
+    in-out property <string> edit_app_arguments: "";
+
+    callback select_app(int);
+    callback add_app_clicked(string, string, string);
+    callback update_app_clicked(int, string, string, string);
+    callback delete_app_clicked(int);
+    callback move_app_up(int);
+    callback move_app_down(int);
+    callback browse_app_path_clicked();
+
     // Diff preview modal
     in-out property <bool> diff_modal_visible: false;
     in-out property <string> diff_modal_text: "";
@@ -199,6 +221,11 @@ export component ConfigurationWindow inherits Window {
                         text: "🔗 Dateiverknüpfungen";
                         primary: root.active_nav_tab == 3;
                         clicked => { root.active_nav_tab = 3; }
+                    }
+                    Button {
+                        text: "🚀 Externe Programme";
+                        primary: root.active_nav_tab == 4;
+                        clicked => { root.active_nav_tab = 4; }
                     }
                 }
             }
@@ -998,6 +1025,195 @@ export component ConfigurationWindow inherits Window {
                 }
 
                 Rectangle { vertical-stretch: 1; }
+            }
+
+            // TAB 4: EXTERNE PROGRAMME ("ÖFFNEN MIT")
+            if root.active_nav_tab == 4: HorizontalLayout {
+                padding: 14px;
+                spacing: 14px;
+
+                // Left: List of Apps
+                Rectangle {
+                    width: 480px;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: "🚀 Externe Programme ('Öffnen mit')";
+                                font-weight: 600;
+                                color: #ffffff;
+                            }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                Button {
+                                    text: "▲";
+                                    enabled: root.selected_app_idx > 0;
+                                    clicked => { root.move_app_up(root.selected_app_idx); }
+                                }
+                                Button {
+                                    text: "▼";
+                                    enabled: root.selected_app_idx >= 0 && root.selected_app_idx < root.external_apps.length - 1;
+                                    clicked => { root.move_app_down(root.selected_app_idx); }
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "Wählen Sie ein Programm zum Bearbeiten aus:";
+                            font-size: 11px;
+                            color: #9c9cb2;
+                        }
+
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 4px;
+                                for app[app_idx] in root.external_apps: Rectangle {
+                                    height: 48px;
+                                    border-radius: 5px;
+                                    background: root.selected_app_idx == app_idx ? #2c324a : (app_touch.has-hover ? #252838 : #1f202b);
+                                    border-width: 1px;
+                                    border-color: root.selected_app_idx == app_idx ? #4f68d2 : #2f3244;
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        alignment: space-between;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            spacing: 2px;
+                                            Text {
+                                                text: app.name;
+                                                color: root.selected_app_idx == app_idx ? #ffffff : #e2e8f0;
+                                                font-weight: 600;
+                                                font-size: 13px;
+                                            }
+                                            Text {
+                                                text: app.command_or_path != "" ? app.command_or_path : "(Standardpfad)";
+                                                color: #94a3b8;
+                                                font-size: 10px;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            alignment: center;
+                                            ConfigDeleteButton {
+                                                clicked => { root.delete_app_clicked(app_idx); }
+                                            }
+                                        }
+                                    }
+
+                                    app_touch := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.select_app(app_idx); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Editor Panel for Add / Update
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: #1b1b23;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #313142;
+
+                    VerticalLayout {
+                        padding: 16px;
+                        spacing: 12px;
+
+                        Text {
+                            text: root.selected_app_idx >= 0 ? "Programmdetails bearbeiten" : "Neues externes Programm hinzufügen";
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: #ffffff;
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Name / Bezeichnung:"; color: #9c9cb2; font-size: 11px; }
+                            LineEdit {
+                                placeholder-text: "z.B. Notepad++, LibreOffice, VS Code";
+                                text: root.edit_app_name;
+                                edited(s) => { root.edit_app_name = s; }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Ausführbare Datei / Befehl:"; color: #9c9cb2; font-size: 11px; }
+                            HorizontalLayout {
+                                spacing: 6px;
+                                LineEdit {
+                                    placeholder-text: "Pfad zu .exe oder Befehl im PATH";
+                                    text: root.edit_app_path;
+                                    edited(s) => { root.edit_app_path = s; }
+                                }
+                                Button {
+                                    text: "📁 Durchsuchen...";
+                                    clicked => { root.browse_app_path_clicked(); }
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: "Optionale Parameter / Argumente (z.B. {file}):"; color: #9c9cb2; font-size: 11px; }
+                            LineEdit {
+                                placeholder-text: "Leer lassen für Standard (Dateipfad anhängen) oder z.B. -multiInst {file}";
+                                text: root.edit_app_arguments;
+                                edited(s) => { root.edit_app_arguments = s; }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            Button {
+                                text: "✓ Aktualisieren";
+                                primary: true;
+                                enabled: root.selected_app_idx >= 0 && root.edit_app_name != "";
+                                clicked => {
+                                    root.update_app_clicked(root.selected_app_idx, root.edit_app_name, root.edit_app_path, root.edit_app_arguments);
+                                }
+                            }
+                            Button {
+                                text: "+ Als neu hinzufügen";
+                                enabled: root.edit_app_name != "";
+                                clicked => {
+                                    root.add_app_clicked(root.edit_app_name, root.edit_app_path, root.edit_app_arguments);
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 1px;
+                            background: #2a2a3a;
+                        }
+
+                        Text {
+                            text: "Hinweis: LibreOffice und Notepad++ sind als Standardprogramme vorkonfiguriert. Über das Schnellstartmenü '🚀 Öffnen mit' in der Hauptansicht können geöffnete Tabellen direkt an diese Programme übergeben werden.";
+                            color: #8b8ba0;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+                    }
+                }
             }
         }
 

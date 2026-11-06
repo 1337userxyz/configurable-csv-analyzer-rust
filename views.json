@@ -5,84 +5,62 @@
       "IsDefaultView": true,
       "Files": [
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\AndroidDevices.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\AndroidDevices.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\patchpanel-switch-connection-ta.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\patchpanel-switch-connection-ta.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\RackElevation.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\RackElevation.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\room-outlet-map.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\switch_daten.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\switch_daten.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\verbindungstabelle.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Schule-an-der-Koelnischen-Vorstadt\\verbindungstabelle.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        }
-      ],
-      "SpreadsheetPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\ods\\09g18.ods",
-      "ColorPattern": "None",
-      "ExportColorPattern": "None",
-      "ExportPaths": []
-    },
-    {
-      "Name": "09g31",
-      "IsDefaultView": false,
-      "Files": [
-        {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\09G31_WLAN-SBETGE.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\09G31_WLAN-SBETGE.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\iPads.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\iPads.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\network_topology.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\network_topology.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\patchpanel_switch_connection_table.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\patchpanel_switch_connection_table.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         },
         {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\room_outlet_map.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\room_outlet_map.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\switch_inventory.csv",
-          "FullPath": "R:\\git\\configurable-csv-analyzer-rust\\examples\\Wildbienen-Grundschule\\switch_inventory.csv",
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
           "InfoFilePath": null,
           "StorageMode": "Dateipfad"
         }

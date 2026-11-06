@@ -11,17 +11,17 @@ use slint::{Color, ComponentHandle, Model, ModelRc, VecModel};
 use configurable_csv_analyzer::core::io::csv::{find_all_csvs_in_dir, load_csv, save_csv};
 use configurable_csv_analyzer::core::io::info::{
     apply_info_to_table, build_info_from_table, default_config_path, default_info_path_for_table,
-    default_views_path, load_app_config, load_info_file, load_views_file, save_info_file,
-    save_views_file,
+    default_views_path, load_app_config, load_info_file, load_views_file, save_app_config,
+    save_info_file, save_views_file,
 };
 use configurable_csv_analyzer::core::io::ods::{
-    create_ods_file, list_ods_sheets, load_ods_sheet, open_in_libreoffice,
+    create_ods_file, list_ods_sheets, load_ods_sheet, open_in_external_app, open_in_libreoffice,
 };
 use configurable_csv_analyzer::core::color_cache::{cached_color, get_global_color_cache};
 use configurable_csv_analyzer::core::logging::{get_global_logger, log_error, log_info};
 use configurable_csv_analyzer::core::model::{
-    AppConfig, BrushCategory, FilterCondition, HighlightItem, TableData, TextMarkerColor,
-    ViewFileItem, ViewsFile,
+    AppConfig, BrushCategory, FilterCondition, HighlightItem, TableData,
+    TextMarkerColor, ViewDefinition, ViewFileItem, ViewsFile,
 };
 use configurable_csv_analyzer::core::rules::RuleEngine;
 use configurable_csv_analyzer::core::transforms::{
@@ -39,12 +39,14 @@ pub struct AppState {
     pub tab_order: Vec<String>,
     pub active_tab_id: Option<String>,
     pub active_view_name: Option<String>,
+    pub selected_collections: HashSet<String>,
     pub search_query: String,
     pub only_marked: bool,
     pub pending_ods_path: Option<PathBuf>,
     pub app_config: AppConfig,
     pub views_config: ViewsFile,
     pub active_view_mode: usize, // 0 = Alle, 1 = CSV, 2 = ODS
+    pub temp_collection: Option<ViewDefinition>,
 }
 
 impl AppState {
@@ -54,13 +56,119 @@ impl AppState {
             tab_order: Vec::new(),
             active_tab_id: None,
             active_view_name: None,
+            selected_collections: HashSet::new(),
             search_query: String::new(),
             only_marked: false,
             pending_ods_path: None,
             app_config: AppConfig::default(),
             views_config: ViewsFile::default(),
             active_view_mode: 0,
+            temp_collection: None,
         }
+    }
+
+    pub fn handle_files_opened_as_temp_collection(&mut self, opened_file_paths: &[PathBuf]) {
+        let temp_name = "Temporäre Kollektion".to_string();
+        let mut temp_view = self.temp_collection.clone().unwrap_or_else(|| ViewDefinition {
+            name: temp_name.clone(),
+            is_default_view: false,
+            files: Vec::new(),
+            spreadsheet_path: None,
+            color_pattern: None,
+            export_color_pattern: None,
+            export_paths: Vec::new(),
+        });
+
+        for p in opened_file_paths {
+            let p_str = p.to_string_lossy().to_string();
+            let is_ods = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("ods"))
+                .unwrap_or(false);
+
+            if is_ods && temp_view.spreadsheet_path.is_none() {
+                temp_view.spreadsheet_path = Some(p_str.clone());
+            }
+
+            if !temp_view.files.iter().any(|f| f.relative_path == p_str || f.full_path.as_deref() == Some(&p_str)) {
+                temp_view.files.push(ViewFileItem {
+                    relative_path: p_str.clone(),
+                    full_path: Some(p_str),
+                    info_file_path: None,
+                    storage_mode: Some("Dateipfad".to_string()),
+                });
+            }
+        }
+
+        self.temp_collection = Some(temp_view);
+        self.active_view_name = Some(temp_name.clone());
+        self.selected_collections.clear();
+        self.selected_collections.insert(temp_name);
+    }
+
+    pub fn is_table_in_selected_collections(&self, tbl: &TableData) -> bool {
+        if self.selected_collections.is_empty() {
+            return true;
+        }
+        for view_name in &self.selected_collections {
+            if view_name == "Temporäre Kollektion" {
+                if let Some(ref view) = self.temp_collection {
+                    if self.table_matches_view(tbl, view) {
+                        return true;
+                    }
+                }
+            } else if let Some(view) = self.views_config.views.iter().find(|v| &v.name == view_name) {
+                if self.table_matches_view(tbl, view) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn table_matches_view(&self, tbl: &TableData, view: &ViewDefinition) -> bool {
+        if let Some(ref p) = tbl.file_path {
+            let p_norm = p.to_string_lossy().to_ascii_lowercase().replace('/', "\\");
+            let p_fname = p.file_name().map(|f| f.to_string_lossy().to_ascii_lowercase());
+
+            for f in &view.files {
+                let f_norm = f.relative_path.to_ascii_lowercase().replace('/', "\\");
+                if p_norm == f_norm || p_norm.ends_with(&format!("\\{}", f_norm)) || f_norm.ends_with(&format!("\\{}", p_norm)) {
+                    return true;
+                }
+                if let Some(ref full) = f.full_path {
+                    let full_norm = full.to_ascii_lowercase().replace('/', "\\");
+                    if p_norm == full_norm {
+                        return true;
+                    }
+                }
+                if let Some(ref pf) = p_fname {
+                    let f_path = std::path::Path::new(&f.relative_path);
+                    if let Some(ff) = f_path.file_name().map(|f| f.to_string_lossy().to_ascii_lowercase()) {
+                        if pf == &ff {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if let Some(ref sp) = view.spreadsheet_path {
+                let sp_norm = sp.to_ascii_lowercase().replace('/', "\\");
+                if p_norm == sp_norm || p_norm.ends_with(&format!("\\{}", sp_norm)) || sp_norm.ends_with(&format!("\\{}", p_norm)) {
+                    return true;
+                }
+                if let Some(ref pf) = p_fname {
+                    let sp_path = std::path::Path::new(sp);
+                    if let Some(sf) = sp_path.file_name().map(|f| f.to_string_lossy().to_ascii_lowercase()) {
+                        if pf == &sf {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 
     pub fn add_table(&mut self, mut table: TableData) -> String {
@@ -118,6 +226,7 @@ impl AppState {
             return;
         };
         self.active_view_name = Some(view.name.clone());
+        self.selected_collections.insert(view.name.clone());
         log_info(
             "Collection",
             &format!(
@@ -257,6 +366,9 @@ impl AppState {
 
     pub fn save_tab_order_to_collection(&mut self) {
         let view_idx = if let Some(ref active_name) = self.active_view_name {
+            if active_name == "Temporäre Kollektion" {
+                return;
+            }
             self.views_config
                 .views
                 .iter()
@@ -382,7 +494,7 @@ fn resolve_brush_color(key_or_hex: &str, state: &AppState) -> Color {
 }
 
 pub fn sync_ui(ui: &MainWindow, state: &AppState) {
-    // 0. Sync available views / active collection & marker palette
+    // 0. Sync available views / active collection & marker palette & external apps
     let view_names: Vec<slint::SharedString> = state
         .views_config
         .views
@@ -393,6 +505,58 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
     ui.set_active_view_name(slint::SharedString::from(
         state.active_view_name.as_deref().unwrap_or(""),
     ));
+
+    let mut collection_items: Vec<SlintCollectionFilterItem> = state
+        .views_config
+        .views
+        .iter()
+        .map(|v| SlintCollectionFilterItem {
+            name: slint::SharedString::from(&v.name),
+            file_count: v.files.len() as i32,
+            is_selected: state.selected_collections.contains(&v.name),
+            is_temporary: false,
+        })
+        .collect();
+
+    if let Some(ref tc) = state.temp_collection {
+        collection_items.push(SlintCollectionFilterItem {
+            name: slint::SharedString::from(&tc.name),
+            file_count: tc.files.len() as i32,
+            is_selected: state.selected_collections.contains(&tc.name),
+            is_temporary: true,
+        });
+    }
+
+    ui.set_has_temporary_collection(state.temp_collection.is_some());
+    ui.set_collection_items(ModelRc::new(VecModel::from(collection_items)));
+
+    let summary = if state.selected_collections.is_empty() {
+        "Alle".to_string()
+    } else if state.selected_collections.len() == 1 {
+        state
+            .selected_collections
+            .iter()
+            .next()
+            .cloned()
+            .unwrap_or_else(|| "Alle".to_string())
+    } else {
+        format!("{} aktiv", state.selected_collections.len())
+    };
+    ui.set_collection_filter_summary(slint::SharedString::from(summary));
+
+    let external_apps: Vec<SlintExternalAppItem> = state
+        .app_config
+        .external_apps
+        .iter()
+        .enumerate()
+        .map(|(idx, a)| SlintExternalAppItem {
+            id: idx as i32,
+            name: slint::SharedString::from(&a.name),
+            command_or_path: slint::SharedString::from(&a.command_or_path),
+            arguments: slint::SharedString::from(&a.arguments),
+        })
+        .collect();
+    ui.set_external_apps(ModelRc::new(VecModel::from(external_apps)));
 
     let marker_choices: Vec<ColorChoiceItem> = state
         .app_config
@@ -420,14 +584,19 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         ui.set_marker_choices(ModelRc::new(VecModel::from(marker_choices)));
     }
 
-    // 1. Sync tabs and view mode
-    let csv_count = state.tables.values().filter(|t| !t.is_ods).count();
-    let ods_count = state.tables.values().filter(|t| t.is_ods).count();
+    // 1. Sync tabs and view mode (filtered by selected collections)
+    let visible_tables: Vec<(&String, &TableData)> = state
+        .tab_order
+        .iter()
+        .filter_map(|id| state.tables.get(id).map(|tbl| (id, tbl)))
+        .filter(|(_, tbl)| state.is_table_in_selected_collections(tbl))
+        .collect();
+
+    let csv_count = visible_tables.iter().filter(|(_, t)| !t.is_ods).count();
+    let ods_count = visible_tables.iter().filter(|(_, t)| t.is_ods).count();
     ui.set_csv_tab_count(csv_count as i32);
     ui.set_ods_tab_count(ods_count as i32);
     ui.set_active_view_mode(state.active_view_mode as i32);
-    let is_ods_active = state.active_table().map(|t| t.is_ods).unwrap_or(false);
-    ui.set_active_table_is_ods(is_ods_active);
     let mode_label = match state.active_view_mode {
         1 => format!("CSV-Ebene ({} Tabellen)", csv_count),
         2 => format!("ODS-Ebene ({} Blätter)", ods_count),
@@ -435,51 +604,114 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
     };
     ui.set_active_mode_label(slint::SharedString::from(mode_label));
 
+    // Determine effective active tab: if current active tab is not visible, select first visible
+    let is_active_visible = state
+        .active_tab_id
+        .as_ref()
+        .map(|act| visible_tables.iter().any(|(id, _)| *id == act))
+        .unwrap_or(false);
+
+    let effective_active_id = if is_active_visible {
+        state.active_tab_id.as_deref()
+    } else {
+        visible_tables.first().map(|(id, _)| id.as_str())
+    };
+
+    let is_ods_active = effective_active_id
+        .and_then(|id| state.tables.get(id))
+        .map(|t| t.is_ods)
+        .unwrap_or(false);
+    ui.set_active_table_is_ods(is_ods_active);
+
     let mut tab_items = Vec::new();
     let mut csv_tab_items = Vec::new();
     let mut ods_tab_items = Vec::new();
 
-    for id in &state.tab_order {
-        if let Some(tbl) = state.tables.get(id) {
-            let error_count = tbl
-                .rule_highlights
-                .iter()
-                .filter(|h| h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error)
-                .count();
+    let total_csv = visible_tables.iter().filter(|(_, t)| !t.is_ods).count() as i32;
+    let total_ods = visible_tables.iter().filter(|(_, t)| t.is_ods).count() as i32;
+    let mut cur_csv_idx = 0;
+    let mut cur_ods_idx = 0;
 
-            let item = TabItem {
-                id: slint::SharedString::from(id),
-                title: slint::SharedString::from(&tbl.display_name),
-                is_dirty: tbl.is_dirty,
-                error_count: error_count as i32,
-                is_active: state.active_tab_id.as_ref() == Some(id),
-                is_ods: tbl.is_ods,
-                file_type: slint::SharedString::from(if tbl.is_ods { "ODS" } else { "CSV" }),
-            };
+    for (id, tbl) in &visible_tables {
+        let is_tab_active = effective_active_id == Some(id.as_str());
+        let error_count = tbl
+            .rule_highlights
+            .iter()
+            .filter(|h| h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error)
+            .count();
 
-            if tbl.is_ods {
-                ods_tab_items.push(item.clone());
-            } else {
-                csv_tab_items.push(item.clone());
-            }
+        let (tab_index, total_tabs) = if tbl.is_ods {
+            let idx = cur_ods_idx;
+            cur_ods_idx += 1;
+            (idx, total_ods)
+        } else {
+            let idx = cur_csv_idx;
+            cur_csv_idx += 1;
+            (idx, total_csv)
+        };
 
-            let matches_mode = match state.active_view_mode {
-                1 => !tbl.is_ods,
-                2 => tbl.is_ods,
-                _ => true,
-            };
-            if matches_mode {
-                tab_items.push(item);
-            }
+        let item = TabItem {
+            id: slint::SharedString::from(*id),
+            title: slint::SharedString::from(&tbl.display_name),
+            is_dirty: tbl.is_dirty,
+            error_count: error_count as i32,
+            is_active: is_tab_active,
+            is_ods: tbl.is_ods,
+            file_type: slint::SharedString::from(if tbl.is_ods { "ODS" } else { "CSV" }),
+            tab_index,
+            total_tabs,
+        };
+
+        if tbl.is_ods {
+            ods_tab_items.push(item.clone());
+        } else {
+            csv_tab_items.push(item.clone());
+        }
+
+        let matches_mode = match state.active_view_mode {
+            1 => !tbl.is_ods,
+            2 => tbl.is_ods,
+            _ => true,
+        };
+        if matches_mode {
+            tab_items.push(item);
         }
     }
+
+    let chunk_tabs = |tabs: &[TabItem]| -> Vec<TabRowItem> {
+        let mut rows = Vec::new();
+        let mut cur_row = Vec::new();
+        let mut cur_chars = 0;
+        for tab in tabs {
+            let tab_chars = tab.title.chars().count() + 16;
+            if !cur_row.is_empty() && (cur_row.len() >= 5 || (cur_chars + tab_chars > 80 && cur_row.len() >= 2)) {
+                rows.push(TabRowItem { tabs: ModelRc::new(VecModel::from(cur_row)) });
+                cur_row = Vec::new();
+                cur_chars = 0;
+            }
+            cur_chars += tab_chars;
+            cur_row.push(tab.clone());
+        }
+        if !cur_row.is_empty() {
+            rows.push(TabRowItem { tabs: ModelRc::new(VecModel::from(cur_row)) });
+        }
+        rows
+    };
+
+    let csv_rows = chunk_tabs(&csv_tab_items);
+    let ods_rows = chunk_tabs(&ods_tab_items);
+
     ui.set_tabs(ModelRc::new(VecModel::from(tab_items)));
     ui.set_csv_tabs(ModelRc::new(VecModel::from(csv_tab_items)));
     ui.set_ods_tabs(ModelRc::new(VecModel::from(ods_tab_items)));
-    ui.set_active_tab_id(slint::SharedString::from(state.active_tab_id.as_deref().unwrap_or("")));
+    ui.set_csv_tab_rows(ModelRc::new(VecModel::from(csv_rows)));
+    ui.set_ods_tab_rows(ModelRc::new(VecModel::from(ods_rows)));
+    ui.set_tabs_multiline(state.app_config.tabs_multiline);
+    ui.set_active_tab_id(slint::SharedString::from(effective_active_id.unwrap_or("")));
 
     // 2. Active table sync
-    if let Some(tbl) = state.active_table() {
+    let active_tbl = effective_active_id.and_then(|id| state.tables.get(id));
+    if let Some(tbl) = active_tbl {
         // Headers (respecting visibility from column_settings)
         let mut header_items = Vec::new();
         for (idx, h) in tbl.headers.iter().enumerate() {
@@ -778,6 +1010,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(paths) = files {
                 let mut loaded_count = 0usize;
                 let mut last_name = String::new();
+                let mut loaded_paths = Vec::new();
                 let mut st = state.borrow_mut();
                 for p in paths {
                     match load_csv(&p, None, None, true) {
@@ -789,6 +1022,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .to_string_lossy()
                                 .to_string();
                             st.add_table(table);
+                            loaded_paths.push(p);
                             loaded_count += 1;
                         }
                         Err(e) => {
@@ -803,14 +1037,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
                 if loaded_count > 0 {
-                    if st.active_view_name.is_some() {
-                        st.save_tab_order_to_collection();
-                    }
+                    st.handle_files_opened_as_temp_collection(&loaded_paths);
                     if let Some(ui) = ui_handle.upgrade() {
                         let msg = if loaded_count == 1 {
-                            format!("Geladen: {}", last_name)
+                            format!("Geladen als temporäre Kollektion: {}", last_name)
                         } else {
-                            format!("{} CSV-Dateien geladen", loaded_count)
+                            format!("{} CSV-Dateien als temporäre Kollektion geladen", loaded_count)
                         };
                         ui.set_status_message(slint::SharedString::from(msg));
                         sync_ui(&ui, &st);
@@ -852,12 +1084,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     log_info("ODS", &format!("ODS erfolgreich geladen: {:?}", p));
                                     let mut st = state.borrow_mut();
                                     st.add_table(table);
-                                    if st.active_view_name.is_some() {
-                                        st.save_tab_order_to_collection();
-                                    }
+                                    st.handle_files_opened_as_temp_collection(&[p.clone()]);
                                     if let Some(ui) = ui_handle.upgrade() {
                                         ui.set_status_message(slint::SharedString::from(format!(
-                                            "ODS geladen: {:?}",
+                                            "ODS geladen als temporäre Kollektion: {:?}",
                                             p.file_name().unwrap_or_default()
                                         )));
                                         sync_ui(&ui, &st);
@@ -912,11 +1142,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         }
                         log_info("ODS", &format!("{} Blätter aus {:?} geladen", loaded_cnt, p));
-                        if st.active_view_name.is_some() {
-                            st.save_tab_order_to_collection();
-                        }
+                        st.handle_files_opened_as_temp_collection(&[p.clone()]);
                         if let Some(ui) = ui_handle.upgrade() {
-                            ui.set_status_message(slint::SharedString::from(format!("{} ODS-Blätter importiert", loaded_cnt)));
+                            ui.set_status_message(slint::SharedString::from(format!("{} ODS-Blätter als temporäre Kollektion importiert", loaded_cnt)));
                             sync_ui(&ui, &st);
                         }
                     }
@@ -925,10 +1153,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         Ok(table) => {
                             log_info("ODS", &format!("ODS Blatt '{}' geladen aus {:?}", sheet_name, p));
                             st.add_table(table);
-                            if st.active_view_name.is_some() {
-                                st.save_tab_order_to_collection();
-                            }
+                            st.handle_files_opened_as_temp_collection(&[p.clone()]);
                             if let Some(ui) = ui_handle.upgrade() {
+                                ui.set_status_message(slint::SharedString::from(format!("ODS Blatt '{}' als temporäre Kollektion geladen", sheet_name)));
                                 sync_ui(&ui, &st);
                             }
                         }
@@ -953,17 +1180,20 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(f) = folder {
                 let csvs = find_all_csvs_in_dir(&f);
                 log_info("Import", &format!("{} CSV-Dateien in {:?} gefunden.", csvs.len(), f));
+                let mut loaded_paths = Vec::new();
                 let mut st = state.borrow_mut();
                 for p in csvs {
                     if let Ok(tbl) = load_csv(&p, None, None, true) {
                         st.add_table(tbl);
+                        loaded_paths.push(p);
                     }
                 }
-                if st.active_view_name.is_some() {
-                    st.save_tab_order_to_collection();
+                if !loaded_paths.is_empty() {
+                    st.handle_files_opened_as_temp_collection(&loaded_paths);
                 }
                 st.execute_all_rules();
                 if let Some(ui) = ui_handle.upgrade() {
+                    ui.set_status_message(slint::SharedString::from(format!("{} CSV-Dateien als temporäre Kollektion geladen", loaded_paths.len())));
                     sync_ui(&ui, &st);
                 }
             }
@@ -1227,7 +1457,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    // --- LIBREOFFICE ÖFFNEN ---
+    // --- LIBREOFFICE & ÖFFNEN MIT ---
     {
         let state = state.clone();
         main_window.on_open_libreoffice_clicked(move || {
@@ -1237,6 +1467,23 @@ fn main() -> Result<(), slint::PlatformError> {
                     match open_in_libreoffice(p) {
                         Ok(_) => log_info("LibreOffice", &format!("In LibreOffice geöffnet: {:?}", p)),
                         Err(e) => log_error("LibreOffice", &format!("Fehler: {}", e)),
+                    }
+                }
+            }
+        });
+    }
+    {
+        let state = state.clone();
+        main_window.on_open_with_app_clicked(move |app_idx| {
+            let st = state.borrow();
+            let i = app_idx as usize;
+            if let Some(app) = st.app_config.external_apps.get(i) {
+                if let Some(tbl) = st.active_table() {
+                    if let Some(ref p) = tbl.file_path {
+                        match open_in_external_app(app, p) {
+                            Ok(_) => log_info("ExternalApp", &format!("Datei {:?} in '{}' geöffnet.", p, app.name)),
+                            Err(e) => log_error("ExternalApp", &format!("Fehler beim Öffnen in '{}': {}", app.name, e)),
+                        }
                     }
                 }
             }
@@ -1321,12 +1568,185 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let ui_handle = main_window.as_weak();
         let state = state.clone();
+        main_window.on_collection_single_clicked(move |view_name| {
+            let mut st = state.borrow_mut();
+            st.selected_collections.clear();
+            st.selected_collections.insert(view_name.to_string());
+            if let Some(idx) = st.views_config.views.iter().position(|v| v.name == view_name.as_str()) {
+                st.activate_and_load_view(idx);
+            }
+            st.active_view_name = Some(view_name.to_string());
+            if let Some(ui) = ui_handle.upgrade() {
+                ui.set_status_message(slint::SharedString::from(format!(
+                    "Filter auf Kollektion '{}' gesetzt.",
+                    view_name
+                )));
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_collection_toggled(move |view_name, checked| {
+            let mut st = state.borrow_mut();
+            if checked {
+                st.selected_collections.insert(view_name.to_string());
+                if let Some(idx) = st.views_config.views.iter().position(|v| v.name == view_name.as_str()) {
+                    st.activate_and_load_view(idx);
+                }
+                st.active_view_name = Some(view_name.to_string());
+            } else {
+                st.selected_collections.remove(view_name.as_str());
+                if st.selected_collections.is_empty() {
+                    st.active_view_name = None;
+                } else {
+                    st.active_view_name = st.selected_collections.iter().next().cloned();
+                }
+            }
+            if let Some(ui) = ui_handle.upgrade() {
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_collection_clear_filter(move || {
+            let mut st = state.borrow_mut();
+            st.selected_collections.clear();
+            st.active_view_name = None;
+            if let Some(ui) = ui_handle.upgrade() {
+                ui.set_status_message(slint::SharedString::from("Alle Kollektionen werden angezeigt (Filter aufgehoben)."));
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+
+    // --- TABS MULTILINE TOGGLE ---
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_toggle_tabs_multiline(move || {
+            let mut st = state.borrow_mut();
+            st.app_config.tabs_multiline = !st.app_config.tabs_multiline;
+            let _ = save_app_config(&default_config_path(), &st.app_config);
+            if let Some(ui) = ui_handle.upgrade() {
+                ui.set_tabs_multiline(st.app_config.tabs_multiline);
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+
+    // --- SAVE COLLECTION DIALOG ---
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_show_save_collection_dialog(move || {
+            if let Some(ui) = ui_handle.upgrade() {
+                let default_name = {
+                    let st = state.borrow();
+                    if let Some(ref tc) = st.temp_collection {
+                        if tc.files.len() == 1 {
+                            std::path::Path::new(&tc.files[0].relative_path)
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "Neue Kollektion".to_string())
+                        } else {
+                            format!("Kollektion {}", st.views_config.views.len() + 1)
+                        }
+                    } else {
+                        format!("Kollektion {}", st.views_config.views.len() + 1)
+                    }
+                };
+                ui.set_save_collection_name_input(slint::SharedString::from(default_name));
+                ui.set_save_collection_dialog_visible(true);
+            }
+        });
+    }
+
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
+        main_window.on_save_collection_confirmed(move |name| {
+            let name_str = name.trim().to_string();
+            if name_str.is_empty() {
+                return;
+            }
+            let mut st = state.borrow_mut();
+            let mut view_to_save = if let Some(mut tc) = st.temp_collection.take() {
+                tc.name = name_str.clone();
+                tc
+            } else {
+                let current_files: Vec<ViewFileItem> = st.tables.values()
+                    .filter_map(|tbl| tbl.file_path.as_ref())
+                    .map(|p| {
+                        let p_str = p.to_string_lossy().to_string();
+                        ViewFileItem {
+                            relative_path: p_str.clone(),
+                            full_path: Some(p_str),
+                            info_file_path: None,
+                            storage_mode: Some("Dateipfad".to_string()),
+                        }
+                    })
+                    .collect();
+                ViewDefinition {
+                    name: name_str.clone(),
+                    is_default_view: false,
+                    files: current_files,
+                    spreadsheet_path: None,
+                    color_pattern: None,
+                    export_color_pattern: None,
+                    export_paths: Vec::new(),
+                }
+            };
+            view_to_save.name = name_str.clone();
+            if let Some(existing) = st.views_config.views.iter_mut().find(|v| v.name == name_str) {
+                *existing = view_to_save;
+            } else {
+                st.views_config.views.push(view_to_save);
+            }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            st.active_view_name = Some(name_str.clone());
+            st.selected_collections.clear();
+            st.selected_collections.insert(name_str.clone());
+            log_info("Collection", &format!("Kollektion '{}' gespeichert.", name_str));
+            if let Some(ui) = ui_handle.upgrade() {
+                ui.set_status_message(slint::SharedString::from(format!(
+                    "Kollektion '{}' erfolgreich gespeichert.",
+                    name_str
+                )));
+                sync_ui(&ui, &st);
+            }
+        });
+    }
+
+    {
+        let ui_handle = main_window.as_weak();
+        let state = state.clone();
         main_window.on_tab_close_clicked(move |tab_id| {
             let mut st = state.borrow_mut();
             st.tab_order.retain(|id| id != tab_id.as_str());
             st.tables.remove(tab_id.as_str());
             if st.active_tab_id.as_deref() == Some(tab_id.as_str()) {
                 st.active_tab_id = st.tab_order.last().cloned();
+            }
+            let open_paths: HashSet<String> = st.tables.values()
+                .filter_map(|t| t.file_path.as_ref().map(|p| p.to_string_lossy().to_string()))
+                .collect();
+            let mut remove_temp = false;
+            if let Some(ref mut tc) = st.temp_collection {
+                tc.files.retain(|f| open_paths.contains(&f.relative_path) || f.full_path.as_ref().map(|fp| open_paths.contains(fp)).unwrap_or(false));
+                if tc.files.is_empty() {
+                    remove_temp = true;
+                }
+            }
+            if remove_temp {
+                st.temp_collection = None;
+                if st.active_view_name.as_deref() == Some("Temporäre Kollektion") {
+                    st.active_view_name = None;
+                }
+                st.selected_collections.remove("Temporäre Kollektion");
             }
             if let Some(ui) = ui_handle.upgrade() {
                 sync_ui(&ui, &st);

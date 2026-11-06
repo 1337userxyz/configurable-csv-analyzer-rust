@@ -153,6 +153,13 @@ fn test_app_config_and_brushes() {
         is_system: false,
     });
     assert_eq!(config.find_brush_hex("CustomMarker"), Some("#123456"));
+
+    // Check external apps default configuration
+    assert_eq!(config.external_apps.len(), 2);
+    assert_eq!(config.external_apps[0].name, "LibreOffice");
+    assert_eq!(config.external_apps[1].name, "Notepad++");
+    assert!(config.external_apps[0].command_or_path.contains("soffice"));
+    assert!(config.external_apps[1].command_or_path.contains("notepad++"));
 }
 
 #[test]

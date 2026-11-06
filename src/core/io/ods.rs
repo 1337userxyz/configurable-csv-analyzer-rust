@@ -298,3 +298,89 @@ pub fn open_in_libreoffice(path: &Path) -> Result<(), Box<dyn std::error::Error>
 
     Ok(())
 }
+
+pub fn find_notepad_plus_plus_binary() -> Option<PathBuf> {
+    let candidates = [
+        r"C:\Program Files\Notepad++\notepad++.exe",
+        r"C:\Program Files (x86)\Notepad++\notepad++.exe",
+        r"C:\ProgramData\chocolatey\bin\notepad++.exe",
+    ];
+
+    for path_str in candidates {
+        let p = PathBuf::from(path_str);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    if let Ok(path_var) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path_var) {
+            let p = dir.join("notepad++.exe");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn open_in_external_app(
+    app: &crate::core::model::ExternalAppConfig,
+    path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let raw_cmd = app.command_or_path.trim();
+
+    let resolved_binary = if !raw_cmd.is_empty() && Path::new(raw_cmd).exists() {
+        PathBuf::from(raw_cmd)
+    } else if app.name.eq_ignore_ascii_case("LibreOffice") || raw_cmd.to_ascii_lowercase().contains("soffice") {
+        find_libreoffice_binary()
+            .ok_or_else(|| format!("LibreOffice wurde unter '{}' oder im System nicht gefunden.", raw_cmd))?
+    } else if app.name.eq_ignore_ascii_case("Notepad++") || raw_cmd.to_ascii_lowercase().contains("notepad++") {
+        find_notepad_plus_plus_binary()
+            .ok_or_else(|| format!("Notepad++ wurde unter '{}' oder im System nicht gefunden.", raw_cmd))?
+    } else if !raw_cmd.is_empty() {
+        // Try locating in PATH
+        let mut found_path = None;
+        if let Ok(path_var) = std::env::var("PATH") {
+            for dir in std::env::split_paths(&path_var) {
+                let p1 = dir.join(raw_cmd);
+                if p1.exists() {
+                    found_path = Some(p1);
+                    break;
+                }
+                let p2 = dir.join(format!("{}.exe", raw_cmd));
+                if p2.exists() {
+                    found_path = Some(p2);
+                    break;
+                }
+            }
+        }
+        found_path.unwrap_or_else(|| PathBuf::from(raw_cmd))
+    } else {
+        return Err(format!("Kein Programmpfad für '{}' konfiguriert.", app.name).into());
+    };
+
+    let mut cmd = std::process::Command::new(resolved_binary);
+    let args_str = app.arguments.trim();
+    if args_str.is_empty() {
+        cmd.arg(path);
+    } else if args_str.contains("{file}") {
+        for arg in args_str.split_whitespace() {
+            if arg.contains("{file}") {
+                let replaced = arg.replace("{file}", &path.to_string_lossy());
+                cmd.arg(replaced);
+            } else {
+                cmd.arg(arg);
+            }
+        }
+    } else {
+        for arg in args_str.split_whitespace() {
+            cmd.arg(arg);
+        }
+        cmd.arg(path);
+    }
+
+    cmd.spawn()?;
+    Ok(())
+}

@@ -124,5 +124,17 @@
       "Category": "Logging",
       "IsSystem": true
     }
+  ],
+  "ExternalApps": [
+    {
+      "Name": "LibreOffice",
+      "CommandOrPath": "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+      "Arguments": ""
+    },
+    {
+      "Name": "Notepad++",
+      "CommandOrPath": "C:\\Program Files\\Notepad++\\notepad++.exe",
+      "Arguments": ""
+    }
   ]
 }

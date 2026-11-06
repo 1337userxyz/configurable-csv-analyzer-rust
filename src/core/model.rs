@@ -663,12 +663,25 @@ pub struct BrushDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
+pub struct ExternalAppConfig {
+    pub name: String,
+    pub command_or_path: String,
+    #[serde(default)]
+    pub arguments: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub struct AppConfig {
     pub selected_storage_mode: InfoFileStorageMode,
     pub central_config_directory: String,
     pub marker_highlight_priority: u32,
     pub check_file_associations_on_startup: bool,
     pub brushes: Vec<BrushDefinition>,
+    #[serde(default = "AppConfig::default_external_apps")]
+    pub external_apps: Vec<ExternalAppConfig>,
+    #[serde(default)]
+    pub tabs_multiline: bool,
 }
 
 impl Default for AppConfig {
@@ -679,11 +692,27 @@ impl Default for AppConfig {
             marker_highlight_priority: 100,
             check_file_associations_on_startup: false,
             brushes: Self::default_brushes(),
+            external_apps: Self::default_external_apps(),
+            tabs_multiline: false,
         }
     }
 }
 
 impl AppConfig {
+    pub fn default_external_apps() -> Vec<ExternalAppConfig> {
+        vec![
+            ExternalAppConfig {
+                name: "LibreOffice".to_string(),
+                command_or_path: r"C:\Program Files\LibreOffice\program\soffice.exe".to_string(),
+                arguments: "".to_string(),
+            },
+            ExternalAppConfig {
+                name: "Notepad++".to_string(),
+                command_or_path: r"C:\Program Files\Notepad++\notepad++.exe".to_string(),
+                arguments: "".to_string(),
+            },
+        ]
+    }
     pub fn default_brushes() -> Vec<BrushDefinition> {
         vec![
             // UI
