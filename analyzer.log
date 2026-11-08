@@ -560,3 +560,27 @@ Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im
 [2026-11-06 16:51:15.910] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
 [2026-11-06 16:51:15.911] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
 [2026-11-06 16:51:15.912] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-07 16:11:53.265 ===
+[2026-11-07 16:11:53.265] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-07 16:11:53.265] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[[2026-11-07 16:11:53.2652026-11-07 16:11:53.265] [] [INFOINFO] ] RuleEngineRuleEngine: : Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+
+[2026-11-07 16:11:53.266] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-07 16:11:53.266] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-07 16:20:52.007 ===
+[2026-11-07 16:20:52.007] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[[2026-11-07 16:20:52.0072026-11-07 16:20:52.007] [] [INFOINFO] ] RuleEngineRuleEngine: : Starte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+
+[2026-11-07 16:20:52.007] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-07 16:20:52.007] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-07 16:20:52.007] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).
+
+=== Session gestartet: 2026-11-07 20:24:25.739 ===
+[2026-11-07 20:24:25.739] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'Inventory' (2 Regeln definiert, 0 Tabellen im Kontext)
+[[2026-11-07 20:24:25.739] [INFO] 2026-11-07 20:24:25.739RuleEngine] [: INFOStarte Regelausführung für Tabelle 'TableA' (1 Regeln definiert, 0 Tabellen im Kontext)] 
+RuleEngine: Starte Regelausführung für Tabelle 'Test' (1 Regeln definiert, 0 Tabellen im Kontext)
+[2026-11-07 20:24:25.739] [INFO] RuleEngine: Highlight-Regel 'H1' auf 'Test'.'Status' (Equals 'active', invert=false) ausgeführt: 2 Treffer (Brush: 'PositiveBrush', Ziel: 'Cell').
+[2026-11-07 20:24:25.739] [INFO] RuleEngine: Starte Regelausführung für Tabelle 'patchpanel.csv' (1 Regeln definiert, 2 Tabellen im Kontext)
+[2026-11-07 20:24:25.739] [INFO] RuleEngine: Join-Regel 'Join_Gebaeude' auf 'patchpanel.csv' ausgeführt: 2 Treffer (1 virtuelle Spalten).

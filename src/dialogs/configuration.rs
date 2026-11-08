@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
+use kit_picker::PickRequest;
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
 use configurable_csv_analyzer::core::color_cache::{cached_color, get_global_color_cache};
@@ -334,11 +335,12 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_browse_spreadsheet_clicked(move || {
-            let file = rfd::FileDialog::new()
-                .set_title("Bestehende ODS-Datei für diese Kollektion auswählen")
+            let file = PickRequest::file()
+                .title("Bestehende ODS-Datei für diese Kollektion auswählen")
+                .context("view_spreadsheet")
                 .add_filter("LibreOffice Calc (.ods)", &["ods"])
                 .add_filter("Alle Dateien", &["*"])
-                .pick_file();
+                .pick_sync();
 
             if let Some(path) = file {
                 let _ = ensure_valid_ods_file(&path, &[]);
@@ -373,16 +375,15 @@ pub fn setup_configuration_window(
                     .unwrap_or_else(|| "Kollektion.ods".to_string())
             };
 
-            let file = rfd::FileDialog::new()
-                .set_title("Neue ODS-Datei für Kollektion erstellen (Speicherort wählen)")
+            let file = PickRequest::save()
+                .title("Neue ODS-Datei für Kollektion erstellen (Speicherort wählen)")
+                .context("view_spreadsheet")
+                .default_extension("ods")
                 .add_filter("LibreOffice Calc (.ods)", &["ods"])
-                .set_file_name(&default_name)
-                .save_file();
+                .default_name(&default_name)
+                .pick_sync();
 
-            if let Some(mut path) = file {
-                if path.extension().is_none() {
-                    path.set_extension("ods");
-                }
+            if let Some(path) = file {
                 let mut st = state.borrow_mut();
                 let cur_idx = ensure_selected_view(&win, &mut st);
 
@@ -487,11 +488,12 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_add_csv_to_view_clicked(move || {
-            let files = rfd::FileDialog::new()
-                .set_title("CSV- oder ODS-Dateien zur Kollektion hinzufügen (Mehrfachauswahl möglich)")
+            let files = PickRequest::files()
+                .title("CSV- oder ODS-Dateien zur Kollektion hinzufügen (Mehrfachauswahl möglich)")
+                .context("view_files")
                 .add_filter("Tabellen-Dateien (.csv, .tsv, .txt, .ods)", &["csv", "tsv", "txt", "ods"])
                 .add_filter("Alle Dateien", &["*"])
-                .pick_files();
+                .pick_files_sync();
 
             if let Some(files) = files {
                 let mut st = state.borrow_mut();
@@ -531,9 +533,10 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_add_folder_to_view_clicked(move || {
-            let folder = rfd::FileDialog::new()
-                .set_title("Ordner mit CSV-Dateien zur Kollektion hinzufügen")
-                .pick_folder();
+            let folder = PickRequest::folder()
+                .title("Ordner mit CSV-Dateien zur Kollektion hinzufügen")
+                .context("view_files")
+                .pick_sync();
 
             if let Some(folder) = folder {
                 let csvs = find_all_csvs_in_dir(&folder);
@@ -791,8 +794,12 @@ pub fn setup_configuration_window(
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_browse_central_directory(move || {
-            if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                let path_str = dir.to_string_lossy().to_string();
+            let dir = PickRequest::folder()
+                .title("Zentrales Verzeichnis für Konfigurationen wählen")
+                .context("central_dir")
+                .pick_sync();
+            if let Some(d) = dir {
+                let path_str = d.to_string_lossy().to_string();
                 let mut st = state.borrow_mut();
                 st.app_config.central_config_directory = path_str.clone();
                 win.set_central_directory_path(slint::SharedString::from(path_str));
@@ -1036,9 +1043,12 @@ pub fn setup_configuration_window(
     {
         let win = config_window.clone();
         config_window.on_browse_app_path_clicked(move || {
-            let file = rfd::FileDialog::new()
+            let file = PickRequest::file()
+                .title("Ausführbare Datei auswählen")
+                .context("external_app_path")
                 .add_filter("Ausführbare Dateien (*.exe, *.cmd, *.bat)", &["exe", "cmd", "bat"])
-                .pick_file();
+                .add_filter("Alle Dateien", &["*"])
+                .pick_sync();
             if let Some(p) = file {
                 win.set_edit_app_path(slint::SharedString::from(p.to_string_lossy().as_ref()));
             }

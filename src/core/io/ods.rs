@@ -266,36 +266,18 @@ pub fn find_libreoffice_binary() -> Option<PathBuf> {
     let candidates = [
         r"C:\Program Files\LibreOffice\program\soffice.exe",
         r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        "/usr/bin/libreoffice",
+        "/usr/bin/soffice",
     ];
-
-    for path_str in candidates {
-        let p = PathBuf::from(path_str);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-
-    // Check PATH
-    if let Ok(path_var) = std::env::var("PATH") {
-        for dir in std::env::split_paths(&path_var) {
-            let p = dir.join("soffice.exe");
-            if p.exists() {
-                return Some(p);
-            }
-        }
-    }
-
-    None
+    kit_launcher::find_binary("soffice", &candidates)
+        .or_else(|| kit_launcher::find_in_path("libreoffice"))
 }
 
 pub fn open_in_libreoffice(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let soffice = find_libreoffice_binary()
         .ok_or("LibreOffice (soffice.exe) wurde nicht in Standardpfaden oder im PATH gefunden.")?;
 
-    std::process::Command::new(soffice)
-        .arg(path)
-        .spawn()?;
-
+    kit_launcher::open_in_external_app(&soffice, path, None)?;
     Ok(())
 }
 
@@ -305,24 +287,7 @@ pub fn find_notepad_plus_plus_binary() -> Option<PathBuf> {
         r"C:\Program Files (x86)\Notepad++\notepad++.exe",
         r"C:\ProgramData\chocolatey\bin\notepad++.exe",
     ];
-
-    for path_str in candidates {
-        let p = PathBuf::from(path_str);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-
-    if let Ok(path_var) = std::env::var("PATH") {
-        for dir in std::env::split_paths(&path_var) {
-            let p = dir.join("notepad++.exe");
-            if p.exists() {
-                return Some(p);
-            }
-        }
-    }
-
-    None
+    kit_launcher::find_binary("notepad++", &candidates)
 }
 
 pub fn open_in_external_app(
@@ -340,47 +305,16 @@ pub fn open_in_external_app(
         find_notepad_plus_plus_binary()
             .ok_or_else(|| format!("Notepad++ wurde unter '{}' oder im System nicht gefunden.", raw_cmd))?
     } else if !raw_cmd.is_empty() {
-        // Try locating in PATH
-        let mut found_path = None;
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path_var) {
-                let p1 = dir.join(raw_cmd);
-                if p1.exists() {
-                    found_path = Some(p1);
-                    break;
-                }
-                let p2 = dir.join(format!("{}.exe", raw_cmd));
-                if p2.exists() {
-                    found_path = Some(p2);
-                    break;
-                }
-            }
-        }
-        found_path.unwrap_or_else(|| PathBuf::from(raw_cmd))
+        kit_launcher::find_in_path(raw_cmd).unwrap_or_else(|| PathBuf::from(raw_cmd))
     } else {
         return Err(format!("Kein Programmpfad für '{}' konfiguriert.", app.name).into());
     };
 
-    let mut cmd = std::process::Command::new(resolved_binary);
     let args_str = app.arguments.trim();
-    if args_str.is_empty() {
-        cmd.arg(path);
-    } else if args_str.contains("{file}") {
-        for arg in args_str.split_whitespace() {
-            if arg.contains("{file}") {
-                let replaced = arg.replace("{file}", &path.to_string_lossy());
-                cmd.arg(replaced);
-            } else {
-                cmd.arg(arg);
-            }
-        }
-    } else {
-        for arg in args_str.split_whitespace() {
-            cmd.arg(arg);
-        }
-        cmd.arg(path);
-    }
-
-    cmd.spawn()?;
+    kit_launcher::open_in_external_app(
+        &resolved_binary,
+        path,
+        if args_str.is_empty() { None } else { Some(args_str) },
+    )?;
     Ok(())
 }

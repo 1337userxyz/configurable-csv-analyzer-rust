@@ -13,11 +13,11 @@ pub fn get_base_project_dir() -> PathBuf {
 }
 
 pub fn default_config_path() -> PathBuf {
-    get_base_project_dir().join("config.json")
+    kit_paths::appdirs::resolve_config("configurable-csv-analyzer", "config.json")
 }
 
 pub fn default_views_path() -> PathBuf {
-    get_base_project_dir().join("views.json")
+    kit_paths::appdirs::resolve_config("configurable-csv-analyzer", "views.json")
 }
 
 pub fn load_app_config(path: &Path) -> Result<AppConfig, Box<dyn std::error::Error>> {
