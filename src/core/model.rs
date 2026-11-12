@@ -559,7 +559,7 @@ pub struct ViewFileItem {
 
 pub type ViewFileEntry = ViewFileItem;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct ViewDefinition {
     pub name: String,
@@ -570,11 +570,15 @@ pub struct ViewDefinition {
     #[serde(default)]
     pub spreadsheet_path: Option<String>,
     #[serde(default)]
+    pub base_path: Option<String>,
+    #[serde(default)]
     pub color_pattern: Option<String>,
     #[serde(default)]
     pub export_color_pattern: Option<String>,
     #[serde(default)]
     pub export_paths: Vec<String>,
+    #[serde(default)]
+    pub column_widths: HashMap<String, u32>,
 }
 
 pub type ViewCollection = ViewDefinition;
@@ -588,6 +592,7 @@ pub struct ViewsFile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum InfoFileStorageMode {
+    KollektionsBasispfad,
     Dateipfad,
     Stammverzeichnis,
     Temporaer,
@@ -596,13 +601,14 @@ pub enum InfoFileStorageMode {
 
 impl Default for InfoFileStorageMode {
     fn default() -> Self {
-        InfoFileStorageMode::Dateipfad
+        InfoFileStorageMode::KollektionsBasispfad
     }
 }
 
 impl InfoFileStorageMode {
     pub fn as_str(&self) -> &'static str {
         match self {
+            InfoFileStorageMode::KollektionsBasispfad => "KollektionsBasispfad",
             InfoFileStorageMode::Dateipfad => "Dateipfad",
             InfoFileStorageMode::Stammverzeichnis => "Stammverzeichnis",
             InfoFileStorageMode::Temporaer => "Temporaer",
@@ -612,10 +618,12 @@ impl InfoFileStorageMode {
 
     pub fn from_str_lenient(s: &str) -> Self {
         match s.to_lowercase().as_str() {
+            "kollektionsbasispfad" | "basispfad" | "kollektion" => InfoFileStorageMode::KollektionsBasispfad,
             "stammverzeichnis" | "zentral" => InfoFileStorageMode::Stammverzeichnis,
             "temporaer" | "temporär" => InfoFileStorageMode::Temporaer,
             "benutzerentscheidet" => InfoFileStorageMode::BenutzerEntscheidet,
-            _ => InfoFileStorageMode::Dateipfad,
+            "dateipfad" => InfoFileStorageMode::Dateipfad,
+            _ => InfoFileStorageMode::KollektionsBasispfad,
         }
     }
 }
@@ -687,7 +695,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            selected_storage_mode: InfoFileStorageMode::Dateipfad,
+            selected_storage_mode: InfoFileStorageMode::KollektionsBasispfad,
             central_config_directory: "./Configs".to_string(),
             marker_highlight_priority: 100,
             check_file_associations_on_startup: false,

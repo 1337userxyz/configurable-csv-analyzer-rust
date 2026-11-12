@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use kit_picker::PickRequest;
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
@@ -53,9 +53,11 @@ pub fn ensure_selected_view(window: &ConfigurationWindow, state: &mut AppState) 
             is_default_view: true,
             files: initial_files,
             spreadsheet_path: None,
+            base_path: None,
             color_pattern: Some("None".into()),
             export_color_pattern: Some("None".into()),
             export_paths: Vec::new(),
+            column_widths: std::collections::HashMap::new(),
         });
         state.active_view_name = Some(name);
         window.set_selected_view_idx(0);
@@ -70,6 +72,34 @@ pub fn ensure_selected_view(window: &ConfigurationWindow, state: &mut AppState) 
     };
     window.set_selected_view_idx(clamped as i32);
     clamped
+}
+
+pub fn resolve_existing_info_file(
+    info_file_path: Option<&str>,
+    csv_path: &Path,
+    central_dir: &Path,
+) -> (PathBuf, bool) {
+    if let Some(ip_str) = info_file_path {
+        if !ip_str.trim().is_empty() {
+            let p = PathBuf::from(ip_str);
+            if p.exists() {
+                return (p, true);
+            }
+        }
+    }
+    let beside = default_info_path_for_table(csv_path);
+    if beside.exists() {
+        return (beside, true);
+    }
+    let file_name = csv_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unnamed.csv".to_string());
+    let central_p = central_dir.join(format!("{}.info", file_name));
+    if central_p.exists() {
+        return (central_p, true);
+    }
+    (beside, false)
 }
 
 pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
@@ -87,6 +117,7 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
             spreadsheet_path: slint::SharedString::from(
                 v.spreadsheet_path.as_deref().unwrap_or(""),
             ),
+            base_path: slint::SharedString::from(v.base_path.as_deref().unwrap_or("")),
             color_pattern: slint::SharedString::from(v.color_pattern.as_deref().unwrap_or("None")),
             export_color_pattern: slint::SharedString::from(
                 v.export_color_pattern.as_deref().unwrap_or("None"),
@@ -107,8 +138,12 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
     }
 
     if let Some(v) = state.views_config.views.get(cur_idx) {
+        window.set_current_view_name(slint::SharedString::from(&v.name));
         window.set_current_spreadsheet_path(slint::SharedString::from(
             v.spreadsheet_path.as_deref().unwrap_or(""),
+        ));
+        window.set_current_base_path(slint::SharedString::from(
+            v.base_path.as_deref().unwrap_or(""),
         ));
         let pat = v.color_pattern.as_deref().unwrap_or("None");
         let exp_pat = v.export_color_pattern.as_deref().unwrap_or("None");
@@ -124,32 +159,81 @@ pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
             .iter()
             .enumerate()
             .map(|(f_idx, f)| {
-                let status =
-                    check_file_integrity(&f.relative_path, f.info_file_path.as_deref(), None);
+                let csv_p = PathBuf::from(&f.relative_path);
+                let f_name = csv_p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| f.relative_path.clone());
+                let dir_p = csv_p
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+
+                let mut status =
+                    check_file_integrity(&f.relative_path, f.info_file_path.as_deref(), v.base_path.as_deref().map(Path::new));
                 let sm = f.storage_mode.as_deref().unwrap_or("Standard");
+
+                let expected_info_path = if let Some(ref bp) = v.base_path {
+                    if !bp.trim().is_empty() {
+                        let expected = Path::new(bp).join(format!("{}.info", f_name));
+                        expected.to_string_lossy().to_string()
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+
+                let central_dir = Path::new(&state.app_config.central_config_directory);
+                let (current_info_p, info_exists) = resolve_existing_info_file(
+                    f.info_file_path.as_deref(),
+                    &csv_p,
+                    central_dir,
+                );
+
+                let is_in_expected = !expected_info_path.is_empty()
+                    && (current_info_p == Path::new(&expected_info_path)
+                        || current_info_p.canonicalize().ok() == Path::new(&expected_info_path).canonicalize().ok());
+
+                let can_relocate = !expected_info_path.is_empty() && (
+                    (info_exists && !is_in_expected)
+                    || (!is_in_expected && sm != "KollektionsBasispfad")
+                );
+
+                if can_relocate && info_exists {
+                    status = "Nicht im Basispfad".to_string();
+                }
+
                 SlintViewFileItem {
                     id: f_idx as i32,
+                    file_name: slint::SharedString::from(f_name),
+                    dir_path: slint::SharedString::from(dir_p),
                     relative_path: slint::SharedString::from(&f.relative_path),
                     info_file_path: slint::SharedString::from(
                         f.info_file_path.as_deref().unwrap_or(""),
                     ),
                     storage_mode: slint::SharedString::from(sm),
                     integrity_status: slint::SharedString::from(status),
+                    can_relocate,
+                    expected_info_path: slint::SharedString::from(expected_info_path),
                 }
             })
             .collect();
         window.set_current_view_files(ModelRc::new(VecModel::from(file_items)));
     } else {
+        window.set_current_view_name(slint::SharedString::from(""));
         window.set_current_spreadsheet_path(slint::SharedString::from(""));
+        window.set_current_base_path(slint::SharedString::from(""));
         window.set_current_view_files(ModelRc::new(VecModel::from(Vec::<SlintViewFileItem>::new())));
     }
 
     // 2. Storage
     let mode_idx = match state.app_config.selected_storage_mode {
-        InfoFileStorageMode::Dateipfad => 0,
-        InfoFileStorageMode::Stammverzeichnis => 1,
-        InfoFileStorageMode::Temporaer => 2,
-        InfoFileStorageMode::BenutzerEntscheidet => 3,
+        InfoFileStorageMode::KollektionsBasispfad => 0,
+        InfoFileStorageMode::Dateipfad => 1,
+        InfoFileStorageMode::Stammverzeichnis => 2,
+        InfoFileStorageMode::Temporaer => 3,
+        InfoFileStorageMode::BenutzerEntscheidet => 4,
     };
     window.set_selected_storage_mode(mode_idx);
     window.set_central_directory_path(slint::SharedString::from(
@@ -239,6 +323,120 @@ pub fn setup_configuration_window(
     {
         let win = config_window.clone();
         let state = state.clone();
+        config_window.on_confirm_rename_modal(move |new_name| {
+            let mut st = state.borrow_mut();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            let trimmed = new_name.trim();
+            if !trimmed.is_empty() {
+                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                    v.name = trimmed.to_string();
+                }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_view_name_edited(move |new_name| {
+            let mut st = state.borrow_mut();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            let trimmed = new_name.trim();
+            if !trimmed.is_empty() {
+                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                    v.name = trimmed.to_string();
+                }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_browse_base_path_clicked(move || {
+            let folder = PickRequest::folder()
+                .title("Basispfad für diese Kollektion wählen")
+                .context("collection_base_path")
+                .pick_sync();
+            if let Some(dir) = folder {
+                let dir_str = dir.to_string_lossy().to_string();
+                let mut st = state.borrow_mut();
+                let cur_idx = ensure_selected_view(&win, &mut st);
+                if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                    v.base_path = Some(dir_str);
+                }
+                let _ = save_views_file(&default_views_path(), &st.views_config);
+                sync_configuration_ui(&win, &st);
+            }
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_base_path_edited(move |new_path| {
+            let mut st = state.borrow_mut();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                let trimmed = new_path.trim();
+                v.base_path = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                };
+            }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_scan_base_path_clicked(move || {
+            let mut st = state.borrow_mut();
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            let bp_opt = st.views_config.views.get(cur_idx).and_then(|v| v.base_path.clone());
+            if let Some(bp) = bp_opt {
+                let path = PathBuf::from(&bp);
+                if path.is_dir() {
+                    let mut added = 0;
+                    let storage_mode_str = st.app_config.selected_storage_mode.as_str().to_string();
+                    if let Ok(entries) = std::fs::read_dir(&path) {
+                        for entry in entries.filter_map(|e| e.ok()) {
+                            let ep = entry.path();
+                            if ep.is_file() {
+                                let ext = ep.extension().and_then(|x| x.to_str()).unwrap_or("").to_lowercase();
+                                if ["csv", "tsv", "txt", "ods"].contains(&ext.as_str()) {
+                                    let rel = ep.to_string_lossy().to_string();
+                                    if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                                        if !v.files.iter().any(|f| f.relative_path.eq_ignore_ascii_case(&rel)) {
+                                            v.files.push(ViewFileItem {
+                                                relative_path: rel.clone(),
+                                                full_path: Some(rel),
+                                                info_file_path: None,
+                                                storage_mode: Some(storage_mode_str.clone()),
+                                            });
+                                            added += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    log_info("Config", &format!("Basispfad-Scan: {} Datei(en) hinzugefügt.", added));
+                    let _ = save_views_file(&default_views_path(), &st.views_config);
+                }
+            }
+            sync_configuration_ui(&win, &st);
+        });
+    }
+
+    {
+        let win = config_window.clone();
+        let state = state.clone();
         config_window.on_add_view_clicked(move |name| {
             let mut st = state.borrow_mut();
             let trimmed = name.trim();
@@ -253,9 +451,11 @@ pub fn setup_configuration_window(
                 is_default_view: is_default,
                 files: Vec::new(),
                 spreadsheet_path: None,
+                base_path: None,
                 color_pattern: Some("None".into()),
                 export_color_pattern: Some("None".into()),
                 export_paths: Vec::new(),
+                column_widths: std::collections::HashMap::new(),
             });
             let new_idx = st.views_config.views.len() - 1;
             win.set_selected_view_idx(new_idx as i32);
@@ -659,38 +859,58 @@ pub fn setup_configuration_window(
         });
     }
 
-    // Migrate info file between central and decentralized
+    // Migrate info file to currently selected storage mode
     {
         let win = config_window.clone();
         let state = state.clone();
         config_window.on_migrate_info_file_clicked(move |f_idx| {
             let mut st = state.borrow_mut();
             let central = PathBuf::from(&st.app_config.central_config_directory);
+            let target_mode = st.app_config.selected_storage_mode;
             let cur_idx = ensure_selected_view(&win, &mut st);
             if let Some(v) = st.views_config.views.get_mut(cur_idx) {
                 let idx = f_idx as usize;
+                let col_base = if let Some(ref bp) = v.base_path {
+                    if !bp.trim().is_empty() {
+                        Some(PathBuf::from(bp))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let col_base_dir = if target_mode == InfoFileStorageMode::KollektionsBasispfad && col_base.is_none() {
+                    let folder = kit_picker::PickRequest::folder()
+                        .title("Basispfad für diese Kollektion wählen")
+                        .context("collection_base_path")
+                        .pick_sync();
+                    if let Some(dir) = folder {
+                        let dir_str = dir.to_string_lossy().to_string();
+                        v.base_path = Some(dir_str.clone());
+                        Some(dir)
+                    } else {
+                        return;
+                    }
+                } else {
+                    col_base
+                };
+
                 if let Some(f) = v.files.get_mut(idx) {
                     let csv_p = PathBuf::from(&f.relative_path);
-                    let info_p = f
-                        .info_file_path
-                        .as_ref()
-                        .map(PathBuf::from)
-                        .unwrap_or_else(|| default_info_path_for_table(&csv_p));
+                    let (info_p, _) = resolve_existing_info_file(
+                        f.info_file_path.as_deref(),
+                        &csv_p,
+                        &central,
+                    );
 
-                    // Toggle mode
-                    let target_mode = if f.storage_mode.as_deref() == Some("Stammverzeichnis") {
-                        InfoFileStorageMode::Dateipfad
-                    } else {
-                        InfoFileStorageMode::Stammverzeichnis
-                    };
-
-                    match move_info_file(&csv_p, &info_p, &target_mode, &central) {
+                    match move_info_file(&csv_p, &info_p, &target_mode, &central, col_base_dir.as_deref()) {
                         Ok(new_p) => {
                             f.info_file_path = Some(new_p.to_string_lossy().to_string());
                             f.storage_mode = Some(target_mode.as_str().to_string());
                             log_info(
                                 "InfoMigrate",
-                                &format!("Info-Datei migriert nach {:?}", new_p),
+                                &format!("Info-Datei migriert nach {:?} (Modus: {:?})", new_p, target_mode),
                             );
                         }
                         Err(e) => {
@@ -698,6 +918,146 @@ pub fn setup_configuration_window(
                         }
                     }
                 }
+            }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
+        });
+    }
+
+    // Relocate single info file to collection base path
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_relocate_info_file_clicked(move |f_idx| {
+            let mut st = state.borrow_mut();
+            let central = PathBuf::from(&st.app_config.central_config_directory);
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                let col_base = if let Some(ref bp) = v.base_path {
+                    if !bp.trim().is_empty() {
+                        Some(PathBuf::from(bp))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let bp_dir = match col_base {
+                    Some(dir) => dir,
+                    None => {
+                        let folder = kit_picker::PickRequest::folder()
+                            .title("Basispfad für diese Kollektion wählen")
+                            .context("collection_base_path")
+                            .pick_sync();
+                        if let Some(dir) = folder {
+                            let dir_str = dir.to_string_lossy().to_string();
+                            v.base_path = Some(dir_str.clone());
+                            dir
+                        } else {
+                            return;
+                        }
+                    }
+                };
+
+                let idx = f_idx as usize;
+                if let Some(f) = v.files.get_mut(idx) {
+                    let csv_p = PathBuf::from(&f.relative_path);
+                    let (info_p, _) = resolve_existing_info_file(
+                        f.info_file_path.as_deref(),
+                        &csv_p,
+                        &central,
+                    );
+                    let target_mode = InfoFileStorageMode::KollektionsBasispfad;
+
+                    match move_info_file(&csv_p, &info_p, &target_mode, &central, Some(&bp_dir)) {
+                        Ok(new_p) => {
+                            f.info_file_path = Some(new_p.to_string_lossy().to_string());
+                            f.storage_mode = Some(target_mode.as_str().to_string());
+                            log_info(
+                                "InfoRelocate",
+                                &format!("Info-Datei in Kollektions-Basispfad verschoben: {:?}", new_p),
+                            );
+                        }
+                        Err(e) => {
+                            log_info("InfoRelocate", &format!("Fehler beim Verschieben in Basispfad: {}", e));
+                        }
+                    }
+                }
+            }
+            let _ = save_views_file(&default_views_path(), &st.views_config);
+            sync_configuration_ui(&win, &st);
+        });
+    }
+
+    // Relocate all info files in current collection to collection base path
+    {
+        let win = config_window.clone();
+        let state = state.clone();
+        config_window.on_relocate_all_info_files_clicked(move || {
+            let mut st = state.borrow_mut();
+            let central = PathBuf::from(&st.app_config.central_config_directory);
+            let cur_idx = ensure_selected_view(&win, &mut st);
+            if let Some(v) = st.views_config.views.get_mut(cur_idx) {
+                let col_base = if let Some(ref bp) = v.base_path {
+                    if !bp.trim().is_empty() {
+                        Some(PathBuf::from(bp))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let bp_dir = match col_base {
+                    Some(dir) => dir,
+                    None => {
+                        let folder = kit_picker::PickRequest::folder()
+                            .title("Basispfad für diese Kollektion wählen (für alle .info Dateien)")
+                            .context("collection_base_path")
+                            .pick_sync();
+                        if let Some(dir) = folder {
+                            let dir_str = dir.to_string_lossy().to_string();
+                            v.base_path = Some(dir_str.clone());
+                            dir
+                        } else {
+                            log_info("InfoRelocateAll", "Abgebrochen: Kein Basispfad für Kollektion angegeben.");
+                            return;
+                        }
+                    }
+                };
+
+                if !bp_dir.exists() {
+                    let _ = std::fs::create_dir_all(&bp_dir);
+                }
+
+                let target_mode = InfoFileStorageMode::KollektionsBasispfad;
+                let mut moved_count = 0;
+
+                for f in v.files.iter_mut() {
+                    let csv_p = PathBuf::from(&f.relative_path);
+                    let f_name = csv_p
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| f.relative_path.clone());
+                    let expected = bp_dir.join(format!("{}.info", f_name));
+
+                    let (info_p, info_exists) = resolve_existing_info_file(
+                        f.info_file_path.as_deref(),
+                        &csv_p,
+                        &central,
+                    );
+
+                    if info_exists && info_p != expected {
+                        let _ = move_info_file(&csv_p, &info_p, &target_mode, &central, Some(&bp_dir));
+                    }
+
+                    f.info_file_path = Some(expected.to_string_lossy().to_string());
+                    f.storage_mode = Some(target_mode.as_str().to_string());
+                    moved_count += 1;
+                }
+
+                log_info("InfoRelocateAll", &format!("{} Datei(en) in Kollektions-Basispfad {:?} verschoben/zugeordnet.", moved_count, bp_dir));
             }
             let _ = save_views_file(&default_views_path(), &st.views_config);
             sync_configuration_ui(&win, &st);
@@ -781,12 +1141,15 @@ pub fn setup_configuration_window(
         config_window.on_storage_mode_changed(move |mode_idx| {
             let mut st = state.borrow_mut();
             st.app_config.selected_storage_mode = match mode_idx {
-                1 => InfoFileStorageMode::Stammverzeichnis,
-                2 => InfoFileStorageMode::Temporaer,
-                3 => InfoFileStorageMode::BenutzerEntscheidet,
-                _ => InfoFileStorageMode::Dateipfad,
+                0 => InfoFileStorageMode::KollektionsBasispfad,
+                1 => InfoFileStorageMode::Dateipfad,
+                2 => InfoFileStorageMode::Stammverzeichnis,
+                3 => InfoFileStorageMode::Temporaer,
+                4 => InfoFileStorageMode::BenutzerEntscheidet,
+                _ => InfoFileStorageMode::KollektionsBasispfad,
             };
-            win.set_selected_storage_mode(mode_idx);
+            let _ = save_app_config(&default_config_path(), &st.app_config);
+            sync_configuration_ui(&win, &st);
         });
     }
 

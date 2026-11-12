@@ -62,6 +62,14 @@ export struct TabRowItem {
     tabs: [TabItem],
 }
 
+export struct SlintCollectionTabGroup {
+    name: string,
+    is_temporary: bool,
+    tab_count: int,
+    tabs: [TabItem],
+    tab_rows: [TabRowItem],
+}
+
 export struct HeaderItem {
     id: int,
     name: string,
@@ -132,6 +140,42 @@ export struct SmartAddFieldItem {
     dropdown_open: bool,
 }
 
+component ModernScrollBar inherits Rectangle {
+    in-out property <length> content_x: 0px;
+    in property <length> viewport_width: 1000px;
+    in property <length> visible_width: 500px;
+
+    height: 6px;
+    background: #181c28;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: #262f44;
+
+    property <length> max_scroll: max(1px, root.viewport_width - root.visible_width);
+    property <length> track_w: root.width;
+    property <length> thumb_w: max(32px, (root.visible_width / max(1px, root.viewport_width)) * root.track_w);
+    property <length> travel: max(1px, root.track_w - root.thumb_w);
+
+    if root.viewport_width > root.visible_width: Rectangle {
+        x: min(root.travel, max(0px, (-root.content_x / root.max_scroll) * root.travel));
+        width: root.thumb_w;
+        height: 6px;
+        border-radius: 3px;
+        background: thumb_touch.has-hover ? #60a5fa : #3b82f6;
+
+        thumb_touch := TouchArea {
+            mouse-cursor: pointer;
+            moved => {
+                if self.pressed {
+                    let rel = (self.mouse-x + parent.x) / max(1px, root.track_w);
+                    let clamped = min(1.0, max(0.0, rel));
+                    root.content_x = -clamped * root.max_scroll;
+                }
+            }
+        }
+    }
+}
+
 component SingleTab inherits Rectangle {
     in property <TabItem> tab;
     in property <int> tab_idx: 0;
@@ -140,12 +184,13 @@ component SingleTab inherits Rectangle {
     callback selected(string);
     callback move_left(string);
     callback move_right(string);
+    callback move_to_collection_clicked(string);
     callback close_clicked(string);
     callback commit_edit();
 
     min-width: 140px;
-    max-width: full_title ? 10000px : 260px;
-    height: 32px;
+    max-width: full_title ? 10000px : 380px;
+    min-height: 34px;
     background: root.tab.is_active ? #223a66 : (tab_touch.has-hover ? #252d42 : #1b2132);
     border-radius: 6px;
     border-width: root.tab.is_active ? 1.5px : 1px;
@@ -162,10 +207,18 @@ component SingleTab inherits Rectangle {
     }
 
     tab_touch := TouchArea {
-        width: parent.width - 66px;
+        width: parent.width - 88px;
         clicked => {
             root.commit_edit();
             root.selected(root.tab.id);
+        }
+        moved => {
+            if self.pressed && self.mouse-x < -25px {
+                root.move_left(root.tab.id);
+            }
+            if self.pressed && self.mouse-x > (parent.width + 15px) {
+                root.move_right(root.tab.id);
+            }
         }
     }
 
@@ -181,32 +234,38 @@ component SingleTab inherits Rectangle {
             horizontal-stretch: 1;
 
             // Mode badge [CSV] / [ODS]
-            Rectangle {
-                width: 28px;
-                height: 16px;
-                y: 8px;
-                border-radius: 3px;
-                background: root.tab.is_ods ? #451a03 : #064e3b;
-                border-width: 1px;
-                border-color: root.tab.is_ods ? #b45309 : #059669;
-                Text {
-                    text: root.tab.is_ods ? "ODS" : "CSV";
-                    color: root.tab.is_ods ? #fcd34d : #6ee7b7;
-                    font-size: 9px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 28px;
+                    height: 16px;
+                    border-radius: 3px;
+                    background: root.tab.is_ods ? #451a03 : #064e3b;
+                    border-width: 1px;
+                    border-color: root.tab.is_ods ? #b45309 : #059669;
+                    Text {
+                        text: root.tab.is_ods ? "ODS" : "CSV";
+                        color: root.tab.is_ods ? #fcd34d : #6ee7b7;
+                        font-size: 9px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
                 }
             }
 
-            Text {
-                text: root.tab.title;
-                color: root.tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
-                font-weight: root.tab.is_active ? 700 : 500;
-                font-size: 12px;
-                vertical-alignment: center;
-                overflow: full_title ? clip : elide;
-                horizontal-stretch: full_title ? 0 : 1;
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: root.tab.title;
+                    color: root.tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
+                    font-weight: root.tab.is_active ? 700 : 500;
+                    font-size: 11px;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
             }
             if root.tab.is_dirty: Text {
                 text: "*";
@@ -292,6 +351,29 @@ component SingleTab inherits Rectangle {
                 }
             }
 
+            // Move to another collection (⇄)
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 4px;
+                    background: tab_move_col_hover.has-hover ? #8b5cf6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    Text {
+                        text: "⇄";
+                        color: tab_move_col_hover.has-hover ? #ffffff : #c4b5fd;
+                        font-size: 11px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    tab_move_col_hover := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.move_to_collection_clicked(root.tab.id); }
+                    }
+                }
+            }
+
             // Close Tab (✕)
             VerticalLayout {
                 alignment: center;
@@ -360,6 +442,7 @@ export component MainWindow inherits Window {
     callback run_rules_clicked();
 
     callback header_sort_clicked(int);
+    callback column_resized(int, length);
     callback open_filter_popup(int);
     callback filter_apply_clicked(int);
     callback filter_clear_all_clicked();
@@ -406,8 +489,22 @@ export component MainWindow inherits Window {
     callback toggle_tabs_multiline();
     callback show_save_collection_dialog();
     callback save_collection_confirmed(string);
+    callback open_move_table_dialog(string);
+    callback move_modal_target_changed(string);
+    callback confirm_move_table(string, string, bool);
 
     // Properties exposed to Rust
+    in-out property <[SlintCollectionTabGroup]> collection_groups: [];
+    in-out property <bool> move_modal_visible: false;
+    in-out property <string> move_modal_table_id: "";
+    in-out property <string> move_modal_table_name: "";
+    in-out property <string> move_modal_src_collection: "";
+    in-out property <string> move_modal_target_collection: "";
+    in-out property <[string]> move_modal_available_targets: [];
+    in-out property <bool> move_modal_has_target_base_path: false;
+    in-out property <string> move_modal_target_base_path: "";
+    in-out property <bool> move_modal_move_physical_file: false;
+
     in-out property <[TabItem]> tabs: [];
     in-out property <[TabItem]> csv_tabs: [];
     in-out property <[TabItem]> ods_tabs: [];
@@ -427,7 +524,19 @@ export component MainWindow inherits Window {
     in-out property <int> csv_tab_count: 0;
     in-out property <int> ods_tab_count: 0;
     in-out property <bool> active_table_is_ods: false;
+    in-out property <string> active_table_name: "";
     in-out property <length> tab_scroll_x: 0px;
+    in-out property <length> tab_bar_custom_height: 0px;
+    property <length> tab_bar_computed_height: root.collection_groups.length > 0 ? (
+        root.tabs_multiline ? min(480px, max(84px, root.collection_groups.length * 110px)) : min(350px, max(76px, root.collection_groups.length * 74px + 12px))
+    ) : (
+        root.tabs_multiline ? (
+            ((root.active_view_mode == 0 || root.active_view_mode == 1) && (root.csv_tabs.length > 0 || root.active_view_mode == 1) ? min(320px, max(72px, root.csv_tab_rows.length * 48px + 16px)) : 0px)
+            + ((root.active_view_mode == 0 && root.ods_tabs.length > 0) || root.active_view_mode == 2 ? min(320px, max(72px, root.ods_tab_rows.length * 48px + 16px)) : 0px)
+            + ((root.active_view_mode == 0 && root.csv_tabs.length > 0 && root.ods_tabs.length > 0) ? 1px : 0px)
+        ) : ((root.active_view_mode == 0 && root.ods_tabs.length > 0 && root.csv_tabs.length > 0) ? 148px : 74px)
+    );
+    property <length> tab_bar_effective_height: root.tab_bar_custom_height > 0px ? root.tab_bar_custom_height : root.tab_bar_computed_height;
     in-out property <bool> all_tables_popup_open: false;
     in-out property <[HeaderItem]> headers: [];
     in-out property <[RowItem]> rows: [];
@@ -906,13 +1015,9 @@ export component MainWindow inherits Window {
             }
         }
 
-        // ROW 3: TAB BAR (CSV-EBENE UND ODS-EBENE)
+        // ROW 3: TAB BAR (KOLLEKTIONEN STRIKT GETRENNT / CSV-EBENE UND ODS-EBENE)
         Rectangle {
-            height: root.tabs_multiline ? (
-                ((root.active_view_mode == 0 || root.active_view_mode == 1) && (root.csv_tabs.length > 0 || root.active_view_mode == 1) ? min(220px, max(42px, root.csv_tab_rows.length * 38px + 10px)) : 0px)
-                + ((root.active_view_mode == 0 && root.ods_tabs.length > 0) || root.active_view_mode == 2 ? min(220px, max(42px, root.ods_tab_rows.length * 38px + 10px)) : 0px)
-                + ((root.active_view_mode == 0 && root.csv_tabs.length > 0 && root.ods_tabs.length > 0) ? 1px : 0px)
-            ) : ((root.active_view_mode == 0 && root.ods_tabs.length > 0 && root.csv_tabs.length > 0) ? 84px : 44px);
+            height: root.tab_bar_effective_height;
             background: #14161f;
 
             // Bottom border for tab bar
@@ -923,11 +1028,169 @@ export component MainWindow inherits Window {
             }
 
             VerticalLayout {
-                spacing: 0px;
+                spacing: 4px;
 
-                // 1. CSV Tab-Zeile (Sichtbar bei Modus "Alle" [0] oder "CSV" [1])
-                if (root.active_view_mode == 0 || root.active_view_mode == 1) && (root.csv_tabs.length > 0 || root.active_view_mode == 1): Rectangle {
-                    height: root.tabs_multiline ? min(220px, max(42px, root.csv_tab_rows.length * 38px + 10px)) : 42px;
+                // 0. Kollektionsbasierte Tab-Gruppen (Jede Kollektion strikt getrennt!)
+                if root.collection_groups.length > 0: ScrollView {
+                    horizontal-stretch: 1;
+                    VerticalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        padding-top: 4px;
+                        padding-bottom: 4px;
+                        spacing: 6px;
+
+                        for group[grp_idx] in root.collection_groups: Rectangle {
+                            background: #151824;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: #262d40;
+
+                            VerticalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+                                padding-top: 4px;
+                                padding-bottom: 4px;
+                                spacing: 4px;
+
+                                HorizontalLayout {
+                                    spacing: 8px;
+
+                                    // Kollektions-Badge
+                                    VerticalLayout {
+                                        alignment: root.tabs_multiline ? start : center;
+                                        padding-top: root.tabs_multiline ? 4px : 0px;
+                                        Rectangle {
+                                            width: 140px;
+                                            height: 26px;
+                                            border-radius: 4px;
+                                            background: group.is_temporary ? #3b2048 : #1e293b;
+                                            border-width: 1px;
+                                            border-color: group.is_temporary ? #9333ea : #3b82f6;
+
+                                            HorizontalLayout {
+                                                padding-left: 6px;
+                                                padding-right: 6px;
+                                                spacing: 4px;
+                                                alignment: center;
+
+                                                Text {
+                                                    text: group.is_temporary ? "⚡ " + group.name : "📁 " + group.name;
+                                                    color: group.is_temporary ? #f0abfc : #93c5fd;
+                                                    font-size: 11px;
+                                                    font-weight: 700;
+                                                    overflow: elide;
+                                                    vertical-alignment: center;
+                                                }
+                                                Text {
+                                                    text: "(" + group.tab_count + ")";
+                                                    color: #94a3b8;
+                                                    font-size: 10px;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Einzeilig mit modernem Scrollbalken
+                                    if !root.tabs_multiline: VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        grp_scroll := ScrollView {
+                                            horizontal-stretch: 1;
+                                            HorizontalLayout {
+                                                padding-top: 2px;
+                                                padding-bottom: 2px;
+                                                spacing: 6px;
+                                                alignment: start;
+
+                                                for tab[tab_idx] in group.tabs: SingleTab {
+                                                    tab: tab;
+                                                    tab_idx: tab_idx;
+                                                    total_tabs: group.tab_count;
+                                                    full_title: true;
+                                                    selected(id) => { root.tab_selected(id); }
+                                                    move_left(id) => { root.tab_move_left(id); }
+                                                    move_right(id) => { root.tab_move_right(id); }
+                                                    move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
+                                                    close_clicked(id) => { root.tab_close_clicked(id); }
+                                                    commit_edit => { root.commit_active_edit(); }
+                                                }
+                                            }
+                                        }
+                                        ModernScrollBar {
+                                            content_x: grp_scroll.content-x;
+                                            viewport_width: grp_scroll.content-width;
+                                            visible_width: grp_scroll.visible-width;
+                                        }
+                                    }
+
+                                    // Mehrzeilig (4-6 Tabs pro Zeile)
+                                    if root.tabs_multiline: VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 6px;
+                                        alignment: start;
+
+                                        for row in group.tab_rows: HorizontalLayout {
+                                            spacing: 6px;
+                                            alignment: start;
+
+                                            for tab[tab_idx] in row.tabs: SingleTab {
+                                                tab: tab;
+                                                tab_idx: tab_idx;
+                                                total_tabs: group.tab_count;
+                                                full_title: true;
+                                                selected(id) => { root.tab_selected(id); }
+                                                move_left(id) => { root.tab_move_left(id); }
+                                                move_right(id) => { root.tab_move_right(id); }
+                                                move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
+                                                close_clicked(id) => { root.tab_close_clicked(id); }
+                                                commit_edit => { root.commit_active_edit(); }
+                                            }
+                                        }
+                                    }
+
+                                    // Toggle Button
+                                    VerticalLayout {
+                                        alignment: root.tabs_multiline ? start : center;
+                                        padding-top: root.tabs_multiline ? 4px : 0px;
+                                        Rectangle {
+                                            height: 28px;
+                                            border-radius: 4px;
+                                            background: root.tabs_multiline ? #1e3a8a : (multiline_touch_g.has-hover ? #2e3549 : #1a1e2d);
+                                            border-width: 1px;
+                                            border-color: root.tabs_multiline ? #3b82f6 : #333d54;
+                                            HorizontalLayout {
+                                                padding-left: 8px;
+                                                padding-right: 8px;
+                                                spacing: 5px;
+                                                alignment: center;
+                                                Text {
+                                                    text: root.tabs_multiline ? "☰ Einzeilig" : "☷ Mehrzeilig";
+                                                    font-size: 11px;
+                                                    font-weight: 600;
+                                                    color: root.tabs_multiline ? #93c5fd : #cbd5e1;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                            multiline_touch_g := TouchArea {
+                                                mouse-cursor: pointer;
+                                                clicked => {
+                                                    root.commit_active_edit();
+                                                    root.toggle_tabs_multiline();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: 1. CSV Tab-Zeile (Sichtbar wenn keine Kollektionsgruppen)
+                if root.collection_groups.length == 0 && ((root.active_view_mode == 0 || root.active_view_mode == 1) && (root.csv_tabs.length > 0 || root.active_view_mode == 1)): Rectangle {
+                    height: root.tabs_multiline ? min(320px, max(68px, root.csv_tab_rows.length * 48px + 12px)) : 68px;
                     HorizontalLayout {
                         padding-left: 8px;
                         padding-right: 8px;
@@ -981,27 +1244,37 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Single-line Mode: ScrollView (horizontal)
-                        if !root.tabs_multiline: ScrollView {
+                        // Single-line Mode: ScrollView (horizontal) with modern scrollbar
+                        if !root.tabs_multiline: VerticalLayout {
                             horizontal-stretch: 1;
-                            content-x <=> root.csv_tab_scroll_x;
-                            HorizontalLayout {
-                                padding-top: 4px;
-                                padding-bottom: 4px;
-                                spacing: 6px;
-                                alignment: start;
+                            spacing: 2px;
+                            csv_scroll := ScrollView {
+                                horizontal-stretch: 1;
+                                content-x <=> root.csv_tab_scroll_x;
+                                HorizontalLayout {
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+                                    spacing: 6px;
+                                    alignment: start;
 
-                                for tab[tab_idx] in root.csv_tabs: SingleTab {
-                                    tab: tab;
-                                    tab_idx: tab_idx;
-                                    total_tabs: root.csv_tabs.length;
-                                    full_title: false;
-                                    selected(id) => { root.tab_selected(id); }
-                                    move_left(id) => { root.tab_move_left(id); }
-                                    move_right(id) => { root.tab_move_right(id); }
-                                    close_clicked(id) => { root.tab_close_clicked(id); }
-                                    commit_edit => { root.commit_active_edit(); }
+                                    for tab[tab_idx] in root.csv_tabs: SingleTab {
+                                        tab: tab;
+                                        tab_idx: tab_idx;
+                                        total_tabs: root.csv_tabs.length;
+                                        full_title: true;
+                                        selected(id) => { root.tab_selected(id); }
+                                        move_left(id) => { root.tab_move_left(id); }
+                                        move_right(id) => { root.tab_move_right(id); }
+                                        move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
+                                        close_clicked(id) => { root.tab_close_clicked(id); }
+                                        commit_edit => { root.commit_active_edit(); }
+                                    }
                                 }
+                            }
+                            ModernScrollBar {
+                                content_x <=> root.csv_tab_scroll_x;
+                                viewport_width: csv_scroll.content-width;
+                                visible_width: csv_scroll.visible-width;
                             }
                         }
 
@@ -1052,6 +1325,7 @@ export component MainWindow inherits Window {
                                         selected(id) => { root.tab_selected(id); }
                                         move_left(id) => { root.tab_move_left(id); }
                                         move_right(id) => { root.tab_move_right(id); }
+                                        move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
                                         close_clicked(id) => { root.tab_close_clicked(id); }
                                         commit_edit => { root.commit_active_edit(); }
                                     }
@@ -1102,7 +1376,7 @@ export component MainWindow inherits Window {
 
                 // 2. ODS Tab-Zeile (Sichtbar bei Modus "Alle" [0] oder "ODS" [2])
                 if (root.active_view_mode == 0 && root.ods_tabs.length > 0) || root.active_view_mode == 2: Rectangle {
-                    height: root.tabs_multiline ? min(220px, max(42px, root.ods_tab_rows.length * 38px + 10px)) : 42px;
+                    height: root.tabs_multiline ? min(320px, max(68px, root.ods_tab_rows.length * 48px + 12px)) : 68px;
                     HorizontalLayout {
                         padding-left: 8px;
                         padding-right: 8px;
@@ -1156,27 +1430,37 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Single-line Mode: ScrollView (horizontal)
-                        if !root.tabs_multiline: ScrollView {
+                        // Single-line Mode: ScrollView (horizontal) with modern scrollbar
+                        if !root.tabs_multiline: VerticalLayout {
                             horizontal-stretch: 1;
-                            content-x <=> root.ods_tab_scroll_x;
-                            HorizontalLayout {
-                                padding-top: 4px;
-                                padding-bottom: 4px;
-                                spacing: 6px;
-                                alignment: start;
+                            spacing: 2px;
+                            ods_scroll := ScrollView {
+                                horizontal-stretch: 1;
+                                content-x <=> root.ods_tab_scroll_x;
+                                HorizontalLayout {
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+                                    spacing: 6px;
+                                    alignment: start;
 
-                                for tab[tab_idx] in root.ods_tabs: SingleTab {
-                                    tab: tab;
-                                    tab_idx: tab_idx;
-                                    total_tabs: root.ods_tabs.length;
-                                    full_title: false;
-                                    selected(id) => { root.tab_selected(id); }
-                                    move_left(id) => { root.tab_move_left(id); }
-                                    move_right(id) => { root.tab_move_right(id); }
-                                    close_clicked(id) => { root.tab_close_clicked(id); }
-                                    commit_edit => { root.commit_active_edit(); }
+                                    for tab[tab_idx] in root.ods_tabs: SingleTab {
+                                        tab: tab;
+                                        tab_idx: tab_idx;
+                                        total_tabs: root.ods_tabs.length;
+                                        full_title: true;
+                                        selected(id) => { root.tab_selected(id); }
+                                        move_left(id) => { root.tab_move_left(id); }
+                                        move_right(id) => { root.tab_move_right(id); }
+                                        move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
+                                        close_clicked(id) => { root.tab_close_clicked(id); }
+                                        commit_edit => { root.commit_active_edit(); }
+                                    }
                                 }
+                            }
+                            ModernScrollBar {
+                                content_x <=> root.ods_tab_scroll_x;
+                                viewport_width: ods_scroll.content-width;
+                                visible_width: ods_scroll.visible-width;
                             }
                         }
 
@@ -1227,6 +1511,7 @@ export component MainWindow inherits Window {
                                         selected(id) => { root.tab_selected(id); }
                                         move_left(id) => { root.tab_move_left(id); }
                                         move_right(id) => { root.tab_move_right(id); }
+                                        move_to_collection_clicked(id) => { root.open_move_table_dialog(id); }
                                         close_clicked(id) => { root.tab_close_clicked(id); }
                                         commit_edit => { root.commit_active_edit(); }
                                     }
@@ -1271,6 +1556,35 @@ export component MainWindow inherits Window {
             }
         }
 
+        // DRAGGABLE SPLITTER ZWISCHEN TAB-LEISTE UND HAUPTBEREICH
+        Rectangle {
+            height: 7px;
+            background: splitter_ta.has-hover || splitter_ta.pressed ? #2563eb : #181a24;
+
+            // Visual Grip Handle in der Mitte
+            Rectangle {
+                width: 52px;
+                height: 3px;
+                background: splitter_ta.has-hover || splitter_ta.pressed ? #93c5fd : #3b4256;
+                border-radius: 1.5px;
+            }
+
+            splitter_ta := TouchArea {
+                mouse-cursor: row-resize;
+                moved => {
+                    if self.pressed {
+                        let cur_h = root.tab_bar_effective_height;
+                        let delta = self.mouse-y - self.pressed-y;
+                        let new_h = max(50px, min(650px, cur_h + delta));
+                        root.tab_bar_custom_height = new_h;
+                    }
+                }
+                double-clicked => {
+                    root.tab_bar_custom_height = 0px;
+                }
+            }
+        }
+
         // TOOLBAR & SELECTION BAR
         Rectangle {
             height: 42px;
@@ -1304,6 +1618,26 @@ export component MainWindow inherits Window {
                                 color: root.active_table_is_ods ? #fcd34d : #6ee7b7;
                                 font-weight: 700;
                                 font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    if root.active_table_name != "": Rectangle {
+                        height: 26px;
+                        border-radius: 4px;
+                        background: #1e2230;
+                        border-width: 1px;
+                        border-color: #3b4258;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 4px;
+                            Text {
+                                text: "📄 " + root.active_table_name;
+                                font-weight: 700;
+                                font-size: 11px;
+                                color: #ffffff;
                                 vertical-alignment: center;
                             }
                         }
@@ -1474,8 +1808,8 @@ export component MainWindow inherits Window {
 
                         // Column Headers
                         for h in root.headers: Rectangle {
-                            min-width: max(60px, h.width);
-                            max-width: max(60px, h.width);
+                            min-width: max(50px, h.width);
+                            max-width: max(50px, h.width);
                             preferred-width: self.min-width;
                             background: h.is_filtered ? #373f5c : #252838;
 
@@ -1486,7 +1820,8 @@ export component MainWindow inherits Window {
                             }
 
                             TouchArea {
-                                width: parent.width - 30px;
+                                x: 0px;
+                                width: parent.width - 34px;
                                 clicked => {
                                     root.commit_active_edit();
                                     root.header_sort_clicked(h.id);
@@ -1495,7 +1830,7 @@ export component MainWindow inherits Window {
 
                             HorizontalLayout {
                                 padding-left: 8px;
-                                padding-right: 6px;
+                                padding-right: 8px;
                                 alignment: space-between;
 
                                 VerticalLayout {
@@ -1521,6 +1856,29 @@ export component MainWindow inherits Window {
                                     clicked => {
                                         root.commit_active_edit();
                                         root.open_filter_popup(h.id);
+                                    }
+                                }
+                            }
+
+                            // Interactive Column Resize Handle on the right edge
+                            Rectangle {
+                                x: parent.width - 5px;
+                                width: 10px;
+                                height: parent.height;
+
+                                Rectangle {
+                                    x: 4px;
+                                    width: 2px;
+                                    height: parent.height;
+                                    background: col_resizer.has-hover || col_resizer.pressed ? #3b82f6 : transparent;
+                                }
+
+                                col_resizer := TouchArea {
+                                    mouse-cursor: col-resize;
+                                    moved => {
+                                        if self.pressed {
+                                            root.column_resized(h.id, max(40px, h.width + (self.mouse-x - self.pressed-x)));
+                                        }
                                     }
                                 }
                             }
@@ -3233,6 +3591,122 @@ export component MainWindow inherits Window {
                                 root.save_collection_confirmed(root.save_collection_name_input);
                                 root.save_collection_dialog_visible = false;
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MOVE TABLE TO COLLECTION MODAL
+    if root.move_modal_visible: Rectangle {
+        x: 0px; y: 0px;
+        width: parent.width; height: parent.height;
+        background: #000000aa;
+
+        TouchArea {
+            // Modal barrier
+        }
+
+        Rectangle {
+            width: 520px;
+            height: root.move_modal_has_target_base_path ? 350px : 270px;
+            background: #1f2233;
+            border-radius: 10px;
+            border-width: 1.5px;
+            border-color: #6366f1;
+            drop-shadow-blur: 24px;
+            drop-shadow-color: #000000ee;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "⚠️";
+                        font-size: 18px;
+                    }
+                    Text {
+                        text: "Tabelle in andere Kollektion verschieben";
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: #ffffff;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "Soll die Tabelle '" + root.move_modal_table_name + "' wirklich aus Kollektion '" + root.move_modal_src_collection + "' verschoben werden?";
+                    font-size: 12px;
+                    color: #cbd5e1;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    Text {
+                        text: "Ziel-Kollektion:";
+                        color: #94a3b8;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 110px;
+                    }
+                    ComboBox {
+                        horizontal-stretch: 1;
+                        model: root.move_modal_available_targets;
+                        current-value: root.move_modal_target_collection;
+                        selected(val) => {
+                            root.move_modal_target_collection = val;
+                            root.move_modal_target_changed(val);
+                        }
+                    }
+                }
+
+                if root.move_modal_has_target_base_path: Rectangle {
+                    background: #181d2e;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #374151;
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 6px;
+
+                        CheckBox {
+                            text: "Physische Datei auf der Festplatte in das Basisverzeichnis verschieben";
+                            checked <=> root.move_modal_move_physical_file;
+                        }
+                        Text {
+                            text: "📁 Ziel-Basispfad: " + root.move_modal_target_base_path;
+                            font-size: 11px;
+                            color: #93c5fd;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: end;
+
+                    Button {
+                        text: "Abbrechen";
+                        clicked => { root.move_modal_visible = false; }
+                    }
+
+                    Button {
+                        text: "✓ Bestätigen & Verschieben";
+                        primary: true;
+                        clicked => {
+                            root.confirm_move_table(
+                                root.move_modal_table_id,
+                                root.move_modal_target_collection,
+                                root.move_modal_move_physical_file
+                            );
+                            root.move_modal_visible = false;
                         }
                     }
                 }

@@ -19,6 +19,7 @@ pub struct AppState {
     pub active_tab_id: Option<String>,
     pub active_view_name: Option<String>,
     pub selected_collections: HashSet<String>,
+    pub collection_filter_active: bool,
     pub search_query: String,
     pub only_marked: bool,
     pub pending_ods_path: Option<PathBuf>,
@@ -26,6 +27,7 @@ pub struct AppState {
     pub views_config: ViewsFile,
     pub active_view_mode: usize, // 0 = Alle, 1 = CSV, 2 = ODS
     pub temp_collection: Option<ViewDefinition>,
+    pub headers_model: std::rc::Rc<slint::VecModel<crate::HeaderItem>>,
 }
 
 impl AppState {
@@ -36,6 +38,7 @@ impl AppState {
             active_tab_id: None,
             active_view_name: None,
             selected_collections: HashSet::new(),
+            collection_filter_active: false,
             search_query: String::new(),
             only_marked: false,
             pending_ods_path: None,
@@ -43,6 +46,7 @@ impl AppState {
             views_config: ViewsFile::default(),
             active_view_mode: 0,
             temp_collection: None,
+            headers_model: std::rc::Rc::new(slint::VecModel::default()),
         }
     }
 
@@ -53,9 +57,11 @@ impl AppState {
             is_default_view: false,
             files: Vec::new(),
             spreadsheet_path: None,
+            base_path: None,
             color_pattern: None,
             export_color_pattern: None,
             export_paths: Vec::new(),
+            column_widths: std::collections::HashMap::new(),
         });
 
         for p in opened_file_paths {
@@ -84,11 +90,15 @@ impl AppState {
         self.active_view_name = Some(temp_name.clone());
         self.selected_collections.clear();
         self.selected_collections.insert(temp_name);
+        self.collection_filter_active = true;
     }
 
     pub fn is_table_in_selected_collections(&self, tbl: &TableData) -> bool {
-        if self.selected_collections.is_empty() {
+        if !self.collection_filter_active {
             return true;
+        }
+        if self.selected_collections.is_empty() {
+            return false;
         }
         for view_name in &self.selected_collections {
             if view_name == "Temporäre Kollektion" {
@@ -111,55 +121,93 @@ impl AppState {
             return false;
         };
 
+        let tbl_path_str = tbl_path.to_string_lossy().to_string();
+
         if tbl.is_ods {
             if let Some(ref sheet_path) = view.spreadsheet_path {
                 let p1 = PathBuf::from(sheet_path);
-                if p1 == *tbl_path || p1.file_name() == tbl_path.file_name() {
+                if p1 == *tbl_path || p1.to_string_lossy().eq_ignore_ascii_case(&tbl_path_str) {
                     return true;
                 }
             }
         }
 
-        let tbl_path_str = tbl_path.to_string_lossy().to_string();
-        let tbl_name = tbl_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-
         for vf in &view.files {
-            if vf.relative_path == tbl_path_str || vf.full_path.as_deref() == Some(&tbl_path_str) {
+            if vf.relative_path.eq_ignore_ascii_case(&tbl_path_str)
+                || vf.full_path.as_deref().map(|fp| fp.eq_ignore_ascii_case(&tbl_path_str)).unwrap_or(false)
+            {
                 return true;
             }
             let vf_p = PathBuf::from(&vf.relative_path);
-            if let Some(fname) = vf_p.file_name() {
-                if fname.to_string_lossy() == tbl_name {
-                    return true;
-                }
+            if vf_p == *tbl_path || vf_p.to_string_lossy().eq_ignore_ascii_case(&tbl_path_str) {
+                return true;
+            }
+            if !vf_p.is_absolute() && tbl_path.ends_with(&vf_p) {
+                return true;
             }
             if let Some(ref fp) = vf.full_path {
                 let fp_p = PathBuf::from(fp);
-                if let Some(fname) = fp_p.file_name() {
-                    if fname.to_string_lossy() == tbl_name {
-                        return true;
-                    }
+                if fp_p == *tbl_path || fp_p.to_string_lossy().eq_ignore_ascii_case(&tbl_path_str) {
+                    return true;
                 }
             }
         }
         false
     }
 
+    pub fn is_table_in_view(&self, tbl: &TableData, view: &ViewDefinition) -> bool {
+        self.table_matches_view(tbl, view)
+    }
+
     pub fn add_table(&mut self, mut table: TableData) -> String {
         // Try auto-loading .info file if exists
         if let Some(ref p) = table.file_path {
             let mut info_p = default_info_path_for_table(p);
-            if !info_p.exists() {
-                // Also check central config directory if configured
+            let mut found_info = false;
+
+            // 1. If KollektionsBasispfad or collection has base_path, prioritize collection base_path
+            let p_str = p.to_string_lossy();
+            for v in &self.views_config.views {
+                if let Some(ref bp) = v.base_path {
+                    if let Some(fname) = p.file_name() {
+                        let candidate = PathBuf::from(bp).join(format!("{}.info", fname.to_string_lossy()));
+                        if candidate.exists() {
+                            info_p = candidate;
+                            found_info = true;
+                            break;
+                        }
+                    }
+                }
+                if let Some(f) = v.files.iter().find(|f| f.relative_path.eq_ignore_ascii_case(&p_str) || f.full_path.as_deref().unwrap_or("").eq_ignore_ascii_case(&p_str)) {
+                    if let Some(ref ip) = f.info_file_path {
+                        let candidate = PathBuf::from(ip);
+                        if candidate.exists() {
+                            info_p = candidate;
+                            found_info = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Default beside CSV
+            if !found_info && default_info_path_for_table(p).exists() {
+                info_p = default_info_path_for_table(p);
+                found_info = true;
+            }
+
+            // 3. Central config directory
+            if !found_info {
                 let central = PathBuf::from(&self.app_config.central_config_directory);
                 if let Some(fname) = p.file_name() {
                     let candidate = central.join(format!("{}.info", fname.to_string_lossy()));
                     if candidate.exists() {
                         info_p = candidate;
+                        found_info = true;
                     }
                 }
             }
-            if info_p.exists() {
+            if found_info && info_p.exists() {
                 match load_info_file(&info_p) {
                     Ok(info) => {
                         let rule_count = info.rules.len();
@@ -201,6 +249,7 @@ impl AppState {
         };
         self.active_view_name = Some(view.name.clone());
         self.selected_collections.insert(view.name.clone());
+        self.collection_filter_active = true;
         log_info(
             "Collection",
             &format!(

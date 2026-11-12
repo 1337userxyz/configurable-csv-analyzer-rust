@@ -1,56 +1,26 @@
 {
   "Views": [
     {
-      "Name": "Standard-Kollektion",
-      "IsDefaultView": true,
+      "Name": "09G31",
+      "IsDefaultView": false,
       "Files": [
         {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "InfoFilePath": "./Configs\\room_outlet_map.csv.info",
+          "StorageMode": "Stammverzeichnis"
         },
         {
           "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
           "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\topology.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
+          "InfoFilePath": "./Configs\\patchpanel_switch_connection.csv.info",
+          "StorageMode": "Stammverzeichnis"
         },
         {
           "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
           "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\assets.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
-        },
-        {
-          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
-          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\room_outlet_map.csv",
-          "InfoFilePath": null,
-          "StorageMode": "Dateipfad"
+          "InfoFilePath": "./Configs\\assets.csv.info",
+          "StorageMode": "Stammverzeichnis"
         },
         {
           "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-EDGS.LOGODIDACT.NET\\data\\switch_inventory.csv",
@@ -66,9 +36,70 @@
         }
       ],
       "SpreadsheetPath": null,
+      "BasePath": null,
+      "ColorPattern": "OriginalPlusZebra",
+      "ExportColorPattern": "OriginalPlusZebra",
+      "ExportPaths": [],
+      "ColumnWidths": {}
+    },
+    {
+      "Name": "09G18",
+      "IsDefaultView": true,
+      "Files": [
+        {
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\room_outlet_map.csv",
+          "InfoFilePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva\\room_outlet_map.csv.info",
+          "StorageMode": "KollektionsBasispfad"
+        },
+        {
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\patchpanel_switch_connection.csv",
+          "InfoFilePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva\\patchpanel_switch_connection.csv.info",
+          "StorageMode": "KollektionsBasispfad"
+        },
+        {
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\switch_inventory.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\switch_inventory.csv",
+          "InfoFilePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva\\switch_inventory.csv.info",
+          "StorageMode": "KollektionsBasispfad"
+        },
+        {
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\topology.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\topology.csv",
+          "InfoFilePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva\\topology.csv.info",
+          "StorageMode": "KollektionsBasispfad"
+        },
+        {
+          "RelativePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\assets.csv",
+          "FullPath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\assets.csv",
+          "InfoFilePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva\\assets.csv.info",
+          "StorageMode": "KollektionsBasispfad"
+        }
+      ],
+      "SpreadsheetPath": null,
+      "BasePath": "R:\\git\\pwsh7-scripts\\domains\\AD.B-TK-GDKV.LOGODIDACT.NET\\data\\ccsva",
       "ColorPattern": "None",
       "ExportColorPattern": "None",
-      "ExportPaths": []
+      "ExportPaths": [],
+      "ColumnWidths": {
+        "patchpanel_switch_connection::network_segment": 151,
+        "room_outlet_map::endport": 88,
+        "room_outlet_map::doc_device": 78,
+        "topology::target_device": 153,
+        "room_outlet_map::outlet": 94,
+        "room_outlet_map::network_segment": 81,
+        "assets::ip": 174,
+        "topology::target_rack": 151,
+        "topology::target_port": 147,
+        "room_outlet_map::room": 94,
+        "room_outlet_map::room_type": 113,
+        "room_outlet_map::rack": 100,
+        "room_outlet_map::building": 104,
+        "topology::source_port": 150,
+        "room_outlet_map::startport": 90,
+        "topology::via_infrastructure": 154
+      }
     }
   ]
 }

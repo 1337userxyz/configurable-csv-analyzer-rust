@@ -9,7 +9,7 @@ use configurable_csv_analyzer::core::model::{BrushCategory, HighlightItem, Table
 use crate::{
     AppState, CellItem, ColorChoiceItem, HeaderItem, LogViewItem, MainWindow,
     ProposalItem, RowItem, RuleSummaryItem, SlintCollectionFilterItem,
-    SlintExternalAppItem, TabItem, TabRowItem,
+    SlintCollectionTabGroup, SlintExternalAppItem, TabItem, TabRowItem,
 };
 
 pub fn resolve_brush_color(key_or_hex: &str, state: &AppState) -> Color {
@@ -37,6 +37,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         state.active_view_name.as_deref().unwrap_or(""),
     ));
 
+    let is_filter_active = state.collection_filter_active;
     let mut collection_items: Vec<SlintCollectionFilterItem> = state
         .views_config
         .views
@@ -44,7 +45,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         .map(|v| SlintCollectionFilterItem {
             name: slint::SharedString::from(&v.name),
             file_count: v.files.len() as i32,
-            is_selected: state.selected_collections.contains(&v.name),
+            is_selected: is_filter_active && state.selected_collections.contains(&v.name),
             is_temporary: false,
         })
         .collect();
@@ -53,7 +54,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         collection_items.push(SlintCollectionFilterItem {
             name: slint::SharedString::from(&tc.name),
             file_count: tc.files.len() as i32,
-            is_selected: state.selected_collections.contains(&tc.name),
+            is_selected: is_filter_active && state.selected_collections.contains(&tc.name),
             is_temporary: true,
         });
     }
@@ -61,8 +62,10 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
     ui.set_has_temporary_collection(state.temp_collection.is_some());
     ui.set_collection_items(collection_items.to_slint_model());
 
-    let summary = if state.selected_collections.is_empty() {
+    let summary = if !is_filter_active {
         "Alle".to_string()
+    } else if state.selected_collections.is_empty() {
+        "Keine".to_string()
     } else if state.selected_collections.len() == 1 {
         state
             .selected_collections
@@ -153,6 +156,11 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         .map(|t| t.is_ods)
         .unwrap_or(false);
     ui.set_active_table_is_ods(is_ods_active);
+    let active_name = effective_active_id
+        .and_then(|id| state.tables.get(id))
+        .map(|t| t.display_name.as_str())
+        .unwrap_or("");
+    ui.set_active_table_name(slint::SharedString::from(active_name));
 
     let mut tab_items = Vec::new();
     let mut csv_tab_items = Vec::new();
@@ -215,7 +223,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         let mut cur_chars = 0;
         for tab in tabs {
             let tab_chars = tab.title.chars().count() + 16;
-            if !cur_row.is_empty() && (cur_row.len() >= 5 || (cur_chars + tab_chars > 80 && cur_row.len() >= 2)) {
+            if !cur_row.is_empty() && (cur_row.len() >= 6 || (cur_chars + tab_chars > 200 && cur_row.len() >= 4)) {
                 rows.push(TabRowItem { tabs: cur_row.to_slint_model() });
                 cur_row = Vec::new();
                 cur_chars = 0;
@@ -231,6 +239,133 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
 
     let csv_rows = chunk_tabs(&csv_tab_items);
     let ods_rows = chunk_tabs(&ods_tab_items);
+
+    // Build collection groups (Strict separation: Each collection in its own visual container)
+    let mut collection_map: Vec<(String, bool, Vec<TabItem>)> = Vec::new();
+    let active_collection_names: Vec<String> = if state.collection_filter_active && !state.selected_collections.is_empty() {
+        state.selected_collections.iter().cloned().collect()
+    } else {
+        let mut names: Vec<String> = state.views_config.views.iter().map(|v| v.name.clone()).collect();
+        if state.temp_collection.is_some() {
+            names.push("Temporäre Kollektion".to_string());
+        }
+        names
+    };
+
+    for coll_name in &active_collection_names {
+        let is_temp = coll_name == "Temporäre Kollektion";
+        let view_def = if is_temp {
+            state.temp_collection.as_ref()
+        } else {
+            state.views_config.views.iter().find(|v| v.name == *coll_name)
+        };
+
+        if let Some(v) = view_def {
+            let mut tabs_in_coll = Vec::new();
+            for (id, tbl) in &visible_tables {
+                if state.is_table_in_view(tbl, v) {
+                    let matches_mode = match state.active_view_mode {
+                        1 => !tbl.is_ods,
+                        2 => tbl.is_ods,
+                        _ => true,
+                    };
+                    if matches_mode {
+                        let is_tab_active = effective_active_id == Some(id.as_str());
+                        let error_count = tbl
+                            .rule_highlights
+                            .iter()
+                            .filter(|h| h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error)
+                            .count();
+                        tabs_in_coll.push(TabItem {
+                            id: slint::SharedString::from(*id),
+                            title: slint::SharedString::from(&tbl.display_name),
+                            is_dirty: tbl.is_dirty,
+                            error_count: error_count as i32,
+                            is_active: is_tab_active,
+                            is_ods: tbl.is_ods,
+                            file_type: slint::SharedString::from(if tbl.is_ods { "ODS" } else { "CSV" }),
+                            tab_index: tabs_in_coll.len() as i32,
+                            total_tabs: 0,
+                        });
+                    }
+                }
+            }
+            if !tabs_in_coll.is_empty() {
+                let total = tabs_in_coll.len() as i32;
+                for t in &mut tabs_in_coll {
+                    t.total_tabs = total;
+                }
+                collection_map.push((coll_name.clone(), is_temp, tabs_in_coll));
+            }
+        }
+    }
+
+    // Check if any visible tables are unassigned to any collection group
+    let assigned_ids: std::collections::HashSet<String> = collection_map
+        .iter()
+        .flat_map(|(_, _, tabs)| tabs.iter().map(|t| t.id.to_string()))
+        .collect();
+
+    let mut collection_group_items: Vec<SlintCollectionTabGroup> = collection_map
+        .into_iter()
+        .map(|(name, is_temp, tabs)| {
+            let count = tabs.len() as i32;
+            let rows = chunk_tabs(&tabs);
+            SlintCollectionTabGroup {
+                name: slint::SharedString::from(name),
+                is_temporary: is_temp,
+                tab_count: count,
+                tabs: tabs.to_slint_model(),
+                tab_rows: rows.to_slint_model(),
+            }
+        })
+        .collect();
+
+    let mut unassigned_tabs = Vec::new();
+    for (id, tbl) in &visible_tables {
+        if !assigned_ids.contains(*id) {
+            let matches_mode = match state.active_view_mode {
+                1 => !tbl.is_ods,
+                2 => tbl.is_ods,
+                _ => true,
+            };
+            if matches_mode {
+                let is_tab_active = effective_active_id == Some(id.as_str());
+                let error_count = tbl
+                    .rule_highlights
+                    .iter()
+                    .filter(|h| h.severity == configurable_csv_analyzer::core::model::HighlightSeverity::Error)
+                    .count();
+                unassigned_tabs.push(TabItem {
+                    id: slint::SharedString::from(*id),
+                    title: slint::SharedString::from(&tbl.display_name),
+                    is_dirty: tbl.is_dirty,
+                    error_count: error_count as i32,
+                    is_active: is_tab_active,
+                    is_ods: tbl.is_ods,
+                    file_type: slint::SharedString::from(if tbl.is_ods { "ODS" } else { "CSV" }),
+                    tab_index: unassigned_tabs.len() as i32,
+                    total_tabs: 0,
+                });
+            }
+        }
+    }
+    if !unassigned_tabs.is_empty() {
+        let total = unassigned_tabs.len() as i32;
+        for t in &mut unassigned_tabs {
+            t.total_tabs = total;
+        }
+        let rows = chunk_tabs(&unassigned_tabs);
+        collection_group_items.push(SlintCollectionTabGroup {
+            name: slint::SharedString::from("Weitere"),
+            is_temporary: false,
+            tab_count: total,
+            tabs: unassigned_tabs.to_slint_model(),
+            tab_rows: rows.to_slint_model(),
+        });
+    }
+
+    ui.set_collection_groups(collection_group_items.to_slint_model());
 
     ui.set_tabs(tab_items.to_slint_model());
     ui.set_csv_tabs(csv_tab_items.to_slint_model());
@@ -260,12 +395,29 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
             };
 
             let is_filtered = tbl.active_filters.get(&idx).map(|f| f.is_active()).unwrap_or(false);
+
+            let col_name_lower = h.to_lowercase();
+            let tbl_name_lower = tbl.display_name.to_lowercase();
+            let col_key = format!("{}::{}", tbl_name_lower, col_name_lower);
+
+            let col_width_from_view = state.active_view_name.as_ref().and_then(|vname| {
+                state.views_config.views.iter().find(|v| &v.name == vname).and_then(|v| {
+                    v.column_widths.get(&col_key).or_else(|| v.column_widths.get(h)).copied()
+                })
+            }).or_else(|| {
+                state.temp_collection.as_ref().and_then(|tv| {
+                    tv.column_widths.get(&col_key).or_else(|| tv.column_widths.get(h)).copied()
+                })
+            });
+
             let setting = tbl
                 .column_settings
                 .iter()
                 .find(|s| s.column_name.eq_ignore_ascii_case(h))
                 .or_else(|| tbl.column_settings.get(idx));
-            let width = setting.map(|s| s.width).unwrap_or(150) as f32;
+            let width = col_width_from_view
+                .or_else(|| setting.map(|s| s.width))
+                .unwrap_or(150) as f32;
 
             header_items.push(HeaderItem {
                 id: idx as i32,
@@ -276,7 +428,8 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
                 width,
             });
         }
-        ui.set_headers(header_items.to_slint_model());
+        state.headers_model.set_vec(header_items);
+        ui.set_headers(state.headers_model.clone().into());
 
         // Compute visible row indices
         let mut visible_indices = tbl.visible_row_indices(state.only_marked);
@@ -426,7 +579,8 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
             .collect();
         ui.set_proposals(ModelRc::new(VecModel::from(proposals)));
     } else {
-        ui.set_headers(ModelRc::new(VecModel::default()));
+        state.headers_model.set_vec(Vec::new());
+        ui.set_headers(state.headers_model.clone().into());
         ui.set_rows(ModelRc::new(VecModel::default()));
         ui.set_total_row_count(0);
         ui.set_marked_row_count(0);

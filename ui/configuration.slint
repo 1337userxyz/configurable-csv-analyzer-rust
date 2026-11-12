@@ -6,16 +6,21 @@ export struct SlintViewItem {
     is_default: bool,
     file_count: int,
     spreadsheet_path: string,
+    base_path: string,
     color_pattern: string,
     export_color_pattern: string,
 }
 
 export struct SlintViewFileItem {
     id: int,
+    file_name: string,
+    dir_path: string,
     relative_path: string,
     info_file_path: string,
     storage_mode: string,
     integrity_status: string,
+    can_relocate: bool,
+    expected_info_path: string,
 }
 
 export struct SlintBrushItem {
@@ -78,14 +83,22 @@ export component ConfigurationWindow inherits Window {
     // Views State
     in-out property <[SlintViewItem]> views: [];
     in-out property <int> selected_view_idx: 0;
+    in-out property <string> current_view_name: "";
     in-out property <[SlintViewFileItem]> current_view_files: [];
     in-out property <int> selected_file_idx: -1;
     in-out property <string> new_view_name_input: "";
     in-out property <string> current_spreadsheet_path: "";
+    in-out property <string> current_base_path: "";
     in-out property <string> current_color_pattern: "None";
     in-out property <string> current_export_color_pattern: "None";
 
+    // Rename modal
+    in-out property <bool> rename_modal_visible: false;
+    in-out property <string> rename_modal_input: "";
+    callback confirm_rename_modal(string);
+
     callback select_view(int);
+    callback view_name_edited(string);
     callback add_view_clicked(string);
     callback delete_view_clicked(int);
     callback set_default_view_clicked(int);
@@ -95,6 +108,9 @@ export component ConfigurationWindow inherits Window {
     callback create_spreadsheet_clicked();
     callback spreadsheet_path_edited(string);
     callback clear_spreadsheet_clicked();
+    callback browse_base_path_clicked();
+    callback scan_base_path_clicked();
+    callback base_path_edited(string);
     callback view_patterns_changed(string, string);
 
     callback add_csv_to_view_clicked();
@@ -104,6 +120,8 @@ export component ConfigurationWindow inherits Window {
     callback move_file_up(int);
     callback move_file_down(int);
     callback migrate_info_file_clicked(int);
+    callback relocate_info_file_clicked(int);
+    callback relocate_all_info_files_clicked();
     callback open_info_editor_for_file_clicked(int);
     callback diff_info_file_clicked(int);
 
@@ -369,10 +387,25 @@ export component ConfigurationWindow inherits Window {
                             }
                             Button {
                                 text: "Als Standard";
+                                enabled: root.views.length > 0;
                                 clicked => { root.set_default_view_clicked(root.selected_view_idx); }
                             }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px;
                             Button {
-                                text: "Löschen";
+                                horizontal-stretch: 1;
+                                text: "✏️ Umbenennen...";
+                                enabled: root.views.length > 0;
+                                clicked => {
+                                    root.rename_modal_input = root.current_view_name;
+                                    root.rename_modal_visible = true;
+                                }
+                            }
+                            Button {
+                                text: "🗑 Löschen";
+                                enabled: root.views.length > 0;
                                 clicked => { root.delete_view_clicked(root.selected_view_idx); }
                             }
                         }
@@ -391,7 +424,35 @@ export component ConfigurationWindow inherits Window {
                         padding: 14px;
                         spacing: 10px;
 
-                        // View Meta Settings
+                        // View Meta Settings (Name, ODS, Patterns)
+                        HorizontalLayout {
+                            spacing: 10px;
+
+                            Text {
+                                text: "🏷️ Kollektionsname:";
+                                font-weight: 600;
+                                color: #e2e8f0;
+                                vertical-alignment: center;
+                                width: 135px;
+                            }
+                            LineEdit {
+                                horizontal-stretch: 1;
+                                text <=> root.current_view_name;
+                                placeholder-text: "Name der Kollektion...";
+                                edited(s) => {
+                                    root.current_view_name = s;
+                                    root.view_name_edited(s);
+                                }
+                            }
+                            Button {
+                                text: "✏️ Umbenennen...";
+                                clicked => {
+                                    root.rename_modal_input = root.current_view_name;
+                                    root.rename_modal_visible = true;
+                                }
+                            }
+                        }
+
                         HorizontalLayout {
                             spacing: 10px;
 
@@ -399,6 +460,7 @@ export component ConfigurationWindow inherits Window {
                                 text: "Verknüpftes ODS:";
                                 color: #b0b0c4;
                                 vertical-alignment: center;
+                                width: 135px;
                             }
                             LineEdit {
                                 horizontal-stretch: 1;
@@ -421,6 +483,37 @@ export component ConfigurationWindow inherits Window {
                             Button {
                                 text: "Entfernen";
                                 clicked => { root.clear_spreadsheet_clicked(); }
+                            }
+                        }
+
+                        // Collection Base Path (Basispfad pro Kollektion & Scan-Funktion)
+                        HorizontalLayout {
+                            spacing: 10px;
+
+                            Text {
+                                text: "📁 Basispfad:";
+                                color: #b0b0c4;
+                                vertical-alignment: center;
+                                width: 135px;
+                            }
+                            LineEdit {
+                                horizontal-stretch: 1;
+                                text <=> root.current_base_path;
+                                placeholder-text: "Basispfad für diese Kollektion (z. B. C:/Daten/09G31)...";
+                                edited(s) => {
+                                    root.current_base_path = s;
+                                    root.base_path_edited(s);
+                                }
+                            }
+                            Button {
+                                text: "📂 Ordner wählen...";
+                                clicked => { root.browse_base_path_clicked(); }
+                            }
+                            Button {
+                                text: "🔍 Ordner scannen";
+                                primary: true;
+                                enabled: root.current_base_path != "";
+                                clicked => { root.scan_base_path_clicked(); }
                             }
                         }
 
@@ -483,6 +576,12 @@ export component ConfigurationWindow inherits Window {
                                     text: "Geöffnete Tabs übernehmen";
                                     clicked => { root.import_open_tabs_to_view_clicked(); }
                                 }
+                                Button {
+                                    text: "➜ Alle in Basispfad verschieben";
+                                    primary: true;
+                                    enabled: root.current_view_files.length > 0;
+                                    clicked => { root.relocate_all_info_files_clicked(); }
+                                }
                             }
                         }
 
@@ -497,10 +596,10 @@ export component ConfigurationWindow inherits Window {
                                 padding-right: 10px;
                                 spacing: 10px;
 
-                                Text { width: 260px; text: "Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 120px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 105px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { horizontal-stretch: 1; text: "Aktionen & Reihenfolge"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { horizontal-stretch: 1; text: "Dateiname & Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 110px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 125px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                                Text { width: 340px; text: "Aktionen & Reihenfolge"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; horizontal-alignment: right; }
                             }
                         }
 
@@ -510,14 +609,14 @@ export component ConfigurationWindow inherits Window {
                             VerticalLayout {
                                 spacing: 4px;
                                 for f[f_idx] in root.current_view_files: Rectangle {
-                                    height: 38px;
+                                    height: 46px;
                                     background: root.selected_file_idx == f_idx ? #2d3b59 : #232330;
                                     border-radius: 4px;
-                                    border-width: root.selected_file_idx == f_idx ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-width: root.selected_file_idx == f_idx ? 1.5px : 1px;
+                                    border-color: root.selected_file_idx == f_idx ? #60a5fa : #313145;
 
                                     TouchArea {
-                                        width: parent.width - 260px;
+                                        width: parent.width - 350px;
                                         clicked => { root.selected_file_idx = f_idx; }
                                     }
 
@@ -526,16 +625,28 @@ export component ConfigurationWindow inherits Window {
                                         padding-right: 8px;
                                         spacing: 10px;
 
-                                        Text {
-                                            width: 260px;
-                                            text: f.relative_path;
-                                            color: #ffffff;
-                                            overflow: elide;
-                                            vertical-alignment: center;
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            alignment: center;
+                                            spacing: 2px;
+
+                                            Text {
+                                                text: "📄 " + f.file_name;
+                                                font-weight: 600;
+                                                font-size: 13px;
+                                                color: #ffffff;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: f.relative_path;
+                                                font-size: 11px;
+                                                color: #94a3b8;
+                                                overflow: elide;
+                                            }
                                         }
 
                                         Text {
-                                            width: 120px;
+                                            width: 110px;
                                             text: f.storage_mode;
                                             color: #9fa8da;
                                             vertical-alignment: center;
@@ -545,15 +656,17 @@ export component ConfigurationWindow inherits Window {
                                         VerticalLayout {
                                             alignment: center;
                                             Rectangle {
-                                                width: 105px;
+                                                width: 125px;
                                                 height: 24px;
-                                                background: f.integrity_status == "Gültig" ? #1b382b : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d);
+                                                background: f.integrity_status == "Gültig" ? #1b382b : (f.can_relocate ? #451a03 : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d));
                                                 border-radius: 4px;
+                                                border-width: 1px;
+                                                border-color: f.integrity_status == "Gültig" ? #059669 : (f.can_relocate ? #d97706 : (f.integrity_status == "Info fehlt" ? #b45309 : #ef4444));
                                                 Text {
                                                     text: f.integrity_status;
                                                     font-size: 11px;
                                                     font-weight: 600;
-                                                    color: f.integrity_status == "Gültig" ? #66bb6a : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350);
+                                                    color: f.integrity_status == "Gültig" ? #6ee7b7 : (f.can_relocate ? #fcd34d : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350));
                                                     horizontal-alignment: center;
                                                     vertical-alignment: center;
                                                 }
@@ -562,7 +675,7 @@ export component ConfigurationWindow inherits Window {
 
                                         // Action buttons
                                         HorizontalLayout {
-                                            horizontal-stretch: 1;
+                                            width: 340px;
                                             spacing: 4px;
                                             alignment: end;
 
@@ -575,7 +688,25 @@ export component ConfigurationWindow inherits Window {
                                                 clicked => { root.diff_info_file_clicked(f_idx); }
                                             }
                                             Button {
-                                                text: "Migrieren";
+                                                text: root.selected_storage_mode == 0 ? (f.storage_mode == "KollektionsBasispfad" && !f.can_relocate ? "✓ Basispfad" : "➜ Basispfad") :
+                                                      root.selected_storage_mode == 1 ? (f.storage_mode == "Dateipfad" ? "✓ Dateipfad" : "➜ Dateipfad") :
+                                                      root.selected_storage_mode == 2 ? (f.storage_mode == "Stammverzeichnis" ? "✓ Stammverz." : "➜ Stammverz.") :
+                                                      root.selected_storage_mode == 3 ? (f.storage_mode == "Temporaer" ? "✓ Temporär" : "➜ Temporär") :
+                                                      (f.storage_mode == "BenutzerEntscheidet" ? "✓ Abfragen" : "➜ Abfragen");
+                                                primary: f.can_relocate || (
+                                                    root.selected_storage_mode == 0 ? (f.storage_mode != "KollektionsBasispfad" && f.storage_mode != "Standard") :
+                                                    root.selected_storage_mode == 1 ? f.storage_mode != "Dateipfad" :
+                                                    root.selected_storage_mode == 2 ? f.storage_mode != "Stammverzeichnis" :
+                                                    root.selected_storage_mode == 3 ? f.storage_mode != "Temporaer" :
+                                                    f.storage_mode != "BenutzerEntscheidet"
+                                                );
+                                                enabled: f.can_relocate || (
+                                                    root.selected_storage_mode == 0 ? (f.storage_mode != "KollektionsBasispfad" || f.can_relocate) :
+                                                    root.selected_storage_mode == 1 ? f.storage_mode != "Dateipfad" :
+                                                    root.selected_storage_mode == 2 ? f.storage_mode != "Stammverzeichnis" :
+                                                    root.selected_storage_mode == 3 ? f.storage_mode != "Temporaer" :
+                                                    f.storage_mode != "BenutzerEntscheidet"
+                                                );
                                                 clicked => { root.migrate_info_file_clicked(f_idx); }
                                             }
                                             Button {
@@ -595,6 +726,93 @@ export component ConfigurationWindow inherits Window {
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Selected File Detailed Path Inspector
+                        if root.selected_file_idx >= 0 && root.selected_file_idx < root.current_view_files.length: Rectangle {
+                            background: #171720;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: #313145;
+
+                            VerticalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                padding-top: 8px;
+                                padding-bottom: 8px;
+                                spacing: 6px;
+
+                                if root.current_view_files[root.selected_file_idx].can_relocate: Rectangle {
+                                    background: #3a1c06;
+                                    border-radius: 5px;
+                                    border-width: 1px;
+                                    border-color: #d97706;
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        padding-top: 8px;
+                                        padding-bottom: 8px;
+                                        spacing: 12px;
+                                        alignment: space-between;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            spacing: 2px;
+                                            Text {
+                                                text: "⚠️ Info-Datei folgt noch Option 2 (dezentral im Verzeichnis) und liegt nicht im Kollektions-Basispfad!";
+                                                color: #fef08a;
+                                                font-size: 11px;
+                                                font-weight: 700;
+                                            }
+                                            Text {
+                                                text: "Ziel im Basispfad: " + root.current_view_files[root.selected_file_idx].expected_info_path;
+                                                color: #cbd5e1;
+                                                font-size: 10px;
+                                            }
+                                        }
+
+                                        Button {
+                                            text: "In Kollektions-Basispfad verschieben";
+                                            primary: true;
+                                            clicked => { root.relocate_info_file_clicked(root.selected_file_idx); }
+                                        }
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text {
+                                        width: 120px;
+                                        text: "Vollständiger Pfad:";
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        color: #93c5fd;
+                                        vertical-alignment: center;
+                                    }
+                                    LineEdit {
+                                        horizontal-stretch: 1;
+                                        read-only: true;
+                                        text: root.current_view_files[root.selected_file_idx].relative_path;
+                                    }
+                                }
+                                if root.current_view_files[root.selected_file_idx].info_file_path != "": HorizontalLayout {
+                                    spacing: 8px;
+                                    Text {
+                                        width: 120px;
+                                        text: "Info-Datei Pfad:";
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        color: #a78bfa;
+                                        vertical-alignment: center;
+                                    }
+                                    LineEdit {
+                                        horizontal-stretch: 1;
+                                        read-only: true;
+                                        text: root.current_view_files[root.selected_file_idx].info_file_path;
                                     }
                                 }
                             }
@@ -623,7 +841,7 @@ export component ConfigurationWindow inherits Window {
                 VerticalLayout {
                     spacing: 12px;
 
-                    // Option 0: Dateipfad (Dezentral)
+                    // Option 0: Kollektions-Basispfad (Standard)
                     Rectangle {
                         height: 60px;
                         background: root.selected_storage_mode == 0 ? #27344e : #1c1c25;
@@ -643,13 +861,13 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 0; root.storage_mode_changed(0); }
                             }
                             VerticalLayout {
-                                Text { text: "1. Dateipfad (Dezentral - Standard)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Die .csv.info-Datei liegt immer direkt neben der CSV-Datei (z. B. switches.csv.info neben switches.csv)."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "1. Kollektions-Basispfad (Standard)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Die .csv.info-Datei wird im konfigurierten Basispfad der Kollektion gespeichert (Fallback: Dateipfad)."; font-size: 11px; color: #9c9cb2; }
                             }
                         }
                     }
 
-                    // Option 1: Stammverzeichnis (Zentral)
+                    // Option 1: Dateipfad (Dezentral)
                     Rectangle {
                         height: 60px;
                         background: root.selected_storage_mode == 1 ? #27344e : #1c1c25;
@@ -669,13 +887,13 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 1; root.storage_mode_changed(1); }
                             }
                             VerticalLayout {
-                                Text { text: "2. Stammverzeichnis (Zentral)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Alle .info-Dateien werden in einem zentralen Config-Verzeichnis gesammelt gespeichert."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "2. Dateipfad (Dezentral)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Die .csv.info-Datei liegt immer direkt neben der CSV-Datei (z. B. switches.csv.info neben switches.csv)."; font-size: 11px; color: #9c9cb2; }
                             }
                         }
                     }
 
-                    // Option 2: Temporaer
+                    // Option 2: Stammverzeichnis (Zentral)
                     Rectangle {
                         height: 60px;
                         background: root.selected_storage_mode == 2 ? #27344e : #1c1c25;
@@ -695,13 +913,13 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 2; root.storage_mode_changed(2); }
                             }
                             VerticalLayout {
-                                Text { text: "3. Temporär (Nur im Arbeitsspeicher)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Änderungen an Mappings & Regeln gelten nur für die laufende Sitzung und werden nicht auf Platte persistiert."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "3. Stammverzeichnis (Zentral)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Alle .info-Dateien werden in einem zentralen Config-Verzeichnis gesammelt gespeichert."; font-size: 11px; color: #9c9cb2; }
                             }
                         }
                     }
 
-                    // Option 3: BenutzerEntscheidet
+                    // Option 3: Temporaer
                     Rectangle {
                         height: 60px;
                         background: root.selected_storage_mode == 3 ? #27344e : #1c1c25;
@@ -721,8 +939,34 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 3; root.storage_mode_changed(3); }
                             }
                             VerticalLayout {
-                                Text { text: "4. Interaktive Benutzerabfrage"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert soll."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "4. Temporär (Nur im Arbeitsspeicher)"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Änderungen an Mappings & Regeln gelten nur für die laufende Sitzung und werden nicht auf Platte persistiert."; font-size: 11px; color: #9c9cb2; }
+                            }
+                        }
+                    }
+
+                    // Option 4: BenutzerEntscheidet
+                    Rectangle {
+                        height: 60px;
+                        background: root.selected_storage_mode == 4 ? #27344e : #1c1c25;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.selected_storage_mode == 4 ? #60a5fa : #36364a;
+
+                        TouchArea { clicked => { root.selected_storage_mode = 4; root.storage_mode_changed(4); } }
+
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 14px;
+
+                            CheckBox {
+                                text: "";
+                                checked: root.selected_storage_mode == 4;
+                                toggled => { root.selected_storage_mode = 4; root.storage_mode_changed(4); }
+                            }
+                            VerticalLayout {
+                                Text { text: "5. Interaktive Benutzerabfrage"; font-weight: 600; color: #ffffff; }
+                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert werden soll."; font-size: 11px; color: #9c9cb2; }
                             }
                         }
                     }
@@ -1282,6 +1526,76 @@ export component ConfigurationWindow inherits Window {
                 Button {
                     text: "Schließen";
                     clicked => { root.close_diff_modal(); }
+                }
+            }
+        }
+    }
+
+    // RENAME COLLECTION MODAL
+    if root.rename_modal_visible: Rectangle {
+        background: #000000bb;
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+        TouchArea {
+            // Absorb background clicks
+        }
+
+        Rectangle {
+            width: 460px;
+            height: 195px;
+            background: #252530;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #444458;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+
+                Text {
+                    text: "🏷️ Kollektion umbenennen";
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #ffffff;
+                }
+
+                Text {
+                    text: "Neuen Namen für die ausgewählte Kollektion eingeben:";
+                    color: #9fa8da;
+                    font-size: 12px;
+                }
+
+                LineEdit {
+                    text <=> root.rename_modal_input;
+                    placeholder-text: "Name der Kollektion...";
+                    accepted => {
+                        if root.rename_modal_input != "" {
+                            root.confirm_rename_modal(root.rename_modal_input);
+                            root.rename_modal_visible = false;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: end;
+
+                    Button {
+                        text: "Abbrechen";
+                        clicked => {
+                            root.rename_modal_visible = false;
+                        }
+                    }
+
+                    Button {
+                        text: "✓ Umbenennen";
+                        primary: true;
+                        enabled: root.rename_modal_input != "";
+                        clicked => {
+                            root.confirm_rename_modal(root.rename_modal_input);
+                            root.rename_modal_visible = false;
+                        }
+                    }
                 }
             }
         }

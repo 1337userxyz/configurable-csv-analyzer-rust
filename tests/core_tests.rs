@@ -141,7 +141,7 @@ fn test_rule_engine_group_validation_and_joins() {
 #[test]
 fn test_app_config_and_brushes() {
     let mut config = AppConfig::default();
-    assert_eq!(config.selected_storage_mode, InfoFileStorageMode::Dateipfad);
+    assert_eq!(config.selected_storage_mode, InfoFileStorageMode::KollektionsBasispfad);
     assert!(config.brushes.len() >= 20);
     assert_eq!(config.find_brush_hex("ErrorBrush"), Some("#ef5350"));
 
@@ -579,6 +579,95 @@ fn test_multi_sheet_ods_unique_ids() {
     assert!(loaded_b.id.ends_with("::Tabelle B"));
     assert_eq!(loaded_a.headers, vec!["Col1", "Col2"]);
     assert_eq!(loaded_b.headers, vec!["X", "Y"]);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_relocate_all_and_migrate_to_selected_mode() {
+    use configurable_csv_analyzer::core::io::info::move_info_file;
+    use configurable_csv_analyzer::core::model::{InfoFileStorageMode, ViewDefinition, ViewFileItem};
+
+    let dir = std::env::temp_dir().join("test_relocate_all");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let csv_dir = dir.join("csv_files");
+    let base_dir = dir.join("collection_base");
+    let central_dir = dir.join("central_configs");
+    std::fs::create_dir_all(&csv_dir).unwrap();
+    std::fs::create_dir_all(&base_dir).unwrap();
+    std::fs::create_dir_all(&central_dir).unwrap();
+
+    // Create a CSV and an info file in central
+    let csv1 = csv_dir.join("table1.csv");
+    std::fs::write(&csv1, "a,b\n1,2\n").unwrap();
+    let info1 = central_dir.join("table1.csv.info");
+    std::fs::write(&info1, "{}").unwrap();
+
+    // Create a CSV without an info file
+    let csv2 = csv_dir.join("table2.csv");
+    std::fs::write(&csv2, "x,y\n3,4\n").unwrap();
+
+    let mut view = ViewDefinition {
+        name: "TestView".to_string(),
+        is_default_view: true,
+        files: vec![
+            ViewFileItem {
+                relative_path: csv1.to_string_lossy().to_string(),
+                full_path: Some(csv1.to_string_lossy().to_string()),
+                info_file_path: Some(info1.to_string_lossy().to_string()),
+                storage_mode: Some("Stammverzeichnis".to_string()),
+            },
+            ViewFileItem {
+                relative_path: csv2.to_string_lossy().to_string(),
+                full_path: Some(csv2.to_string_lossy().to_string()),
+                info_file_path: None,
+                storage_mode: Some("Dateipfad".to_string()),
+            },
+        ],
+        spreadsheet_path: None,
+        base_path: Some(base_dir.to_string_lossy().to_string()),
+        color_pattern: None,
+        export_color_pattern: None,
+        export_paths: vec![],
+        column_widths: Default::default(),
+    };
+
+    // Simulate "Alle in Basispfad verschieben":
+    let target_mode = InfoFileStorageMode::KollektionsBasispfad;
+    for f in view.files.iter_mut() {
+        let csv_p = std::path::PathBuf::from(&f.relative_path);
+        let f_name = csv_p.file_name().unwrap().to_string_lossy();
+        let expected = base_dir.join(format!("{}.info", f_name));
+
+        let current_p = f
+            .info_file_path
+            .as_ref()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                configurable_csv_analyzer::core::io::info::default_info_path_for_table(&csv_p)
+            });
+
+        if current_p.exists() && current_p != expected {
+            let _ = move_info_file(&csv_p, &current_p, &target_mode, &central_dir, Some(&base_dir));
+        }
+
+        f.info_file_path = Some(expected.to_string_lossy().to_string());
+        f.storage_mode = Some(target_mode.as_str().to_string());
+    }
+
+    // Verify file 1 was moved to base_dir
+    assert!(base_dir.join("table1.csv.info").exists());
+    assert!(!central_dir.join("table1.csv.info").exists());
+    assert_eq!(view.files[0].storage_mode, Some("KollektionsBasispfad".to_string()));
+
+    // Verify file 2 has target expected path and KollektionsBasispfad mode set even though info didn't exist yet
+    assert_eq!(view.files[1].storage_mode, Some("KollektionsBasispfad".to_string()));
+    assert_eq!(
+        view.files[1].info_file_path,
+        Some(base_dir.join("table2.csv.info").to_string_lossy().to_string())
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

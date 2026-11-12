@@ -93,7 +93,11 @@ pub fn load_views_file(path: &Path) -> Result<ViewsFile, Box<dyn std::error::Err
     let mut f = File::open(path)?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    let views: ViewsFile = serde_json::from_str(&s)?;
+    let mut views: ViewsFile = serde_json::from_str(&s)?;
+    for v in &mut views.views {
+        let mut seen = std::collections::HashSet::new();
+        v.files.retain(|f| seen.insert(f.relative_path.to_lowercase()));
+    }
     Ok(views)
 }
 
@@ -137,14 +141,29 @@ pub fn check_file_integrity(csv_path_str: &str, info_path_str: Option<&str>, bas
     "Gültig".to_string()
 }
 
-/// Move/migrate an info file between central folder and decentralized beside CSV
+/// Move/migrate an info file between central folder, collection base path, and decentralized beside CSV
 pub fn move_info_file(
     csv_path: &Path,
     current_info_path: &Path,
     target_mode: &InfoFileStorageMode,
     central_dir: &Path,
+    collection_base_dir: Option<&Path>,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let target_path = match target_mode {
+        InfoFileStorageMode::KollektionsBasispfad => {
+            if let Some(base) = collection_base_dir {
+                if !base.exists() {
+                    let _ = std::fs::create_dir_all(base);
+                }
+                let file_name = csv_path
+                    .file_name()
+                    .map(|f| format!("{}.info", f.to_string_lossy()))
+                    .unwrap_or_else(|| "unnamed.csv.info".to_string());
+                base.join(file_name)
+            } else {
+                default_info_path_for_table(csv_path)
+            }
+        }
         InfoFileStorageMode::Dateipfad => default_info_path_for_table(csv_path),
         InfoFileStorageMode::Stammverzeichnis => {
             if !central_dir.exists() {
