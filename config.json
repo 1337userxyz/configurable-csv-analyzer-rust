@@ -137,5 +137,6 @@
       "Arguments": ""
     }
   ],
-  "TabsMultiline": false
+  "TabsMultiline": false,
+  "Theme": "light"
 }

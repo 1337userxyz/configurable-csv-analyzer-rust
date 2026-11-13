@@ -83,22 +83,22 @@
       "ExportColorPattern": "None",
       "ExportPaths": [],
       "ColumnWidths": {
-        "patchpanel_switch_connection::network_segment": 151,
-        "room_outlet_map::endport": 88,
-        "room_outlet_map::doc_device": 78,
+        "topology::via_infrastructure": 154,
+        "room_outlet_map::building": 104,
         "topology::target_device": 153,
-        "room_outlet_map::outlet": 94,
-        "room_outlet_map::network_segment": 81,
-        "assets::ip": 174,
-        "topology::target_rack": 151,
-        "topology::target_port": 147,
         "room_outlet_map::room": 94,
         "room_outlet_map::room_type": 113,
         "room_outlet_map::rack": 100,
-        "room_outlet_map::building": 104,
-        "topology::source_port": 150,
+        "topology::target_rack": 151,
+        "room_outlet_map::network_segment": 81,
+        "room_outlet_map::doc_device": 78,
         "room_outlet_map::startport": 90,
-        "topology::via_infrastructure": 154
+        "patchpanel_switch_connection::network_segment": 151,
+        "topology::target_port": 147,
+        "room_outlet_map::outlet": 94,
+        "room_outlet_map::endport": 88,
+        "topology::source_port": 150,
+        "assets::ip": 174
       }
     }
   ]

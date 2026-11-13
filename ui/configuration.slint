@@ -1,4 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+import { AppTheme, KitThemeSelector } from "@kit-theme";
 
 export struct SlintViewItem {
     id: int,
@@ -43,14 +44,14 @@ component ConfigDeleteButton inherits Rectangle {
 
     width: 28px;
     height: 28px;
-    border-radius: 5px;
-    background: ta.has-hover ? #dc2626 : #352227;
+    border-radius: AppTheme.radius-sm;
+    background: ta.has-hover ? AppTheme.danger : AppTheme.danger-bg;
     border-width: 1px;
-    border-color: ta.has-hover ? #f87171 : #5c2b33;
+    border-color: ta.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
 
     Text {
         text: "✕";
-        color: ta.has-hover ? #ffffff : #fca5a5;
+        color: ta.has-hover ? AppTheme.accent-fg : AppTheme.danger;
         font-size: 12px;
         font-weight: 700;
         horizontal-alignment: center;
@@ -69,9 +70,13 @@ export component ConfigurationWindow inherits Window {
     min-height: 680px;
     preferred-width: 1060px;
     preferred-height: 720px;
-    background: #1e1e24;
+    background: AppTheme.bg-canvas;
     default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
-    default-font-size: 13px;
+    default-font-size: AppTheme.font-size-md;
+
+    // Theme State
+    in-out property <string> current_theme: "system";
+    callback theme_changed(string);
 
     // Callbacks to Rust
     callback save_and_close_clicked();
@@ -182,10 +187,10 @@ export component ConfigurationWindow inherits Window {
         // TOP HEADER
         Rectangle {
             height: 48px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             HorizontalLayout {
                 padding-left: 16px;
@@ -199,18 +204,18 @@ export component ConfigurationWindow inherits Window {
                         text: "⚙ Hauptkonfiguration";
                         font-size: 16px;
                         font-weight: 700;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                         vertical-alignment: center;
                     }
                     Text {
                         text: "|";
-                        color: #55556a;
+                        color: AppTheme.text-muted;
                         vertical-alignment: center;
                     }
                     Text {
                         text: "Kollektionen (Views), Speicherorte, Farbkatalog & System";
                         font-size: 12px;
-                        color: #9e9eb4;
+                        color: AppTheme.text-secondary;
                         vertical-alignment: center;
                     }
                 }
@@ -252,10 +257,10 @@ export component ConfigurationWindow inherits Window {
         // MAIN CONTENT BODY (Switched by active_nav_tab)
         Rectangle {
             vertical-stretch: 1;
-            background: #22222b;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             // TAB 0: ANSICHTEN & PFADE ("VIEWS")
             if root.active_nav_tab == 0: HorizontalLayout {
@@ -265,10 +270,10 @@ export component ConfigurationWindow inherits Window {
                 // Left: List of Views
                 Rectangle {
                     width: 290px;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 12px;
@@ -277,7 +282,7 @@ export component ConfigurationWindow inherits Window {
                         Text {
                             text: "Kollektionen / Ansichten (Views)";
                             font-weight: 600;
-                            color: #ffffff;
+                            color: AppTheme.text-primary;
                         }
 
                         // Add view row
@@ -316,10 +321,10 @@ export component ConfigurationWindow inherits Window {
                                 spacing: 4px;
                                 for v[idx] in root.views: Rectangle {
                                     height: 38px;
-                                    background: root.selected_view_idx == idx ? #2d3b59 : #242431;
+                                    background: root.selected_view_idx == idx ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 5px;
                                     border-width: root.selected_view_idx == idx ? 1.5px : 1px;
-                                    border-color: root.selected_view_idx == idx ? #60a5fa : #353549;
+                                    border-color: root.selected_view_idx == idx ? AppTheme.accent : AppTheme.border;
 
                                     TouchArea {
                                         clicked => {
@@ -339,7 +344,7 @@ export component ConfigurationWindow inherits Window {
                                             Text {
                                                 text: v.name;
                                                 font-weight: root.selected_view_idx == idx ? 600 : 400;
-                                                color: root.selected_view_idx == idx ? #ffffff : #d0d0e0;
+                                                color: AppTheme.text-primary;
                                                 vertical-alignment: center;
                                                 overflow: elide;
                                             }
@@ -348,12 +353,12 @@ export component ConfigurationWindow inherits Window {
                                                 Rectangle {
                                                     width: 54px;
                                                     height: 18px;
-                                                    background: #1e3a2f;
+                                                    background: AppTheme.success-bg;
                                                     border-radius: 3px;
                                                     Text {
                                                         text: "Standard";
                                                         font-size: 10px;
-                                                        color: #66bb6a;
+                                                        color: AppTheme.success;
                                                         horizontal-alignment: center;
                                                         vertical-alignment: center;
                                                     }
@@ -364,7 +369,7 @@ export component ConfigurationWindow inherits Window {
                                         Text {
                                             text: v.file_count + " Tab.";
                                             font-size: 11px;
-                                            color: #8c8ca0;
+                                            color: AppTheme.text-muted;
                                             vertical-alignment: center;
                                         }
                                     }
@@ -415,10 +420,10 @@ export component ConfigurationWindow inherits Window {
                 // Right: Details & Files of selected view
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 14px;
@@ -431,7 +436,7 @@ export component ConfigurationWindow inherits Window {
                             Text {
                                 text: "🏷️ Kollektionsname:";
                                 font-weight: 600;
-                                color: #e2e8f0;
+                                color: AppTheme.text-primary;
                                 vertical-alignment: center;
                                 width: 135px;
                             }
@@ -458,7 +463,7 @@ export component ConfigurationWindow inherits Window {
 
                             Text {
                                 text: "Verknüpftes ODS:";
-                                color: #b0b0c4;
+                                color: AppTheme.text-secondary;
                                 vertical-alignment: center;
                                 width: 135px;
                             }
@@ -492,7 +497,7 @@ export component ConfigurationWindow inherits Window {
 
                             Text {
                                 text: "📁 Basispfad:";
-                                color: #b0b0c4;
+                                color: AppTheme.text-secondary;
                                 vertical-alignment: center;
                                 width: 135px;
                             }
@@ -523,7 +528,7 @@ export component ConfigurationWindow inherits Window {
 
                             HorizontalLayout {
                                 spacing: 8px;
-                                Text { text: "Farbmuster Grid:"; color: #b0b0c4; vertical-alignment: center; }
+                                Text { text: "Farbmuster Grid:"; color: AppTheme.text-secondary; vertical-alignment: center; }
                                 ComboBox {
                                     width: 160px;
                                     model: ["None", "Original", "OriginalPlusZebra", "Zebra"];
@@ -537,7 +542,7 @@ export component ConfigurationWindow inherits Window {
 
                             HorizontalLayout {
                                 spacing: 8px;
-                                Text { text: "Export-Farbmuster:"; color: #b0b0c4; vertical-alignment: center; }
+                                Text { text: "Export-Farbmuster:"; color: AppTheme.text-secondary; vertical-alignment: center; }
                                 ComboBox {
                                     width: 160px;
                                     model: ["None", "Original", "OriginalPlusZebra", "Zebra"];
@@ -550,7 +555,7 @@ export component ConfigurationWindow inherits Window {
                             }
                         }
 
-                        Rectangle { height: 1px; background: #333346; }
+                        Rectangle { height: 1px; background: AppTheme.border; }
 
                         // Files in View header
                         HorizontalLayout {
@@ -558,7 +563,7 @@ export component ConfigurationWindow inherits Window {
                             Text {
                                 text: "Zugeordnete Tabellendateien (Reihenfolge = Tabs im Hauptfenster):";
                                 font-weight: 600;
-                                color: #ffffff;
+                                color: AppTheme.text-primary;
                                 vertical-alignment: center;
                             }
                             HorizontalLayout {
@@ -588,18 +593,18 @@ export component ConfigurationWindow inherits Window {
                         // Files Table Header
                         Rectangle {
                             height: 28px;
-                            background: #252533;
-                            border-radius: 4px;
+                            background: AppTheme.bg-subtle;
+                            border-radius: AppTheme.radius-sm;
 
                             HorizontalLayout {
                                 padding-left: 10px;
                                 padding-right: 10px;
                                 spacing: 10px;
 
-                                Text { horizontal-stretch: 1; text: "Dateiname & Dateipfad"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 110px; text: "Speichermodus"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 125px; text: "Status"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                                Text { width: 340px; text: "Aktionen & Reihenfolge"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; horizontal-alignment: right; }
+                                Text { horizontal-stretch: 1; text: "Dateiname & Dateipfad"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                                Text { width: 110px; text: "Speichermodus"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                                Text { width: 125px; text: "Status"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                                Text { width: 340px; text: "Aktionen & Reihenfolge"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; horizontal-alignment: right; }
                             }
                         }
 
@@ -610,10 +615,10 @@ export component ConfigurationWindow inherits Window {
                                 spacing: 4px;
                                 for f[f_idx] in root.current_view_files: Rectangle {
                                     height: 46px;
-                                    background: root.selected_file_idx == f_idx ? #2d3b59 : #232330;
-                                    border-radius: 4px;
+                                    background: root.selected_file_idx == f_idx ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                                    border-radius: AppTheme.radius-sm;
                                     border-width: root.selected_file_idx == f_idx ? 1.5px : 1px;
-                                    border-color: root.selected_file_idx == f_idx ? #60a5fa : #313145;
+                                    border-color: root.selected_file_idx == f_idx ? AppTheme.accent : AppTheme.border;
 
                                     TouchArea {
                                         width: parent.width - 350px;
@@ -634,13 +639,13 @@ export component ConfigurationWindow inherits Window {
                                                 text: "📄 " + f.file_name;
                                                 font-weight: 600;
                                                 font-size: 13px;
-                                                color: #ffffff;
+                                                color: AppTheme.text-primary;
                                                 overflow: elide;
                                             }
                                             Text {
                                                 text: f.relative_path;
                                                 font-size: 11px;
-                                                color: #94a3b8;
+                                                color: AppTheme.text-muted;
                                                 overflow: elide;
                                             }
                                         }
@@ -648,7 +653,7 @@ export component ConfigurationWindow inherits Window {
                                         Text {
                                             width: 110px;
                                             text: f.storage_mode;
-                                            color: #9fa8da;
+                                            color: AppTheme.text-secondary;
                                             vertical-alignment: center;
                                         }
 
@@ -658,15 +663,15 @@ export component ConfigurationWindow inherits Window {
                                             Rectangle {
                                                 width: 125px;
                                                 height: 24px;
-                                                background: f.integrity_status == "Gültig" ? #1b382b : (f.can_relocate ? #451a03 : (f.integrity_status == "Info fehlt" ? #3e3215 : #3f1d1d));
-                                                border-radius: 4px;
+                                                background: f.integrity_status == "Gültig" ? AppTheme.success-bg : ((f.can_relocate || f.integrity_status == "Info fehlt") ? AppTheme.warning-bg : AppTheme.danger-bg);
+                                                border-radius: AppTheme.radius-sm;
                                                 border-width: 1px;
-                                                border-color: f.integrity_status == "Gültig" ? #059669 : (f.can_relocate ? #d97706 : (f.integrity_status == "Info fehlt" ? #b45309 : #ef4444));
+                                                border-color: f.integrity_status == "Gültig" ? AppTheme.success : ((f.can_relocate || f.integrity_status == "Info fehlt") ? AppTheme.warning : AppTheme.danger);
                                                 Text {
                                                     text: f.integrity_status;
                                                     font-size: 11px;
                                                     font-weight: 600;
-                                                    color: f.integrity_status == "Gültig" ? #6ee7b7 : (f.can_relocate ? #fcd34d : (f.integrity_status == "Info fehlt" ? #ffb74d : #ef5350));
+                                                    color: f.integrity_status == "Gültig" ? AppTheme.success : ((f.can_relocate || f.integrity_status == "Info fehlt") ? AppTheme.warning : AppTheme.danger);
                                                     horizontal-alignment: center;
                                                     vertical-alignment: center;
                                                 }
@@ -733,10 +738,10 @@ export component ConfigurationWindow inherits Window {
 
                         // Selected File Detailed Path Inspector
                         if root.selected_file_idx >= 0 && root.selected_file_idx < root.current_view_files.length: Rectangle {
-                            background: #171720;
-                            border-radius: 6px;
+                            background: AppTheme.bg-subtle;
+                            border-radius: AppTheme.radius-md;
                             border-width: 1px;
-                            border-color: #313145;
+                            border-color: AppTheme.border;
 
                             VerticalLayout {
                                 padding-left: 12px;
@@ -746,10 +751,10 @@ export component ConfigurationWindow inherits Window {
                                 spacing: 6px;
 
                                 if root.current_view_files[root.selected_file_idx].can_relocate: Rectangle {
-                                    background: #3a1c06;
+                                    background: AppTheme.warning-bg;
                                     border-radius: 5px;
                                     border-width: 1px;
-                                    border-color: #d97706;
+                                    border-color: AppTheme.warning;
 
                                     HorizontalLayout {
                                         padding-left: 10px;
@@ -764,13 +769,13 @@ export component ConfigurationWindow inherits Window {
                                             spacing: 2px;
                                             Text {
                                                 text: "⚠️ Info-Datei folgt noch Option 2 (dezentral im Verzeichnis) und liegt nicht im Kollektions-Basispfad!";
-                                                color: #fef08a;
+                                                color: AppTheme.warning;
                                                 font-size: 11px;
                                                 font-weight: 700;
                                             }
                                             Text {
                                                 text: "Ziel im Basispfad: " + root.current_view_files[root.selected_file_idx].expected_info_path;
-                                                color: #cbd5e1;
+                                                color: AppTheme.text-secondary;
                                                 font-size: 10px;
                                             }
                                         }
@@ -790,7 +795,7 @@ export component ConfigurationWindow inherits Window {
                                         text: "Vollständiger Pfad:";
                                         font-size: 11px;
                                         font-weight: 600;
-                                        color: #93c5fd;
+                                        color: AppTheme.accent;
                                         vertical-alignment: center;
                                     }
                                     LineEdit {
@@ -806,7 +811,7 @@ export component ConfigurationWindow inherits Window {
                                         text: "Info-Datei Pfad:";
                                         font-size: 11px;
                                         font-weight: 600;
-                                        color: #a78bfa;
+                                        color: AppTheme.info;
                                         vertical-alignment: center;
                                     }
                                     LineEdit {
@@ -830,12 +835,12 @@ export component ConfigurationWindow inherits Window {
                     text: "Globale Speichermodi für Konfigurationsdateien (*.csv.info)";
                     font-size: 15px;
                     font-weight: 700;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: "Bestimmt, wo das System beim Laden oder Speichern von CSV-Dateien nach der zugehörigen .info-Konfiguration sucht:";
-                    color: #b0b0c2;
+                    color: AppTheme.text-secondary;
                 }
 
                 VerticalLayout {
@@ -844,10 +849,10 @@ export component ConfigurationWindow inherits Window {
                     // Option 0: Kollektions-Basispfad (Standard)
                     Rectangle {
                         height: 60px;
-                        background: root.selected_storage_mode == 0 ? #27344e : #1c1c25;
-                        border-radius: 6px;
+                        background: root.selected_storage_mode == 0 ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                        border-radius: AppTheme.radius-md;
                         border-width: 1px;
-                        border-color: root.selected_storage_mode == 0 ? #60a5fa : #36364a;
+                        border-color: root.selected_storage_mode == 0 ? AppTheme.accent : AppTheme.border;
 
                         TouchArea { clicked => { root.selected_storage_mode = 0; root.storage_mode_changed(0); } }
 
@@ -861,8 +866,8 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 0; root.storage_mode_changed(0); }
                             }
                             VerticalLayout {
-                                Text { text: "1. Kollektions-Basispfad (Standard)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Die .csv.info-Datei wird im konfigurierten Basispfad der Kollektion gespeichert (Fallback: Dateipfad)."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "1. Kollektions-Basispfad (Standard)"; font-weight: 600; color: AppTheme.text-primary; }
+                                Text { text: "Die .csv.info-Datei wird im konfigurierten Basispfad der Kollektion gespeichert (Fallback: Dateipfad)."; font-size: 11px; color: AppTheme.text-secondary; }
                             }
                         }
                     }
@@ -870,10 +875,10 @@ export component ConfigurationWindow inherits Window {
                     // Option 1: Dateipfad (Dezentral)
                     Rectangle {
                         height: 60px;
-                        background: root.selected_storage_mode == 1 ? #27344e : #1c1c25;
-                        border-radius: 6px;
+                        background: root.selected_storage_mode == 1 ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                        border-radius: AppTheme.radius-md;
                         border-width: 1px;
-                        border-color: root.selected_storage_mode == 1 ? #60a5fa : #36364a;
+                        border-color: root.selected_storage_mode == 1 ? AppTheme.accent : AppTheme.border;
 
                         TouchArea { clicked => { root.selected_storage_mode = 1; root.storage_mode_changed(1); } }
 
@@ -887,8 +892,8 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 1; root.storage_mode_changed(1); }
                             }
                             VerticalLayout {
-                                Text { text: "2. Dateipfad (Dezentral)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Die .csv.info-Datei liegt immer direkt neben der CSV-Datei (z. B. switches.csv.info neben switches.csv)."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "2. Dateipfad (Dezentral)"; font-weight: 600; color: AppTheme.text-primary; }
+                                Text { text: "Die .csv.info-Datei liegt immer direkt neben der CSV-Datei (z. B. switches.csv.info neben switches.csv)."; font-size: 11px; color: AppTheme.text-secondary; }
                             }
                         }
                     }
@@ -896,10 +901,10 @@ export component ConfigurationWindow inherits Window {
                     // Option 2: Stammverzeichnis (Zentral)
                     Rectangle {
                         height: 60px;
-                        background: root.selected_storage_mode == 2 ? #27344e : #1c1c25;
-                        border-radius: 6px;
+                        background: root.selected_storage_mode == 2 ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                        border-radius: AppTheme.radius-md;
                         border-width: 1px;
-                        border-color: root.selected_storage_mode == 2 ? #60a5fa : #36364a;
+                        border-color: root.selected_storage_mode == 2 ? AppTheme.accent : AppTheme.border;
 
                         TouchArea { clicked => { root.selected_storage_mode = 2; root.storage_mode_changed(2); } }
 
@@ -913,8 +918,8 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 2; root.storage_mode_changed(2); }
                             }
                             VerticalLayout {
-                                Text { text: "3. Stammverzeichnis (Zentral)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Alle .info-Dateien werden in einem zentralen Config-Verzeichnis gesammelt gespeichert."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "3. Stammverzeichnis (Zentral)"; font-weight: 600; color: AppTheme.text-primary; }
+                                Text { text: "Alle .info-Dateien werden in einem zentralen Config-Verzeichnis gesammelt gespeichert."; font-size: 11px; color: AppTheme.text-secondary; }
                             }
                         }
                     }
@@ -922,10 +927,10 @@ export component ConfigurationWindow inherits Window {
                     // Option 3: Temporaer
                     Rectangle {
                         height: 60px;
-                        background: root.selected_storage_mode == 3 ? #27344e : #1c1c25;
-                        border-radius: 6px;
+                        background: root.selected_storage_mode == 3 ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                        border-radius: AppTheme.radius-md;
                         border-width: 1px;
-                        border-color: root.selected_storage_mode == 3 ? #60a5fa : #36364a;
+                        border-color: root.selected_storage_mode == 3 ? AppTheme.accent : AppTheme.border;
 
                         TouchArea { clicked => { root.selected_storage_mode = 3; root.storage_mode_changed(3); } }
 
@@ -939,8 +944,8 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 3; root.storage_mode_changed(3); }
                             }
                             VerticalLayout {
-                                Text { text: "4. Temporär (Nur im Arbeitsspeicher)"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Änderungen an Mappings & Regeln gelten nur für die laufende Sitzung und werden nicht auf Platte persistiert."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "4. Temporär (Nur im Arbeitsspeicher)"; font-weight: 600; color: AppTheme.text-primary; }
+                                Text { text: "Änderungen an Mappings & Regeln gelten nur für die laufende Sitzung und werden nicht auf Platte persistiert."; font-size: 11px; color: AppTheme.text-secondary; }
                             }
                         }
                     }
@@ -948,10 +953,10 @@ export component ConfigurationWindow inherits Window {
                     // Option 4: BenutzerEntscheidet
                     Rectangle {
                         height: 60px;
-                        background: root.selected_storage_mode == 4 ? #27344e : #1c1c25;
-                        border-radius: 6px;
+                        background: root.selected_storage_mode == 4 ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                        border-radius: AppTheme.radius-md;
                         border-width: 1px;
-                        border-color: root.selected_storage_mode == 4 ? #60a5fa : #36364a;
+                        border-color: root.selected_storage_mode == 4 ? AppTheme.accent : AppTheme.border;
 
                         TouchArea { clicked => { root.selected_storage_mode = 4; root.storage_mode_changed(4); } }
 
@@ -965,14 +970,14 @@ export component ConfigurationWindow inherits Window {
                                 toggled => { root.selected_storage_mode = 4; root.storage_mode_changed(4); }
                             }
                             VerticalLayout {
-                                Text { text: "5. Interaktive Benutzerabfrage"; font-weight: 600; color: #ffffff; }
-                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert werden soll."; font-size: 11px; color: #9c9cb2; }
+                                Text { text: "5. Interaktive Benutzerabfrage"; font-weight: 600; color: AppTheme.text-primary; }
+                                Text { text: "Beim Öffnen einer neuen CSV-Datei fragt das System interaktiv, wo die Konfiguration gespeichert werden soll."; font-size: 11px; color: AppTheme.text-secondary; }
                             }
                         }
                     }
                 }
 
-                Rectangle { height: 1px; background: #333346; }
+                Rectangle { height: 1px; background: AppTheme.border; }
 
                 // Central Directory Config
                 VerticalLayout {
@@ -980,7 +985,7 @@ export component ConfigurationWindow inherits Window {
                     Text {
                         text: "Zentrales Konfigurationsverzeichnis (für Modus Stammverzeichnis):";
                         font-weight: 600;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                     }
                     HorizontalLayout {
                         spacing: 8px;
@@ -1010,10 +1015,10 @@ export component ConfigurationWindow inherits Window {
                 // Left: Brushes list & search
                 Rectangle {
                     width: 480px;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 12px;
@@ -1024,11 +1029,11 @@ export component ConfigurationWindow inherits Window {
                             Text {
                                 text: "Farbkatalog (Brushes)";
                                 font-weight: 600;
-                                color: #ffffff;
+                                color: AppTheme.text-primary;
                             }
                             HorizontalLayout {
                                 spacing: 6px;
-                                Text { text: "Priorität:"; color: #9c9cb2; vertical-alignment: center; }
+                                Text { text: "Priorität:"; color: AppTheme.text-secondary; vertical-alignment: center; }
                                 LineEdit {
                                     width: 60px;
                                     text: root.marker_priority;
@@ -1053,10 +1058,10 @@ export component ConfigurationWindow inherits Window {
                                 spacing: 4px;
                                 for b[b_idx] in root.brushes: Rectangle {
                                     height: 36px;
-                                    background: root.selected_brush_idx == b_idx ? #2d3b59 : #242431;
-                                    border-radius: 4px;
+                                    background: root.selected_brush_idx == b_idx ? AppTheme.bg-selected : AppTheme.bg-subtle;
+                                    border-radius: AppTheme.radius-sm;
                                     border-width: root.selected_brush_idx == b_idx ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
 
                                     TouchArea {
                                         clicked => {
@@ -1079,7 +1084,7 @@ export component ConfigurationWindow inherits Window {
                                                 background: b.color;
                                                 border-radius: 3px;
                                                 border-width: 1px;
-                                                border-color: #ffffff44;
+                                                border-color: AppTheme.border-strong;
                                             }
                                         }
 
@@ -1087,7 +1092,7 @@ export component ConfigurationWindow inherits Window {
                                             width: 170px;
                                             text: b.key;
                                             font-weight: 600;
-                                            color: #ffffff;
+                                            color: AppTheme.text-primary;
                                             overflow: elide;
                                             vertical-alignment: center;
                                         }
@@ -1095,7 +1100,7 @@ export component ConfigurationWindow inherits Window {
                                         Text {
                                             width: 80px;
                                             text: b.hex_value;
-                                            color: #ffca28;
+                                            color: AppTheme.warning;
                                             font-family: "Consolas, Courier New, monospace";
                                             vertical-alignment: center;
                                         }
@@ -1103,7 +1108,7 @@ export component ConfigurationWindow inherits Window {
                                         Text {
                                             horizontal-stretch: 1;
                                             text: b.category;
-                                            color: #90caf9;
+                                            color: AppTheme.accent;
                                             font-size: 11px;
                                             vertical-alignment: center;
                                         }
@@ -1111,7 +1116,7 @@ export component ConfigurationWindow inherits Window {
                                         if b.is_system: Text {
                                             text: "System";
                                             font-size: 10px;
-                                            color: #7986cb;
+                                            color: AppTheme.text-muted;
                                             vertical-alignment: center;
                                         }
                                     }
@@ -1124,10 +1129,10 @@ export component ConfigurationWindow inherits Window {
                 // Right: Edit / Add Brush pane
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 16px;
@@ -1137,12 +1142,12 @@ export component ConfigurationWindow inherits Window {
                             text: root.selected_brush_idx >= 0 ? "Farbdefinition bearbeiten" : "Neue Farbe hinzufügen";
                             font-size: 15px;
                             font-weight: 600;
-                            color: #ffffff;
+                            color: AppTheme.text-primary;
                         }
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Schlüsselname (Key):"; color: #b0b0c2; }
+                            Text { text: "Schlüsselname (Key):"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_brush_key;
                                 placeholder-text: "z.B. MarkerCyan oder AlertBrush";
@@ -1153,7 +1158,7 @@ export component ConfigurationWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Hex-Farbwert (#RRGGBB):"; color: #b0b0c2; }
+                            Text { text: "Hex-Farbwert (#RRGGBB):"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_brush_hex;
                                 placeholder-text: "#FF5722";
@@ -1163,7 +1168,7 @@ export component ConfigurationWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Kategorie (UI, Status, Textmarker, Analyse, Logging):"; color: #b0b0c2; }
+                            Text { text: "Kategorie (UI, Status, Textmarker, Analyse, Logging):"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_brush_category;
                                 edited(s) => { root.edit_brush_category = s; }
@@ -1171,7 +1176,7 @@ export component ConfigurationWindow inherits Window {
                         }
 
                         // Quick palette buttons
-                        Text { text: "Schnellauswahl-Palette:"; font-size: 11px; color: #8e8ea6; }
+                        Text { text: "Schnellauswahl-Palette:"; font-size: 11px; color: AppTheme.text-muted; }
                         HorizontalLayout {
                             spacing: 6px;
                             Button { text: "Rot"; clicked => { root.edit_brush_hex = "#ef5350"; } }
@@ -1212,29 +1217,64 @@ export component ConfigurationWindow inherits Window {
                 }
             }
 
-            // TAB 3: DATEIVERKNÜPFUNGEN
+            // TAB 3: DATEIVERKNÜPFUNGEN & DARSTELLUNG
             if root.active_nav_tab == 3: VerticalLayout {
                 padding: 24px;
                 spacing: 20px;
 
                 Text {
+                    text: "Darstellung (Theme)";
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: AppTheme.text-primary;
+                }
+
+                Rectangle {
+                    height: 64px;
+                    background: AppTheme.bg-subtle;
+                    border-radius: AppTheme.radius-md;
+                    border-width: 1px;
+                    border-color: AppTheme.border;
+
+                    HorizontalLayout {
+                        padding: 16px;
+                        spacing: 16px;
+                        alignment: start;
+
+                        Text {
+                            text: "Farbschema:";
+                            color: AppTheme.text-secondary;
+                            vertical-alignment: center;
+                        }
+                        KitThemeSelector {
+                            mode <=> root.current_theme;
+                            changed(m) => {
+                                root.theme_changed(m);
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: AppTheme.border; }
+
+                Text {
                     text: "Betriebssystem-Dateiverknüpfungen (Windows Shell Association)";
                     font-size: 15px;
                     font-weight: 700;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: "Ermöglicht das Öffnen von CSV- und .info-Dateien direkt per Doppelklick im Windows Explorer.";
-                    color: #b0b0c2;
+                    color: AppTheme.text-secondary;
                 }
 
                 Rectangle {
                     height: 80px;
-                    background: #1c1c25;
-                    border-radius: 6px;
+                    background: AppTheme.bg-subtle;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #36364a;
+                    border-color: AppTheme.border;
 
                     HorizontalLayout {
                         padding: 16px;
@@ -1262,7 +1302,7 @@ export component ConfigurationWindow inherits Window {
 
                     Text {
                         text: root.association_status_message;
-                        color: #64b5f6;
+                        color: AppTheme.accent;
                         font-weight: 600;
                         vertical-alignment: center;
                     }
@@ -1279,10 +1319,10 @@ export component ConfigurationWindow inherits Window {
                 // Left: List of Apps
                 Rectangle {
                     width: 480px;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 12px;
@@ -1293,7 +1333,7 @@ export component ConfigurationWindow inherits Window {
                             Text {
                                 text: "🚀 Externe Programme ('Öffnen mit')";
                                 font-weight: 600;
-                                color: #ffffff;
+                                color: AppTheme.text-primary;
                             }
                             HorizontalLayout {
                                 spacing: 4px;
@@ -1313,7 +1353,7 @@ export component ConfigurationWindow inherits Window {
                         Text {
                             text: "Wählen Sie ein Programm zum Bearbeiten aus:";
                             font-size: 11px;
-                            color: #9c9cb2;
+                            color: AppTheme.text-secondary;
                         }
 
                         ScrollView {
@@ -1323,9 +1363,9 @@ export component ConfigurationWindow inherits Window {
                                 for app[app_idx] in root.external_apps: Rectangle {
                                     height: 48px;
                                     border-radius: 5px;
-                                    background: root.selected_app_idx == app_idx ? #2c324a : (app_touch.has-hover ? #252838 : #1f202b);
+                                    background: root.selected_app_idx == app_idx ? AppTheme.bg-selected : (app_touch.has-hover ? AppTheme.bg-hover : AppTheme.bg-subtle);
                                     border-width: 1px;
-                                    border-color: root.selected_app_idx == app_idx ? #4f68d2 : #2f3244;
+                                    border-color: root.selected_app_idx == app_idx ? AppTheme.accent : AppTheme.border;
 
                                     HorizontalLayout {
                                         padding-left: 10px;
@@ -1337,13 +1377,13 @@ export component ConfigurationWindow inherits Window {
                                             spacing: 2px;
                                             Text {
                                                 text: app.name;
-                                                color: root.selected_app_idx == app_idx ? #ffffff : #e2e8f0;
+                                                color: AppTheme.text-primary;
                                                 font-weight: 600;
                                                 font-size: 13px;
                                             }
                                             Text {
                                                 text: app.command_or_path != "" ? app.command_or_path : "(Standardpfad)";
-                                                color: #94a3b8;
+                                                color: AppTheme.text-muted;
                                                 font-size: 10px;
                                                 overflow: elide;
                                             }
@@ -1371,10 +1411,10 @@ export component ConfigurationWindow inherits Window {
                 // Right: Editor Panel for Add / Update
                 Rectangle {
                     horizontal-stretch: 1;
-                    background: #1b1b23;
-                    border-radius: 6px;
+                    background: AppTheme.bg-canvas;
+                    border-radius: AppTheme.radius-md;
                     border-width: 1px;
-                    border-color: #313142;
+                    border-color: AppTheme.border;
 
                     VerticalLayout {
                         padding: 16px;
@@ -1384,12 +1424,12 @@ export component ConfigurationWindow inherits Window {
                             text: root.selected_app_idx >= 0 ? "Programmdetails bearbeiten" : "Neues externes Programm hinzufügen";
                             font-size: 14px;
                             font-weight: 700;
-                            color: #ffffff;
+                            color: AppTheme.text-primary;
                         }
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Name / Bezeichnung:"; color: #9c9cb2; font-size: 11px; }
+                            Text { text: "Name / Bezeichnung:"; color: AppTheme.text-secondary; font-size: 11px; }
                             LineEdit {
                                 placeholder-text: "z.B. Notepad++, LibreOffice, VS Code";
                                 text: root.edit_app_name;
@@ -1399,7 +1439,7 @@ export component ConfigurationWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Ausführbare Datei / Befehl:"; color: #9c9cb2; font-size: 11px; }
+                            Text { text: "Ausführbare Datei / Befehl:"; color: AppTheme.text-secondary; font-size: 11px; }
                             HorizontalLayout {
                                 spacing: 6px;
                                 LineEdit {
@@ -1416,7 +1456,7 @@ export component ConfigurationWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Optionale Parameter / Argumente (z.B. {file}):"; color: #9c9cb2; font-size: 11px; }
+                            Text { text: "Optionale Parameter / Argumente (z.B. {file}):"; color: AppTheme.text-secondary; font-size: 11px; }
                             LineEdit {
                                 placeholder-text: "Leer lassen für Standard (Dateipfad anhängen) oder z.B. -multiInst {file}";
                                 text: root.edit_app_arguments;
@@ -1445,12 +1485,12 @@ export component ConfigurationWindow inherits Window {
 
                         Rectangle {
                             height: 1px;
-                            background: #2a2a3a;
+                            background: AppTheme.border;
                         }
 
                         Text {
                             text: "Hinweis: LibreOffice und Notepad++ sind als Standardprogramme vorkonfiguriert. Über das Schnellstartmenü '🚀 Öffnen mit' in der Hauptansicht können geöffnete Tabellen direkt an diese Programme übergeben werden.";
-                            color: #8b8ba0;
+                            color: AppTheme.text-muted;
                             font-size: 11px;
                             wrap: word-wrap;
                         }
@@ -1464,10 +1504,10 @@ export component ConfigurationWindow inherits Window {
         // BOTTOM ACTION BAR
         Rectangle {
             height: 48px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             HorizontalLayout {
                 padding-left: 16px;
@@ -1491,16 +1531,16 @@ export component ConfigurationWindow inherits Window {
 
     // DIFF MODAL
     if root.diff_modal_visible: Rectangle {
-        background: #000000bb;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         Rectangle {
             width: 650px;
             height: 480px;
-            background: #252530;
+            background: AppTheme.bg-elevated;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 20px;
@@ -1510,14 +1550,14 @@ export component ConfigurationWindow inherits Window {
                     text: "Info-Dateien Vergleich (Diff)";
                     font-size: 16px;
                     font-weight: 700;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 ScrollView {
                     vertical-stretch: 1;
                     Text {
                         text: root.diff_modal_text;
-                        color: #d1d1de;
+                        color: AppTheme.text-secondary;
                         font-family: "Consolas, Courier New, monospace";
                         font-size: 12px;
                     }
@@ -1533,7 +1573,7 @@ export component ConfigurationWindow inherits Window {
 
     // RENAME COLLECTION MODAL
     if root.rename_modal_visible: Rectangle {
-        background: #000000bb;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         TouchArea {
@@ -1543,10 +1583,10 @@ export component ConfigurationWindow inherits Window {
         Rectangle {
             width: 460px;
             height: 195px;
-            background: #252530;
+            background: AppTheme.bg-elevated;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 20px;
@@ -1556,12 +1596,12 @@ export component ConfigurationWindow inherits Window {
                     text: "🏷️ Kollektion umbenennen";
                     font-size: 16px;
                     font-weight: 700;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: "Neuen Namen für die ausgewählte Kollektion eingeben:";
-                    color: #9fa8da;
+                    color: AppTheme.text-secondary;
                     font-size: 12px;
                 }
 

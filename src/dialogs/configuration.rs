@@ -103,6 +103,7 @@ pub fn resolve_existing_info_file(
 }
 
 pub fn sync_configuration_ui(window: &ConfigurationWindow, state: &AppState) {
+    window.set_current_theme(slint::SharedString::from(state.app_config.theme.as_str()));
     // 1. Views
     let view_items: Vec<SlintViewItem> = state
         .views_config
@@ -310,6 +311,29 @@ pub fn setup_configuration_window(
     main_window_weak: Weak<MainWindow>,
     state: Rc<RefCell<AppState>>,
 ) {
+    // --- THEME ---
+    {
+        let cfg_win = config_window.clone();
+        let info_win = info_editor_window.clone();
+        let main_weak = main_window_weak.clone();
+        let state = state.clone();
+        config_window.on_theme_changed(move |mode_str| {
+            let mode = kit_theme::ThemeMode::from_str_lossy(&mode_str);
+            {
+                let mut st = state.borrow_mut();
+                st.app_config.theme = mode;
+                let _ = save_app_config(&default_config_path(), &st.app_config);
+            }
+            let main_up = main_weak.upgrade();
+            crate::ui_sync::apply_theme_all(
+                main_up.as_ref(),
+                Some(&cfg_win),
+                Some(&info_win),
+                mode,
+            );
+        });
+    }
+
     // --- VIEWS OPERATIONS ---
     {
         let win = config_window.clone();

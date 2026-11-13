@@ -1,4 +1,5 @@
 import { ScrollView } from "std-widgets.slint";
+import { AppTheme } from "@kit-theme";
 
 export struct ColorChoiceItem {
     key: string,
@@ -9,17 +10,17 @@ export struct ColorChoiceItem {
 export component ColorComboBox {
     in-out property <[ColorChoiceItem]> choices: [];
     in-out property <string> selected_key: "";
-    in-out property <color> selected_color: #ffffff;
+    in-out property <color> selected_color: AppTheme.text-primary;
     callback selected(string, color);
 
     min-height: 32px;
     preferred-height: 32px;
 
     Rectangle {
-        background: #252533;
-        border-radius: 4px;
+        background: AppTheme.bg-subtle;
+        border-radius: AppTheme.radius-sm;
         border-width: 1px;
-        border-color: #3f3f55;
+        border-color: AppTheme.border-strong;
 
         HorizontalLayout {
             padding-left: 8px;
@@ -34,13 +35,13 @@ export component ColorComboBox {
                 background: root.selected_color;
                 border-radius: 3px;
                 border-width: 1px;
-                border-color: #ffffff55;
+                border-color: AppTheme.border-strong;
             }
 
             Text {
                 horizontal-stretch: 1;
                 text: root.selected_key != "" ? root.selected_key : "Farbe wählen...";
-                color: #ffffff;
+                color: AppTheme.text-primary;
                 font-weight: 600;
                 vertical-alignment: center;
                 overflow: elide;
@@ -49,7 +50,7 @@ export component ColorComboBox {
             Text {
                 text: "▼";
                 font-size: 10px;
-                color: #9fa8da;
+                color: AppTheme.text-secondary;
                 vertical-alignment: center;
             }
         }
@@ -68,10 +69,10 @@ export component ColorComboBox {
         height: Math.min(root.choices.length * 30px + 12px, 230px);
 
         Rectangle {
-            background: #1c1c28;
-            border-radius: 6px;
+            background: AppTheme.bg-elevated;
+            border-radius: AppTheme.radius-md;
             border-width: 1px;
-            border-color: #4f4f72;
+            border-color: AppTheme.border-strong;
 
             ScrollView {
                 VerticalLayout {
@@ -80,8 +81,8 @@ export component ColorComboBox {
 
                     for choice in root.choices: Rectangle {
                         height: 28px;
-                        background: choice_touch.has-hover ? #2e3a59 : (choice.key == root.selected_key ? #252e47 : #00000000);
-                        border-radius: 4px;
+                        background: choice_touch.has-hover ? AppTheme.bg-hover : (choice.key == root.selected_key ? AppTheme.bg-selected : transparent);
+                        border-radius: AppTheme.radius-sm;
 
                         HorizontalLayout {
                             padding-left: 8px;
@@ -96,13 +97,13 @@ export component ColorComboBox {
                                 background: choice.color;
                                 border-radius: 3px;
                                 border-width: 1px;
-                                border-color: #ffffff55;
+                                border-color: AppTheme.border-strong;
                             }
 
                             Text {
                                 horizontal-stretch: 1;
                                 text: choice.key;
-                                color: #ffffff;
+                                color: AppTheme.text-primary;
                                 font-weight: 500;
                                 vertical-alignment: center;
                                 overflow: elide;
@@ -112,7 +113,7 @@ export component ColorComboBox {
                                 text: choice.hex_value;
                                 font-size: 10px;
                                 font-family: "Consolas, Courier New, monospace";
-                                color: #ffca28;
+                                color: AppTheme.warning;
                                 vertical-alignment: center;
                             }
                         }

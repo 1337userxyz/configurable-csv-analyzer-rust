@@ -690,6 +690,8 @@ pub struct AppConfig {
     pub external_apps: Vec<ExternalAppConfig>,
     #[serde(default)]
     pub tabs_multiline: bool,
+    #[serde(default)]
+    pub theme: kit_theme::ThemeMode,
 }
 
 impl Default for AppConfig {
@@ -702,6 +704,7 @@ impl Default for AppConfig {
             brushes: Self::default_brushes(),
             external_apps: Self::default_external_apps(),
             tabs_multiline: false,
+            theme: kit_theme::ThemeMode::default(),
         }
     }
 }

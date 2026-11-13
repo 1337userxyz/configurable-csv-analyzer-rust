@@ -1,16 +1,35 @@
 use std::collections::HashMap;
-use slint::{Color, ModelRc, VecModel};
+use slint::{Color, ComponentHandle, ModelRc, VecModel};
 use kit_slint::ToSlintModel;
+use kit_slint::color::contrast_text;
 
 use configurable_csv_analyzer::core::color_cache::cached_color;
 use configurable_csv_analyzer::core::logging::get_global_logger;
 use configurable_csv_analyzer::core::model::{BrushCategory, HighlightItem, TableData};
 
 use crate::{
-    AppState, CellItem, ColorChoiceItem, HeaderItem, LogViewItem, MainWindow,
-    ProposalItem, RowItem, RuleSummaryItem, SlintCollectionFilterItem,
-    SlintCollectionTabGroup, SlintExternalAppItem, TabItem, TabRowItem,
+    AppState, AppTheme, CellItem, ColorChoiceItem, ConfigurationWindow, HeaderItem,
+    InfoFileEditorWindow, LogViewItem, MainWindow, ProposalItem, RowItem, RuleSummaryItem,
+    SlintCollectionFilterItem, SlintCollectionTabGroup, SlintExternalAppItem, TabItem, TabRowItem,
 };
+
+pub fn apply_theme_all(
+    main_window: Option<&MainWindow>,
+    config_window: Option<&ConfigurationWindow>,
+    info_editor_window: Option<&InfoFileEditorWindow>,
+    mode: kit_theme::ThemeMode,
+) {
+    let m: slint::SharedString = mode.as_str().into();
+    if let Some(w) = main_window {
+        w.global::<AppTheme>().invoke_apply(m.clone());
+    }
+    if let Some(w) = config_window {
+        w.global::<AppTheme>().invoke_apply(m.clone());
+    }
+    if let Some(w) = info_editor_window {
+        w.global::<AppTheme>().invoke_apply(m);
+    }
+}
 
 pub fn resolve_brush_color(key_or_hex: &str, state: &AppState) -> Color {
     if let Some(hex) = state.app_config.find_brush_hex(key_or_hex) {
@@ -523,9 +542,14 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
                         row_rule_color
                     };
 
+                    let has_custom_bg = bg_color.alpha() >= 128;
+                    let fg_color = contrast_text(bg_color, Color::from_rgb_u8(0, 0, 0));
+
                     cell_items.push(CellItem {
                         text: slint::SharedString::from(cell_text),
                         bg_color,
+                        fg_color,
+                        has_custom_bg,
                         has_error,
                         has_warning,
                         has_info,

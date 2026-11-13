@@ -1,4 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+import { AppTheme } from "@kit-theme";
 import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
 
 export struct SlintColumnDisplayItem {
@@ -127,14 +128,14 @@ component DeleteIconButton inherits Rectangle {
 
     width: 28px;
     height: 28px;
-    border-radius: 5px;
-    background: touch.has-hover ? #dc2626 : #352227;
+    border-radius: AppTheme.radius-sm;
+    background: touch.has-hover ? AppTheme.danger : AppTheme.danger-bg;
     border-width: 1px;
-    border-color: touch.has-hover ? #f87171 : #5c2b33;
+    border-color: touch.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
 
     Text {
         text: root.label;
-        color: touch.has-hover ? #ffffff : #fca5a5;
+        color: touch.has-hover ? AppTheme.accent-fg : AppTheme.danger;
         font-size: 12px;
         font-weight: 700;
         horizontal-alignment: center;
@@ -153,10 +154,10 @@ component DeleteTextButton inherits Rectangle {
 
     height: 28px;
     min-width: 110px;
-    border-radius: 5px;
-    background: touch.has-hover ? #dc2626 : #352227;
+    border-radius: AppTheme.radius-sm;
+    background: touch.has-hover ? AppTheme.danger : AppTheme.danger-bg;
     border-width: 1px;
-    border-color: touch.has-hover ? #f87171 : #5c2b33;
+    border-color: touch.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
 
     HorizontalLayout {
         padding-left: 10px;
@@ -164,7 +165,7 @@ component DeleteTextButton inherits Rectangle {
         alignment: center;
         Text {
             text: root.text;
-            color: touch.has-hover ? #ffffff : #fca5a5;
+            color: touch.has-hover ? AppTheme.accent-fg : AppTheme.danger;
             font-size: 12px;
             font-weight: 600;
             vertical-alignment: center;
@@ -194,14 +195,14 @@ component DarkCheckBox inherits Rectangle {
             Rectangle {
                 width: 18px;
                 height: 18px;
-                border-radius: 4px;
-                background: root.checked ? #2563eb : (ta.has-hover ? #2d2d3d : #181822);
+                border-radius: AppTheme.radius-sm;
+                background: root.checked ? AppTheme.accent : (ta.has-hover ? AppTheme.bg-hover : AppTheme.bg-subtle);
                 border-width: 1px;
-                border-color: root.checked ? #60a5fa : (ta.has-hover ? #6b7280 : #4b5563);
+                border-color: root.checked ? AppTheme.accent : (ta.has-hover ? AppTheme.border-strong : AppTheme.border);
 
                 if root.checked: Text {
                     text: "✓";
-                    color: #ffffff;
+                    color: AppTheme.accent-fg;
                     font-size: 12px;
                     font-weight: 800;
                     horizontal-alignment: center;
@@ -212,7 +213,7 @@ component DarkCheckBox inherits Rectangle {
 
         if root.text != "": Text {
             text: root.text;
-            color: #e2e8f0;
+            color: AppTheme.text-primary;
             font-size: 12px;
             font-weight: 500;
             vertical-alignment: center;
@@ -253,10 +254,10 @@ component EditableValueComboBox inherits Rectangle {
         Rectangle {
             width: 58px;
             height: 32px;
-            background: drop-ta.has-hover ? #323246 : #252535;
-            border-radius: 4px;
+            background: drop-ta.has-hover ? AppTheme.bg-hover : AppTheme.bg-subtle;
+            border-radius: AppTheme.radius-sm;
             border-width: 1px;
-            border-color: drop-ta.has-hover ? #60a5fa : #3e3e55;
+            border-color: drop-ta.has-hover ? AppTheme.accent : AppTheme.border-strong;
 
             HorizontalLayout {
                 padding-left: 6px;
@@ -267,7 +268,7 @@ component EditableValueComboBox inherits Rectangle {
                     text: "▼ (" + root.items.length + ")";
                     font-size: 11px;
                     font-weight: 600;
-                    color: #93c5fd;
+                    color: AppTheme.accent;
                     vertical-alignment: center;
                 }
             }
@@ -288,16 +289,16 @@ component EditableValueComboBox inherits Rectangle {
         Rectangle {
             width: 100%;
             height: 100%;
-            background: #181822;
-            border-radius: 6px;
+            background: AppTheme.bg-elevated;
+            border-radius: AppTheme.radius-md;
             border-width: 1px;
-            border-color: #4a88cc;
+            border-color: AppTheme.border-strong;
 
             if root.items.length == 0: VerticalLayout {
                 alignment: center;
                 Text {
                     text: "Keine Werte in dieser Spalte gefunden";
-                    color: #888899;
+                    color: AppTheme.text-muted;
                     font-size: 12px;
                     horizontal-alignment: center;
                 }
@@ -313,8 +314,8 @@ component EditableValueComboBox inherits Rectangle {
 
                     for item in root.items: Rectangle {
                         height: 28px;
-                        border-radius: 4px;
-                        background: item.value == root.value ? #254b77 : (item-ta.has-hover ? #2a2a3c : transparent);
+                        border-radius: AppTheme.radius-sm;
+                        background: item.value == root.value ? AppTheme.bg-selected : (item-ta.has-hover ? AppTheme.bg-hover : transparent);
 
                         HorizontalLayout {
                             padding-left: 8px;
@@ -324,7 +325,7 @@ component EditableValueComboBox inherits Rectangle {
 
                             Text {
                                 text: item.display_label;
-                                color: item.value == "" ? #9ca3af : #f1f5f9;
+                                color: item.value == "" ? AppTheme.text-muted : AppTheme.text-primary;
                                 font-size: 12px;
                                 font-weight: item.value == root.value ? 700 : 400;
                                 vertical-alignment: center;
@@ -335,17 +336,17 @@ component EditableValueComboBox inherits Rectangle {
                             Rectangle {
                                 min-width: 44px;
                                 height: 20px;
-                                background: #263147;
+                                background: AppTheme.accent-bg;
                                 border-radius: 10px;
                                 border-width: 1px;
-                                border-color: #3b4f73;
+                                border-color: AppTheme.accent.with-alpha(0.35);
                                 HorizontalLayout {
                                     padding-left: 6px;
                                     padding-right: 6px;
                                     alignment: center;
                                     Text {
                                         text: item.count_text;
-                                        color: #93c5fd;
+                                        color: AppTheme.accent;
                                         font-size: 11px;
                                         font-weight: 600;
                                         vertical-alignment: center;
@@ -374,9 +375,9 @@ export component InfoFileEditorWindow inherits Window {
     min-height: 620px;
     preferred-width: 1100px;
     preferred-height: 760px;
-    background: #1e1e24;
+    background: AppTheme.bg-canvas;
     default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
-    default-font-size: 13px;
+    default-font-size: AppTheme.font-size-md;
 
     // Window Meta Properties
     in-out property <string> table_title: "Tabelle";
@@ -404,10 +405,10 @@ export component InfoFileEditorWindow inherits Window {
     in-out property <[string]> available_brushes: [];
     in-out property <[ColorChoiceItem]> color_choices: [];
     in-out property <[ColorChoiceItem]> join_color_choices: [];
-    in-out property <color> general_dirty_color: #26a69a;
-    in-out property <color> edit_comp_color: #e57373;
-    in-out property <color> edit_group_color: #ba68c8;
-    in-out property <color> edit_hl_color: #ffb74d;
+    in-out property <color> general_dirty_color: AppTheme.accent;
+    in-out property <color> edit_comp_color: AppTheme.danger;
+    in-out property <color> edit_group_color: AppTheme.info;
+    in-out property <color> edit_hl_color: AppTheme.warning;
 
     // --- TAB 0: ALLGEMEIN ---
     in-out property <string> general_delimiter: ",";
@@ -567,10 +568,10 @@ export component InfoFileEditorWindow inherits Window {
         // TOP HEADER BAR
         Rectangle {
             height: 52px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             HorizontalLayout {
                 padding-left: 16px;
@@ -585,17 +586,17 @@ export component InfoFileEditorWindow inherits Window {
                         text: "📋 .info Konfigurations-Editor";
                         font-size: 16px;
                         font-weight: 700;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                         vertical-alignment: center;
                     }
                     Text {
                         text: "|";
-                        color: #55556a;
+                        color: AppTheme.text-muted;
                         vertical-alignment: center;
                     }
                     Text {
                         text: root.table_title + " (" + root.file_path_display + ")";
-                        color: #90caf9;
+                        color: AppTheme.accent;
                         font-weight: 600;
                         overflow: elide;
                         vertical-alignment: center;
@@ -611,13 +612,13 @@ export component InfoFileEditorWindow inherits Window {
                         Rectangle {
                             width: 130px;
                             height: 26px;
-                            background: #4a3818;
+                            background: AppTheme.warning-bg;
                             border-radius: 4px;
                             Text {
                                 text: "● Ungespeichert";
                                 font-size: 11px;
                                 font-weight: 600;
-                                color: #ffb74d;
+                                color: AppTheme.warning;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
@@ -630,10 +631,10 @@ export component InfoFileEditorWindow inherits Window {
         // TAB BAR (9 TABS)
         Rectangle {
             height: 48px;
-            background: #181822;
+            background: AppTheme.bg-canvas;
             border-radius: 6px;
             border-width: 1px;
-            border-color: #2e2e40;
+            border-color: AppTheme.border;
 
             ScrollView {
                 HorizontalLayout {
@@ -648,16 +649,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 105px;
                         height: 30px;
-                        background: root.active_tab_idx == 0 ? #254b77 : (t0.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 0 ? AppTheme.bg-selected : (t0.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 0 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "1. Allgemein";
-                                color: root.active_tab_idx == 0 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 0 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 0 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -673,16 +674,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 135px;
                         height: 30px;
-                        background: root.active_tab_idx == 1 ? #254b77 : (t1.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 1 ? AppTheme.bg-selected : (t1.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 1 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "2. Spalten & Layout";
-                                color: root.active_tab_idx == 1 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 1 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 1 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -698,16 +699,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 100px;
                         height: 30px;
-                        background: root.active_tab_idx == 2 ? #254b77 : (t2.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 2 ? AppTheme.bg-selected : (t2.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 2 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "3. Mappings";
-                                color: root.active_tab_idx == 2 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 2 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 2 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -723,16 +724,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 125px;
                         height: 30px;
-                        background: root.active_tab_idx == 3 ? #254b77 : (t3.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 3 ? AppTheme.bg-selected : (t3.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 3 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "4. Berechnungen";
-                                color: root.active_tab_idx == 3 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 3 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 3 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -748,16 +749,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 85px;
                         height: 30px;
-                        background: root.active_tab_idx == 4 ? #254b77 : (t4.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 4 ? AppTheme.bg-selected : (t4.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 4 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "5. Joins";
-                                color: root.active_tab_idx == 4 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 4 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 4 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -773,16 +774,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 145px;
                         height: 30px;
-                        background: root.active_tab_idx == 5 ? #254b77 : (t5.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 5 ? AppTheme.bg-selected : (t5.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 5 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "6. Tabellenvergleich";
-                                color: root.active_tab_idx == 5 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 5 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 5 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -798,16 +799,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 155px;
                         height: 30px;
-                        background: root.active_tab_idx == 6 ? #254b77 : (t6.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 6 ? AppTheme.bg-selected : (t6.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 6 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "7. Gruppenvalidierung";
-                                color: root.active_tab_idx == 6 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 6 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 6 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -823,16 +824,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 110px;
                         height: 30px;
-                        background: root.active_tab_idx == 7 ? #254b77 : (t7.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 7 ? AppTheme.bg-selected : (t7.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 7 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "8. Highlights";
-                                color: root.active_tab_idx == 7 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 7 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 7 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -848,16 +849,16 @@ export component InfoFileEditorWindow inherits Window {
                     Rectangle {
                         min-width: 130px;
                         height: 30px;
-                        background: root.active_tab_idx == 8 ? #254b77 : (t8.has-hover ? #262635 : #1e1e29);
+                        background: root.active_tab_idx == 8 ? AppTheme.bg-selected : (t8.has-hover ? AppTheme.bg-subtle : AppTheme.bg-surface);
                         border-radius: 4px;
                         border-width: root.active_tab_idx == 8 ? 1px : 0px;
-                        border-color: #4a88cc;
+                        border-color: AppTheme.accent;
                         HorizontalLayout {
                             padding-left: 10px;
                             padding-right: 10px;
                             Text {
                                 text: "9. Übertragungen";
-                                color: root.active_tab_idx == 8 ? #ffffff : #b5b5c8;
+                                color: root.active_tab_idx == 8 ? AppTheme.text-primary : AppTheme.text-secondary;
                                 font-weight: root.active_tab_idx == 8 ? 700 : 500;
                                 font-size: 12px;
                                 vertical-alignment: center;
@@ -875,17 +876,17 @@ export component InfoFileEditorWindow inherits Window {
         // TAB CONTENT BODY
         Rectangle {
             vertical-stretch: 1;
-            background: #22222b;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             // ================= TAB 0: ALLGEMEIN =================
             if root.active_tab_idx == 0: VerticalLayout {
                 padding: 24px;
                 spacing: 16px;
 
-                Text { text: "CSV-Parsing & Grundkonfiguration"; font-size: 15px; font-weight: 700; color: #ffffff; }
+                Text { text: "CSV-Parsing & Grundkonfiguration"; font-size: 15px; font-weight: 700; color: AppTheme.text-primary; }
 
                 HorizontalLayout {
                     spacing: 24px;
@@ -893,7 +894,7 @@ export component InfoFileEditorWindow inherits Window {
                     VerticalLayout {
                         width: 330px;
                         spacing: 6px;
-                        Text { text: "Trennzeichen (Delimiter):"; color: #b0b0c2; }
+                        Text { text: "Trennzeichen (Delimiter):"; color: AppTheme.text-secondary; }
                         HorizontalLayout {
                             spacing: 8px;
                             ComboBox {
@@ -924,7 +925,7 @@ export component InfoFileEditorWindow inherits Window {
                     VerticalLayout {
                         width: 300px;
                         spacing: 6px;
-                        Text { text: "Zeichencodierung (Encoding):"; color: #b0b0c2; }
+                        Text { text: "Zeichencodierung (Encoding):"; color: AppTheme.text-secondary; }
                         ComboBox {
                             model: ["utf-8", "utf-8-bom", "windows-1252", "iso-8859-1", "ascii"];
                             current-value: root.general_encoding;
@@ -942,7 +943,7 @@ export component InfoFileEditorWindow inherits Window {
                     VerticalLayout {
                         width: 330px;
                         spacing: 6px;
-                        Text { text: "Farbschlüssel für bearbeitete Zellen (Dirty):"; color: #b0b0c2; }
+                        Text { text: "Farbschlüssel für bearbeitete Zellen (Dirty):"; color: AppTheme.text-secondary; }
                         ColorComboBox {
                             choices: root.color_choices;
                             selected_key: root.general_dirty_brush;
@@ -958,7 +959,7 @@ export component InfoFileEditorWindow inherits Window {
                     VerticalLayout {
                         width: 300px;
                         spacing: 6px;
-                        Text { text: "Speicherort-Override für diese Tabelle:"; color: #b0b0c2; }
+                        Text { text: "Speicherort-Override für diese Tabelle:"; color: AppTheme.text-secondary; }
                         ComboBox {
                             model: ["Standard (Global)", "Dateipfad (Dezentral)", "Stammverzeichnis (Zentral)", "Temporaer (RAM)"];
                             current-value: root.general_storage_override == "Dateipfad" ? "Dateipfad (Dezentral)" : (root.general_storage_override == "Stammverzeichnis" ? "Stammverzeichnis (Zentral)" : (root.general_storage_override == "Temporaer" ? "Temporaer (RAM)" : "Standard (Global)"));
@@ -974,22 +975,22 @@ export component InfoFileEditorWindow inherits Window {
                 }
 
                 Rectangle {
-                    background: #1a2336;
+                    background: AppTheme.bg-selected;
                     border-radius: 6px;
                     border-width: 1px;
-                    border-color: #2e436e;
+                    border-color: AppTheme.bg-selected;
                     VerticalLayout {
                         padding: 12px;
                         spacing: 6px;
                         Text {
                             text: "ℹ Über den Speicherort-Override:";
                             font-weight: 600;
-                            color: #90caf9;
+                            color: AppTheme.accent;
                         }
                         Text {
                             text: "Standardmäßig gilt die in der Hauptkonfiguration festgelegte globale Speicherstrategie.\nMit dieser Option kann für genau diese Tabelle abweichend festgelegt werden, ob ihre .csv.info dezentral neben der CSV-Datei liegt, zentral im Stammverzeichnis verwaltet wird oder nur temporär im Arbeitsspeicher verbleibt.";
                             font-size: 11px;
-                            color: #b0c4de;
+                            color: AppTheme.text-secondary;
                         }
                     }
                 }
@@ -1033,16 +1034,16 @@ export component InfoFileEditorWindow inherits Window {
                 // Table Header
                 Rectangle {
                     height: 28px;
-                    background: #252533;
+                    background: AppTheme.bg-subtle;
                     border-radius: 4px;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 10px;
-                        Text { width: 80px; text: "Sichtbar"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { width: 300px; text: "Spaltenname"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { width: 140px; text: "Breite (px)"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { horizontal-stretch: 1; text: "Reihenfolge"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                        Text { width: 80px; text: "Sichtbar"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { width: 300px; text: "Spaltenname"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { width: 140px; text: "Breite (px)"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { horizontal-stretch: 1; text: "Reihenfolge"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
                     }
                 }
 
@@ -1053,7 +1054,7 @@ export component InfoFileEditorWindow inherits Window {
                         spacing: 4px;
                         for col[c_idx] in root.columns_list: Rectangle {
                             height: 36px;
-                            background: #1b1b24;
+                            background: AppTheme.bg-canvas;
                             border-radius: 4px;
 
                             HorizontalLayout {
@@ -1074,7 +1075,7 @@ export component InfoFileEditorWindow inherits Window {
                                 Text {
                                     width: 300px;
                                     text: col.column_name;
-                                    color: #ffffff;
+                                    color: AppTheme.text-primary;
                                     font-weight: 600;
                                     overflow: elide;
                                     vertical-alignment: center;
@@ -1102,26 +1103,26 @@ export component InfoFileEditorWindow inherits Window {
                 padding: 14px;
                 spacing: 10px;
 
-                Text { text: "Abstraktion zwischen Fachkonzepten und technischen CSV-Headern"; font-weight: 600; color: #ffffff; }
+                Text { text: "Abstraktion zwischen Fachkonzepten und technischen CSV-Headern"; font-weight: 600; color: AppTheme.text-primary; }
 
                 // Add mapping row
                 Rectangle {
                     height: 44px;
-                    background: #1c1c25;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
 
                     HorizontalLayout {
                         padding: 6px;
                         spacing: 10px;
 
-                        Text { text: "Neues Mapping:"; color: #9c9cb2; vertical-alignment: center; }
+                        Text { text: "Neues Mapping:"; color: AppTheme.text-secondary; vertical-alignment: center; }
                         LineEdit {
                             width: 220px;
                             placeholder-text: "Konzept (z.B. DeviceID)";
                             text: root.new_concept_input;
                             edited(s) => { root.new_concept_input = s; }
                         }
-                        Text { text: "➔"; color: #60a5fa; vertical-alignment: center; }
+                        Text { text: "➔"; color: AppTheme.accent; vertical-alignment: center; }
                         LineEdit {
                             width: 220px;
                             placeholder-text: "CSV-Spalte (z.B. switch_hostname)";
@@ -1145,16 +1146,16 @@ export component InfoFileEditorWindow inherits Window {
                 // Table Header
                 Rectangle {
                     height: 28px;
-                    background: #252533;
+                    background: AppTheme.bg-subtle;
                     border-radius: 4px;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 10px;
-                        Text { width: 240px; text: "Fachkonzept"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { width: 260px; text: "Gemappte CSV-Spalte"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { width: 140px; text: "Integrität"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
-                        Text { horizontal-stretch: 1; text: "Aktion"; font-weight: 600; color: #a5a5bb; vertical-alignment: center; }
+                        Text { width: 240px; text: "Fachkonzept"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { width: 260px; text: "Gemappte CSV-Spalte"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { width: 140px; text: "Integrität"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
+                        Text { horizontal-stretch: 1; text: "Aktion"; font-weight: 600; color: AppTheme.text-secondary; vertical-alignment: center; }
                     }
                 }
 
@@ -1165,7 +1166,7 @@ export component InfoFileEditorWindow inherits Window {
                         spacing: 4px;
                         for map[m_idx] in root.mappings_list: Rectangle {
                             height: 38px;
-                            background: #1b1b24;
+                            background: AppTheme.bg-canvas;
                             border-radius: 4px;
 
                             HorizontalLayout {
@@ -1177,7 +1178,7 @@ export component InfoFileEditorWindow inherits Window {
                                     width: 240px;
                                     text: map.concept_name;
                                     font-weight: 600;
-                                    color: #81d4fa;
+                                    color: AppTheme.accent;
                                     vertical-alignment: center;
                                 }
 
@@ -1192,12 +1193,12 @@ export component InfoFileEditorWindow inherits Window {
                                     Rectangle {
                                         width: 140px;
                                         height: 24px;
-                                        background: map.is_valid_header ? #183324 : #3b2020;
+                                        background: map.is_valid_header ? AppTheme.success-bg : AppTheme.danger-bg;
                                         border-radius: 4px;
                                         Text {
                                             text: map.is_valid_header ? "✓ Existiert" : "⚠ Fehlt in CSV";
                                             font-size: 11px;
-                                            color: map.is_valid_header ? #81c784 : #e57373;
+                                            color: map.is_valid_header ? AppTheme.success : AppTheme.danger;
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
                                         }
@@ -1229,14 +1230,14 @@ export component InfoFileEditorWindow inherits Window {
                 // Left: Rules list
                 Rectangle {
                     width: 320px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Berechnungsregeln:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Berechnungsregeln:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_calc_rule(); } }
                         }
                         ScrollView {
@@ -1245,10 +1246,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for rule[r_idx] in root.calc_rules: Rectangle {
                                     height: 40px;
-                                    background: root.selected_calc_rule_idx == rule.id ? #2d3b59 : #242431;
+                                    background: root.selected_calc_rule_idx == rule.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_calc_rule_idx == rule.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -1260,7 +1261,7 @@ export component InfoFileEditorWindow inherits Window {
                                         padding-left: 10px;
                                         padding-right: 6px;
                                         alignment: space-between;
-                                        Text { text: rule.rule_name; color: #ffffff; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: rule.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
                                             DeleteIconButton {
@@ -1277,19 +1278,19 @@ export component InfoFileEditorWindow inherits Window {
                 // Right: Editor for selected calculation
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 14px;
                         spacing: 10px;
-                        Text { text: "Berechnung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+                        Text { text: "Berechnung konfigurieren"; font-size: 14px; font-weight: 600; color: AppTheme.text-primary; }
 
                         HorizontalLayout {
                             spacing: 12px;
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Regel-Name:"; color: #b0b0c2; }
+                                Text { text: "Regel-Name:"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_calc_name;
                                     edited(s) => {
@@ -1303,7 +1304,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Zielspalte (Header):"; color: #b0b0c2; }
+                                Text { text: "Zielspalte (Header):"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_calc_target;
                                     edited(s) => {
@@ -1318,7 +1319,7 @@ export component InfoFileEditorWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Formel-Ausdruck:"; color: #b0b0c2; }
+                            Text { text: "Formel-Ausdruck:"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_calc_formula;
                                 placeholder-text: "{Port} * 2 oder {Prefix} + \"-\" + {Index}";
@@ -1335,7 +1336,7 @@ export component InfoFileEditorWindow inherits Window {
                         // Formula Helper Toolbar
                         HorizontalLayout {
                             spacing: 6px;
-                            Text { text: "Operatoren:"; color: #8e8ea6; vertical-alignment: center; }
+                            Text { text: "Operatoren:"; color: AppTheme.text-muted; vertical-alignment: center; }
                             Button { text: "+"; clicked => { root.insert_formula_token("+"); } }
                             Button { text: "-"; clicked => { root.insert_formula_token("-"); } }
                             Button { text: "*"; clicked => { root.insert_formula_token("*"); } }
@@ -1345,7 +1346,7 @@ export component InfoFileEditorWindow inherits Window {
                         }
 
                         // Concept Buttons Toolbar
-                        Text { text: "Klickbares Konzept in Formel einfügen:"; font-size: 11px; color: #8e8ea6; }
+                        Text { text: "Klickbares Konzept in Formel einfügen:"; font-size: 11px; color: AppTheme.text-muted; }
                         ScrollView {
                             height: 38px;
                             HorizontalLayout {
@@ -1360,7 +1361,7 @@ export component InfoFileEditorWindow inherits Window {
                         // Real-time syntax status
                         Text {
                             text: root.calc_syntax_status;
-                            color: #81c784;
+                            color: AppTheme.success;
                             font-weight: 600;
                         }
 
@@ -1388,14 +1389,14 @@ export component InfoFileEditorWindow inherits Window {
                 // Left: Rule list
                 Rectangle {
                     width: 290px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Tabellen-Joins:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Tabellen-Joins:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_join_rule(); } }
                         }
                         ScrollView {
@@ -1404,10 +1405,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for j[j_idx] in root.join_rules: Rectangle {
                                     height: 52px;
-                                    background: root.selected_join_idx == j.id ? #2d3b59 : #242431;
+                                    background: root.selected_join_idx == j.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_join_idx == j.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -1422,8 +1423,8 @@ export component InfoFileEditorWindow inherits Window {
                                         VerticalLayout {
                                             alignment: center;
                                             horizontal-stretch: 1;
-                                            Text { text: j.rule_name; color: #ffffff; font-weight: 600; overflow: elide; }
-                                            Text { text: j.match_preview_text; font-size: 11px; color: #64b5f6; overflow: elide; }
+                                            Text { text: j.rule_name; color: AppTheme.text-primary; font-weight: 600; overflow: elide; }
+                                            Text { text: j.match_preview_text; font-size: 11px; color: AppTheme.accent; overflow: elide; }
                                         }
                                         VerticalLayout {
                                             alignment: center;
@@ -1441,7 +1442,7 @@ export component InfoFileEditorWindow inherits Window {
                 // Right: 3-Phasen Join-Konfiguration
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
 
                     if root.selected_join_idx < 0: VerticalLayout {
@@ -1450,7 +1451,7 @@ export component InfoFileEditorWindow inherits Window {
                             alignment: center;
                             Text {
                                 text: "Wählen Sie links eine Join-Regel aus oder erstellen Sie eine neue mit '+ Neu'.";
-                                color: #888899;
+                                color: AppTheme.text-muted;
                                 font-size: 14px;
                             }
                         }
@@ -1464,21 +1465,21 @@ export component InfoFileEditorWindow inherits Window {
 
                             // ---------------- 1. BASIS-EINSTELLUNGEN ----------------
                             Rectangle {
-                                background: #22222d;
+                                background: AppTheme.bg-surface;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: #2e2e3d;
+                                border-color: AppTheme.border;
                                 VerticalLayout {
                                     padding: 12px;
                                     spacing: 8px;
-                                    Text { text: "1. Basis-Einstellungen"; font-size: 13px; font-weight: 600; color: #e0e0ee; }
+                                    Text { text: "1. Basis-Einstellungen"; font-size: 13px; font-weight: 600; color: AppTheme.text-primary; }
 
                                     HorizontalLayout {
                                         spacing: 12px;
                                         VerticalLayout {
                                             horizontal-stretch: 2;
                                             spacing: 4px;
-                                            Text { text: "Regelname:"; color: #b0b0c2; font-size: 11px; }
+                                            Text { text: "Regelname:"; color: AppTheme.text-secondary; font-size: 11px; }
                                             LineEdit {
                                                 text: root.edit_join_name;
                                                 edited(s) => {
@@ -1490,7 +1491,7 @@ export component InfoFileEditorWindow inherits Window {
                                         VerticalLayout {
                                             horizontal-stretch: 2;
                                             spacing: 4px;
-                                            Text { text: "Aktionsgruppe:"; color: #b0b0c2; font-size: 11px; }
+                                            Text { text: "Aktionsgruppe:"; color: AppTheme.text-secondary; font-size: 11px; }
                                             LineEdit {
                                                 text: root.edit_join_action_group;
                                                 placeholder-text: "z.B. Netzwerk, Stammdaten...";
@@ -1525,7 +1526,7 @@ export component InfoFileEditorWindow inherits Window {
 
                                     VerticalLayout {
                                         spacing: 4px;
-                                        Text { text: "Beschreibung:"; color: #b0b0c2; font-size: 11px; }
+                                        Text { text: "Beschreibung:"; color: AppTheme.text-secondary; font-size: 11px; }
                                         HorizontalLayout {
                                             spacing: 8px;
                                             LineEdit {
@@ -1548,24 +1549,24 @@ export component InfoFileEditorWindow inherits Window {
 
                             // ---------------- 2. JOIN-KETTE (LINKSTEPS) ----------------
                             Rectangle {
-                                background: #22222d;
+                                background: AppTheme.bg-surface;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: #2e2e3d;
+                                border-color: AppTheme.border;
                                 VerticalLayout {
                                     padding: 12px;
                                     spacing: 10px;
                                     HorizontalLayout {
                                         alignment: space-between;
-                                        Text { text: "2. Join-Kette (Datenfluss) - LinkSteps"; font-size: 13px; font-weight: 600; color: #e0e0ee; vertical-alignment: center; }
+                                        Text { text: "2. Join-Kette (Datenfluss) - LinkSteps"; font-size: 13px; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                                         Button { text: "+ Verknüpfungsschritt hinzufügen"; clicked => { root.add_join_step(); } }
                                     }
 
                                     for step[s_idx] in root.join_steps: Rectangle {
-                                        background: #181822;
+                                        background: AppTheme.bg-canvas;
                                         border-radius: 6px;
                                         border-width: 1px;
-                                        border-color: #313145;
+                                        border-color: AppTheme.border;
                                         VerticalLayout {
                                             padding: 10px;
                                             spacing: 8px;
@@ -1576,20 +1577,20 @@ export component InfoFileEditorWindow inherits Window {
                                                 spacing: 8px;
                                                 HorizontalLayout {
                                                     spacing: 10px;
-                                                    Text { text: step.step_title; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                                                    Text { text: step.step_title; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                                                     VerticalLayout {
                                                         alignment: center;
                                                         Rectangle {
-                                                            background: #1e3a5f;
+                                                            background: AppTheme.bg-selected;
                                                             border-radius: 4px;
                                                             border-width: 1px;
-                                                            border-color: #3b82f6;
+                                                            border-color: AppTheme.accent;
                                                             HorizontalLayout {
                                                                 padding-left: 8px;
                                                                 padding-right: 8px;
                                                                 padding-top: 2px;
                                                                 padding-bottom: 2px;
-                                                                Text { text: "📊 " + step.hit_stat; font-size: 11px; color: #93c5fd; font-weight: 600; vertical-alignment: center; }
+                                                                Text { text: "📊 " + step.hit_stat; font-size: 11px; color: AppTheme.accent; font-weight: 600; vertical-alignment: center; }
                                                             }
                                                         }
                                                     }
@@ -1603,7 +1604,7 @@ export component InfoFileEditorWindow inherits Window {
                                             // Target table selector (ComboBox)
                                             HorizontalLayout {
                                                 spacing: 8px;
-                                                Text { text: "Ziel-Tabelle:"; color: #b0b0c2; vertical-alignment: center; }
+                                                Text { text: "Ziel-Tabelle:"; color: AppTheme.text-secondary; vertical-alignment: center; }
                                                 ComboBox {
                                                     width: 280px;
                                                     model: root.available_tables;
@@ -1617,11 +1618,11 @@ export component InfoFileEditorWindow inherits Window {
                                                 spacing: 6px;
                                                 HorizontalLayout {
                                                     spacing: 8px;
-                                                    Text { text: "Host (Quell-Konzept)"; width: 170px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: "Host (Quell-Konzept)"; width: 170px; color: AppTheme.text-muted; font-size: 11px; }
                                                     Text { text: "=="; width: 18px; color: transparent; }
-                                                    Text { text: "Remote (Ziel-Konzept)"; width: 170px; color: #8c8ca0; font-size: 11px; }
-                                                    Text { text: "Statischer Wert (opt.)"; width: 130px; color: #8c8ca0; font-size: 11px; }
-                                                    Text { text: "Aa"; width: 45px; color: #8c8ca0; font-size: 11px; }
+                                                    Text { text: "Remote (Ziel-Konzept)"; width: 170px; color: AppTheme.text-muted; font-size: 11px; }
+                                                    Text { text: "Statischer Wert (opt.)"; width: 130px; color: AppTheme.text-muted; font-size: 11px; }
+                                                    Text { text: "Aa"; width: 45px; color: AppTheme.text-muted; font-size: 11px; }
                                                     Text { text: ""; width: 32px; }
                                                 }
 
@@ -1633,7 +1634,7 @@ export component InfoFileEditorWindow inherits Window {
                                                         current-value: m.host_concept;
                                                         selected(val) => { root.update_key_mapping_host(step.step_idx, m.mapping_idx, val); }
                                                     }
-                                                    Text { text: "=="; width: 18px; vertical-alignment: center; horizontal-alignment: center; color: #808095; font-weight: 600; }
+                                                    Text { text: "=="; width: 18px; vertical-alignment: center; horizontal-alignment: center; color: AppTheme.text-muted; font-weight: 600; }
                                                     ComboBox {
                                                         width: 170px;
                                                         model: step.available_remote_concepts;
@@ -1677,10 +1678,10 @@ export component InfoFileEditorWindow inherits Window {
 
                             // ---------------- 3. SELECT (VIRTUELLE ERGEBNIS-SPALTEN) ----------------
                             Rectangle {
-                                background: #22222d;
+                                background: AppTheme.bg-surface;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: #2e2e3d;
+                                border-color: AppTheme.border;
                                 VerticalLayout {
                                     padding: 12px;
                                     spacing: 10px;
@@ -1688,18 +1689,18 @@ export component InfoFileEditorWindow inherits Window {
                                         alignment: space-between;
                                         HorizontalLayout {
                                             spacing: 12px;
-                                            Text { text: "3. SELECT (Virtuelle Ergebnis-Spalten)"; font-size: 13px; font-weight: 600; color: #e0e0ee; vertical-alignment: center; }
+                                            Text { text: "3. SELECT (Virtuelle Ergebnis-Spalten)"; font-size: 13px; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                                             VerticalLayout {
                                                 alignment: center;
                                                 Rectangle {
-                                                    background: root.join_relationship_is_one_to_many ? #b45309 : #15803d;
+                                                    background: root.join_relationship_is_one_to_many ? AppTheme.warning : AppTheme.success;
                                                     border-radius: 4px;
                                                     HorizontalLayout {
                                                         padding-left: 8px;
                                                         padding-right: 8px;
                                                         padding-top: 3px;
                                                         padding-bottom: 3px;
-                                                        Text { text: root.join_relationship_badge; font-size: 11px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                                                        Text { text: root.join_relationship_badge; font-size: 11px; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                                                     }
                                                 }
                                             }
@@ -1710,11 +1711,11 @@ export component InfoFileEditorWindow inherits Window {
                                     // Columns Table Header
                                     HorizontalLayout {
                                         spacing: 8px;
-                                        Text { text: "Remote-Konzept (Ziel)"; width: 160px; color: #8c8ca0; font-size: 11px; }
-                                        Text { text: "Header im Grid"; width: 190px; color: #8c8ca0; font-size: 11px; }
-                                        Text { text: "Bindungs-Key"; width: 160px; color: #8c8ca0; font-size: 11px; }
-                                        Text { text: "Modus (1:N)"; width: 140px; color: #8c8ca0; font-size: 11px; }
-                                        Text { text: "Farb-Hervorhebung"; horizontal-stretch: 1; min-width: 170px; color: #8c8ca0; font-size: 11px; }
+                                        Text { text: "Remote-Konzept (Ziel)"; width: 160px; color: AppTheme.text-muted; font-size: 11px; }
+                                        Text { text: "Header im Grid"; width: 190px; color: AppTheme.text-muted; font-size: 11px; }
+                                        Text { text: "Bindungs-Key"; width: 160px; color: AppTheme.text-muted; font-size: 11px; }
+                                        Text { text: "Modus (1:N)"; width: 140px; color: AppTheme.text-muted; font-size: 11px; }
+                                        Text { text: "Farb-Hervorhebung"; horizontal-stretch: 1; min-width: 170px; color: AppTheme.text-muted; font-size: 11px; }
                                         Text { text: ""; width: 32px; }
                                     }
 
@@ -1785,14 +1786,14 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     width: 320px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Vergleichsregeln:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Vergleichsregeln:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_comparison_rule(); } }
                         }
                         ScrollView {
@@ -1801,10 +1802,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for c[c_idx] in root.comparison_rules: Rectangle {
                                     height: 40px;
-                                    background: root.selected_comp_idx == c.id ? #2d3b59 : #242431;
+                                    background: root.selected_comp_idx == c.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_comp_idx == c.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -1816,7 +1817,7 @@ export component InfoFileEditorWindow inherits Window {
                                         padding-left: 10px;
                                         padding-right: 6px;
                                         alignment: space-between;
-                                        Text { text: c.rule_name; color: #ffffff; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: c.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
                                             DeleteIconButton {
@@ -1832,19 +1833,19 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 14px;
                         spacing: 10px;
-                        Text { text: "Tabellenvergleich konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+                        Text { text: "Tabellenvergleich konfigurieren"; font-size: 14px; font-weight: 600; color: AppTheme.text-primary; }
 
                         HorizontalLayout {
                             spacing: 12px;
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                Text { text: "Regelname:"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_comp_name;
                                     edited(s) => {
@@ -1858,7 +1859,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Zieltabelle:"; color: #b0b0c2; }
+                                Text { text: "Zieltabelle:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_tables;
                                     current-value: root.edit_comp_target_table;
@@ -1877,7 +1878,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Lokaler Schlüssel:"; color: #b0b0c2; }
+                                Text { text: "Lokaler Schlüssel:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_concepts;
                                     current-value: root.edit_comp_host_concept;
@@ -1892,7 +1893,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Ziel-Schlüssel:"; color: #b0b0c2; }
+                                Text { text: "Ziel-Schlüssel:"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_comp_remote_concept;
                                     edited(s) => {
@@ -1910,7 +1911,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Vergleichstyp:"; color: #b0b0c2; }
+                                Text { text: "Vergleichstyp:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: ["MissingInRemote", "ValueMismatch", "Both"];
                                     current-value: root.edit_comp_type;
@@ -1925,7 +1926,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Mismatch-Farbe:"; color: #b0b0c2; }
+                                Text { text: "Mismatch-Farbe:"; color: AppTheme.text-secondary; }
                                 ColorComboBox {
                                     choices: root.color_choices;
                                     selected_key: root.edit_comp_brush;
@@ -1975,14 +1976,14 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     width: 320px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Gruppenvalidierungen:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Gruppenvalidierungen:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_group_rule(); } }
                         }
                         ScrollView {
@@ -1991,10 +1992,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for g[g_idx] in root.group_rules: Rectangle {
                                     height: 40px;
-                                    background: root.selected_group_idx == g.id ? #2d3b59 : #242431;
+                                    background: root.selected_group_idx == g.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_group_idx == g.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -2006,7 +2007,7 @@ export component InfoFileEditorWindow inherits Window {
                                         padding-left: 10px;
                                         padding-right: 6px;
                                         alignment: space-between;
-                                        Text { text: g.rule_name; color: #ffffff; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: g.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
                                             DeleteIconButton {
@@ -2022,19 +2023,19 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 14px;
                         spacing: 10px;
-                        Text { text: "Gruppenvalidierung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+                        Text { text: "Gruppenvalidierung konfigurieren"; font-size: 14px; font-weight: 600; color: AppTheme.text-primary; }
 
                         HorizontalLayout {
                             spacing: 12px;
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                Text { text: "Regelname:"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_group_name;
                                     edited(s) => {
@@ -2048,7 +2049,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Gruppieren nach (Konzept):"; color: #b0b0c2; }
+                                Text { text: "Gruppieren nach (Konzept):"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_concepts;
                                     current-value: root.edit_group_by_concept;
@@ -2067,7 +2068,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Prüftyp:"; color: #b0b0c2; }
+                                Text { text: "Prüftyp:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: ["isUnique", "numericRange", "groupConsistency"];
                                     current-value: root.edit_group_val_type;
@@ -2082,7 +2083,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Zu prüfendes Feld:"; color: #b0b0c2; }
+                                Text { text: "Zu prüfendes Feld:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_concepts;
                                     current-value: root.edit_group_param_concept;
@@ -2101,7 +2102,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Min-Wert (nur für numericRange):"; color: #b0b0c2; }
+                                Text { text: "Min-Wert (nur für numericRange):"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_group_min;
                                     edited(s) => {
@@ -2115,7 +2116,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Max-Wert (nur für numericRange):"; color: #b0b0c2; }
+                                Text { text: "Max-Wert (nur für numericRange):"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_group_max;
                                     edited(s) => {
@@ -2130,7 +2131,7 @@ export component InfoFileEditorWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Mismatch-Farbe:"; color: #b0b0c2; }
+                            Text { text: "Mismatch-Farbe:"; color: AppTheme.text-secondary; }
                             ColorComboBox {
                                 choices: root.color_choices;
                                 selected_key: root.edit_group_brush;
@@ -2168,14 +2169,14 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     width: 320px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Highlight-Regeln:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Highlight-Regeln:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_highlight_rule(); } }
                         }
                         ScrollView {
@@ -2184,10 +2185,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for h[h_idx] in root.highlight_rules: Rectangle {
                                     height: 48px;
-                                    background: root.selected_hl_idx == h.id ? #2d3b59 : #242431;
+                                    background: root.selected_hl_idx == h.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_hl_idx == h.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -2202,11 +2203,11 @@ export component InfoFileEditorWindow inherits Window {
                                         VerticalLayout {
                                             alignment: center;
                                             horizontal-stretch: 1;
-                                            Text { text: h.rule_name; color: #ffffff; font-weight: 600; overflow: elide; }
+                                            Text { text: h.rule_name; color: AppTheme.text-primary; font-weight: 600; overflow: elide; }
                                             Text {
                                                 text: h.column_concept + " " + (h.invert_condition ? "NOT " : "") + h.condition + " '" + h.value_to_match + "' (" + h.target + ")";
                                                 font-size: 11px;
-                                                color: #93c5fd;
+                                                color: AppTheme.accent;
                                                 overflow: elide;
                                             }
                                         }
@@ -2225,7 +2226,7 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
 
                     if root.selected_hl_idx < 0: VerticalLayout {
@@ -2234,7 +2235,7 @@ export component InfoFileEditorWindow inherits Window {
                             alignment: center;
                             Text {
                                 text: "Wählen Sie links eine Highlight-Regel aus oder erstellen Sie eine neue mit '+ Neu'.";
-                                color: #888899;
+                                color: AppTheme.text-muted;
                                 font-size: 14px;
                             }
                         }
@@ -2243,14 +2244,14 @@ export component InfoFileEditorWindow inherits Window {
                     if root.selected_hl_idx >= 0: VerticalLayout {
                         padding: 16px;
                         spacing: 14px;
-                        Text { text: "Highlight-Bedingung konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+                        Text { text: "Highlight-Bedingung konfigurieren"; font-size: 14px; font-weight: 600; color: AppTheme.text-primary; }
 
                         HorizontalLayout {
                             spacing: 14px;
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Regelname:"; color: #b0b0c2; }
+                                Text { text: "Regelname:"; color: AppTheme.text-secondary; }
                                 LineEdit {
                                     text: root.edit_hl_name;
                                     edited(s) => {
@@ -2262,7 +2263,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Spalte / Konzept:"; color: #b0b0c2; }
+                                Text { text: "Spalte / Konzept:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_concepts;
                                     current-value: root.edit_hl_column;
@@ -2280,7 +2281,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Bedingung:"; color: #b0b0c2; }
+                                Text { text: "Bedingung:"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_hl_conditions;
                                     current-value: root.edit_hl_condition;
@@ -2293,7 +2294,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Vergleichswert (frei editierbar oder aus Spaltenwerten wählen):"; color: #b0b0c2; }
+                                Text { text: "Vergleichswert (frei editierbar oder aus Spaltenwerten wählen):"; color: AppTheme.text-secondary; }
                                 EditableValueComboBox {
                                     value <=> root.edit_hl_val;
                                     items: root.hl_value_counts;
@@ -2310,7 +2311,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Farb-Schlüssel (Brush):"; color: #b0b0c2; }
+                                Text { text: "Farb-Schlüssel (Brush):"; color: AppTheme.text-secondary; }
                                 ColorComboBox {
                                     choices: root.color_choices;
                                     selected_key: root.edit_hl_brush;
@@ -2325,7 +2326,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Ziel (Zelle oder ganze Zeile):"; color: #b0b0c2; }
+                                Text { text: "Ziel (Zelle oder ganze Zeile):"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_hl_targets;
                                     current-value: root.edit_hl_target;
@@ -2339,10 +2340,10 @@ export component InfoFileEditorWindow inherits Window {
 
                         Rectangle {
                             height: 44px;
-                            background: #232533;
+                            background: AppTheme.bg-surface;
                             border-radius: 6px;
                             border-width: 1px;
-                            border-color: #383c52;
+                            border-color: AppTheme.border;
                             HorizontalLayout {
                                 padding-left: 12px;
                                 padding-right: 12px;
@@ -2385,14 +2386,14 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     width: 320px;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 8px;
                         HorizontalLayout {
                             alignment: space-between;
-                            Text { text: "Übertragungsregeln:"; font-weight: 600; color: #ffffff; vertical-alignment: center; }
+                            Text { text: "Übertragungsregeln:"; font-weight: 600; color: AppTheme.text-primary; vertical-alignment: center; }
                             Button { text: "+ Neu"; primary: true; clicked => { root.add_apply_rule(); } }
                         }
                         ScrollView {
@@ -2401,10 +2402,10 @@ export component InfoFileEditorWindow inherits Window {
                                 spacing: 4px;
                                 for a[a_idx] in root.apply_rules: Rectangle {
                                     height: 40px;
-                                    background: root.selected_apply_idx == a.id ? #2d3b59 : #242431;
+                                    background: root.selected_apply_idx == a.id ? AppTheme.bg-selected : AppTheme.bg-subtle;
                                     border-radius: 4px;
                                     border-width: root.selected_apply_idx == a.id ? 1px : 0px;
-                                    border-color: #60a5fa;
+                                    border-color: AppTheme.accent;
                                     TouchArea {
                                         width: parent.width - 42px;
                                         clicked => {
@@ -2416,7 +2417,7 @@ export component InfoFileEditorWindow inherits Window {
                                         padding-left: 10px;
                                         padding-right: 6px;
                                         alignment: space-between;
-                                        Text { text: a.rule_name; color: #ffffff; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: a.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
                                             DeleteIconButton {
@@ -2432,16 +2433,16 @@ export component InfoFileEditorWindow inherits Window {
 
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1b1b23;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     VerticalLayout {
                         padding: 14px;
                         spacing: 10px;
-                        Text { text: "Übertragungs- & Folgeregel konfigurieren"; font-size: 14px; font-weight: 600; color: #ffffff; }
+                        Text { text: "Übertragungs- & Folgeregel konfigurieren"; font-size: 14px; font-weight: 600; color: AppTheme.text-primary; }
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Regelname:"; color: #b0b0c2; }
+                            Text { text: "Regelname:"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_apply_name;
                                 edited(s) => {
@@ -2458,7 +2459,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Quellkonzept(e):"; color: #b0b0c2; }
+                                Text { text: "Quellkonzept(e):"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_concepts;
                                     current-value: root.edit_apply_source;
@@ -2473,7 +2474,7 @@ export component InfoFileEditorWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Zieltabelle ($self oder Fremdtabelle):"; color: #b0b0c2; }
+                                Text { text: "Zieltabelle ($self oder Fremdtabelle):"; color: AppTheme.text-secondary; }
                                 ComboBox {
                                     model: root.available_tables;
                                     current-value: root.edit_apply_target_table;
@@ -2489,7 +2490,7 @@ export component InfoFileEditorWindow inherits Window {
 
                         VerticalLayout {
                             spacing: 4px;
-                            Text { text: "Zielspalte / Konzept:"; color: #b0b0c2; }
+                            Text { text: "Zielspalte / Konzept:"; color: AppTheme.text-secondary; }
                             LineEdit {
                                 text: root.edit_apply_target_concept;
                                 edited(s) => {
@@ -2543,10 +2544,10 @@ export component InfoFileEditorWindow inherits Window {
         // BOTTOM ACTION & VALIDATION STATUS BAR
         Rectangle {
             height: 52px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #38384a;
+            border-color: AppTheme.border;
 
             HorizontalLayout {
                 padding-left: 16px;
@@ -2561,7 +2562,7 @@ export component InfoFileEditorWindow inherits Window {
                         alignment: center;
                         Rectangle {
                             height: 28px;
-                            background: root.has_validation_errors ? #3f1d1d : (root.warning_count > 0 ? #3d2f13 : #183324);
+                            background: root.has_validation_errors ? AppTheme.danger-bg : (root.warning_count > 0 ? AppTheme.warning-bg : AppTheme.success-bg);
                             border-radius: 4px;
                             HorizontalLayout {
                                 padding-left: 10px;
@@ -2570,7 +2571,7 @@ export component InfoFileEditorWindow inherits Window {
                                 Text {
                                     text: root.validation_banner_message;
                                     font-weight: 600;
-                                    color: root.has_validation_errors ? #ef5350 : (root.warning_count > 0 ? #ffb74d : #81c784);
+                                    color: root.has_validation_errors ? AppTheme.danger : (root.warning_count > 0 ? AppTheme.warning : AppTheme.success);
                                     vertical-alignment: center;
                                 }
                             }

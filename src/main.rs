@@ -70,8 +70,14 @@ fn main() -> Result<(), slint::PlatformError> {
     );
 
     // Register all controllers
-    controllers::register_all(&main_window, state.clone(), config_window, info_editor_window);
+    controllers::register_all(&main_window, state.clone(), config_window.clone(), info_editor_window.clone());
 
+    ui_sync::apply_theme_all(
+        Some(&main_window),
+        Some(&config_window),
+        Some(&info_editor_window),
+        state.borrow().app_config.theme,
+    );
     sync_ui(&main_window, &state.borrow());
     main_window.run()
 }

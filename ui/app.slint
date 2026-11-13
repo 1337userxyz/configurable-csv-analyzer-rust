@@ -1,4 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
+import { AppTheme } from "@kit-theme";
 import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
 import { ConfigurationWindow, SlintViewItem, SlintViewFileItem, SlintBrushItem, SlintExternalAppItem } from "configuration.slint";
 import {
@@ -25,6 +26,7 @@ export struct SlintCollectionFilterItem {
 }
 
 export {
+    AppTheme,
     ColorChoiceItem,
     ConfigurationWindow,
     SlintViewItem,
@@ -82,6 +84,8 @@ export struct HeaderItem {
 export struct CellItem {
     text: string,
     bg_color: color,
+    fg_color: color,
+    has_custom_bg: bool,
     has_error: bool,
     has_warning: bool,
     has_info: bool,
@@ -146,10 +150,10 @@ component ModernScrollBar inherits Rectangle {
     in property <length> visible_width: 500px;
 
     height: 6px;
-    background: #181c28;
+    background: AppTheme.bg-subtle;
     border-radius: 3px;
     border-width: 1px;
-    border-color: #262f44;
+    border-color: AppTheme.border;
 
     property <length> max_scroll: max(1px, root.viewport_width - root.visible_width);
     property <length> track_w: root.width;
@@ -161,7 +165,7 @@ component ModernScrollBar inherits Rectangle {
         width: root.thumb_w;
         height: 6px;
         border-radius: 3px;
-        background: thumb_touch.has-hover ? #60a5fa : #3b82f6;
+        background: thumb_touch.has-hover ? AppTheme.accent-hover : AppTheme.accent;
 
         thumb_touch := TouchArea {
             mouse-cursor: pointer;
@@ -191,10 +195,10 @@ component SingleTab inherits Rectangle {
     min-width: 140px;
     max-width: full_title ? 10000px : 380px;
     min-height: 34px;
-    background: root.tab.is_active ? #223a66 : (tab_touch.has-hover ? #252d42 : #1b2132);
+    background: root.tab.is_active ? AppTheme.bg-selected : (tab_touch.has-hover ? AppTheme.bg-subtle : AppTheme.bg-canvas);
     border-radius: 6px;
     border-width: root.tab.is_active ? 1.5px : 1px;
-    border-color: root.tab.is_active ? #60a5fa : (tab_touch.has-hover ? #47557a : #333d54);
+    border-color: root.tab.is_active ? AppTheme.accent : (tab_touch.has-hover ? AppTheme.border-strong : AppTheme.border);
 
     // Active top indicator stripe
     if root.tab.is_active: Rectangle {
@@ -203,7 +207,7 @@ component SingleTab inherits Rectangle {
         width: parent.width - 8px;
         x: 4px;
         border-radius: 1.5px;
-        background: #60a5fa;
+        background: AppTheme.accent;
     }
 
     tab_touch := TouchArea {
@@ -240,12 +244,12 @@ component SingleTab inherits Rectangle {
                     width: 28px;
                     height: 16px;
                     border-radius: 3px;
-                    background: root.tab.is_ods ? #451a03 : #064e3b;
+                    background: root.tab.is_ods ? AppTheme.warning-bg : AppTheme.success-bg;
                     border-width: 1px;
-                    border-color: root.tab.is_ods ? #b45309 : #059669;
+                    border-color: root.tab.is_ods ? AppTheme.warning : AppTheme.success;
                     Text {
                         text: root.tab.is_ods ? "ODS" : "CSV";
-                        color: root.tab.is_ods ? #fcd34d : #6ee7b7;
+                        color: root.tab.is_ods ? AppTheme.warning : AppTheme.success;
                         font-size: 9px;
                         font-weight: 700;
                         horizontal-alignment: center;
@@ -260,7 +264,7 @@ component SingleTab inherits Rectangle {
 
                 Text {
                     text: root.tab.title;
-                    color: root.tab.is_active ? #ffffff : (tab_touch.has-hover ? #e2e8f0 : #b4bed4);
+                    color: root.tab.is_active ? AppTheme.text-primary : (tab_touch.has-hover ? AppTheme.text-primary : AppTheme.text-secondary);
                     font-weight: root.tab.is_active ? 700 : 500;
                     font-size: 11px;
                     wrap: word-wrap;
@@ -269,7 +273,7 @@ component SingleTab inherits Rectangle {
             }
             if root.tab.is_dirty: Text {
                 text: "*";
-                color: #fbbf24;
+                color: AppTheme.warning;
                 font-weight: 700;
                 font-size: 14px;
                 vertical-alignment: center;
@@ -280,10 +284,10 @@ component SingleTab inherits Rectangle {
                     min-width: 18px;
                     height: 18px;
                     border-radius: 9px;
-                    background: #ef4444;
+                    background: AppTheme.danger;
                     Text {
                         text: root.tab.error_count;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                         font-size: 10px;
                         font-weight: 700;
                         horizontal-alignment: center;
@@ -304,11 +308,11 @@ component SingleTab inherits Rectangle {
                     width: 18px;
                     height: 18px;
                     border-radius: 4px;
-                    background: (root.tab.tab_index > 0 || root.tab_idx > 0) && tab_left_hover.has-hover ? #3b82f6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    background: (root.tab.tab_index > 0 || root.tab_idx > 0) && tab_left_hover.has-hover ? AppTheme.accent : (root.tab.is_active ? AppTheme.bg-selected : AppTheme.bg-surface);
                     opacity: (root.tab.tab_index > 0 || root.tab_idx > 0) ? 1.0 : 0.35;
                     Text {
                         text: "◀";
-                        color: tab_left_hover.has-hover ? #ffffff : #cbd5e1;
+                        color: tab_left_hover.has-hover ? AppTheme.text-primary : AppTheme.text-secondary;
                         font-size: 9px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -331,11 +335,11 @@ component SingleTab inherits Rectangle {
                     width: 18px;
                     height: 18px;
                     border-radius: 4px;
-                    background: ((root.tab.total_tabs > 0 && root.tab.tab_index < root.tab.total_tabs - 1) || (root.total_tabs > 0 && root.tab_idx < root.total_tabs - 1)) && tab_right_hover.has-hover ? #3b82f6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    background: ((root.tab.total_tabs > 0 && root.tab.tab_index < root.tab.total_tabs - 1) || (root.total_tabs > 0 && root.tab_idx < root.total_tabs - 1)) && tab_right_hover.has-hover ? AppTheme.accent : (root.tab.is_active ? AppTheme.bg-selected : AppTheme.bg-surface);
                     opacity: ((root.tab.total_tabs > 0 && root.tab.tab_index < root.tab.total_tabs - 1) || (root.total_tabs > 0 && root.tab_idx < root.total_tabs - 1)) ? 1.0 : 0.35;
                     Text {
                         text: "▶";
-                        color: tab_right_hover.has-hover ? #ffffff : #cbd5e1;
+                        color: tab_right_hover.has-hover ? AppTheme.text-primary : AppTheme.text-secondary;
                         font-size: 9px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -358,10 +362,10 @@ component SingleTab inherits Rectangle {
                     width: 18px;
                     height: 18px;
                     border-radius: 4px;
-                    background: tab_move_col_hover.has-hover ? #8b5cf6 : (root.tab.is_active ? #2d3e61 : #22283a);
+                    background: tab_move_col_hover.has-hover ? AppTheme.info : (root.tab.is_active ? AppTheme.bg-selected : AppTheme.bg-surface);
                     Text {
                         text: "⇄";
-                        color: tab_move_col_hover.has-hover ? #ffffff : #c4b5fd;
+                        color: tab_move_col_hover.has-hover ? AppTheme.text-primary : AppTheme.info;
                         font-size: 11px;
                         font-weight: 700;
                         horizontal-alignment: center;
@@ -381,10 +385,10 @@ component SingleTab inherits Rectangle {
                     width: 18px;
                     height: 18px;
                     border-radius: 9px;
-                    background: tab_close_hover.has-hover ? #ef4444 : (root.tab.is_active ? #384b73 : #283044);
+                    background: tab_close_hover.has-hover ? AppTheme.danger : (root.tab.is_active ? AppTheme.bg-selected : AppTheme.bg-subtle);
                     Text {
                         text: "✕";
-                        color: tab_close_hover.has-hover ? #ffffff : (root.tab.is_active ? #cbd5e1 : #8893a7);
+                        color: tab_close_hover.has-hover ? AppTheme.text-primary : (root.tab.is_active ? AppTheme.text-secondary : AppTheme.text-muted);
                         font-size: 10px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -403,7 +407,7 @@ export component MainWindow inherits Window {
     title: "Configurable CSV & ODS Analyzer";
     min-width: 1100px;
     min-height: 720px;
-    background: #1e1e24;
+    background: AppTheme.bg-canvas;
     default-font-family: "Segoe UI, Inter, Roboto, sans-serif";
     default-font-size: 13px;
 
@@ -639,7 +643,7 @@ export component MainWindow inherits Window {
         // ROW 1: FILE OPERATIONS & EXPORT & CONFIG
         Rectangle {
             height: 42px;
-            background: #25252d;
+            background: AppTheme.bg-surface;
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -686,7 +690,7 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    Rectangle { width: 1px; background: #444452; height: 24px; }
+                    Rectangle { width: 1px; background: AppTheme.border-strong; height: 24px; }
 
                     Button {
                         text: "🔄 Export & Sync ▾";
@@ -739,7 +743,7 @@ export component MainWindow inherits Window {
         // ROW 2: KOLLEKTION & MODUS-UMSCHALTER & BEARBEITEN
         Rectangle {
             height: 42px;
-            background: #1c1c24;
+            background: AppTheme.bg-canvas;
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -772,9 +776,9 @@ export component MainWindow inherits Window {
                             for col in root.collection_items: Rectangle {
                                 height: 28px;
                                 border-radius: 5px;
-                                background: col.is_temporary ? (col.is_selected ? #451a03 : (col_touch.has-hover ? #2e1a06 : #1f1406)) : (col.is_selected ? #1e293b : (col_touch.has-hover ? #1f2233 : #151824));
+                                background: col.is_temporary ? (col.is_selected ? AppTheme.warning-bg : (col_touch.has-hover ? AppTheme.warning-bg : AppTheme.warning-bg)) : (col.is_selected ? AppTheme.bg-surface : (col_touch.has-hover ? AppTheme.bg-surface : AppTheme.bg-canvas));
                                 border-width: 1px;
-                                border-color: col.is_temporary ? (col.is_selected ? #f59e0b : #b45309) : (col.is_selected ? #3b82f6 : (col_touch.has-hover ? #475569 : #2e354a));
+                                border-color: col.is_temporary ? (col.is_selected ? AppTheme.warning : AppTheme.warning) : (col.is_selected ? AppTheme.accent : (col_touch.has-hover ? AppTheme.border-strong : AppTheme.bg-hover));
 
                                 HorizontalLayout {
                                     padding-left: 6px;
@@ -801,7 +805,7 @@ export component MainWindow inherits Window {
                                             }
                                             Text {
                                                 text: col.name;
-                                                color: col.is_temporary ? (col.is_selected ? #fbbf24 : #fcd34d) : (col.is_selected ? #60a5fa : #94a3b8);
+                                                color: col.is_temporary ? (col.is_selected ? AppTheme.warning : AppTheme.warning) : (col.is_selected ? AppTheme.accent : AppTheme.text-secondary);
                                                 font-weight: col.is_selected ? 700 : 500;
                                                 font-size: 11px;
                                                 vertical-alignment: center;
@@ -809,7 +813,7 @@ export component MainWindow inherits Window {
                                             Rectangle {
                                                 height: 16px;
                                                 border-radius: 8px;
-                                                background: col.is_temporary ? (col.is_selected ? #78350f : #451a03) : (col.is_selected ? #1d3557 : #0f172a);
+                                                background: col.is_temporary ? (col.is_selected ? AppTheme.warning-bg : AppTheme.warning-bg) : (col.is_selected ? AppTheme.bg-selected : AppTheme.bg-canvas);
                                                 HorizontalLayout {
                                                     padding-left: 5px;
                                                     padding-right: 5px;
@@ -817,7 +821,7 @@ export component MainWindow inherits Window {
                                                         text: "" + col.file_count;
                                                         font-size: 9px;
                                                         font-weight: 600;
-                                                        color: col.is_temporary ? #fef08a : (col.is_selected ? #93c5fd : #64748b);
+                                                        color: col.is_temporary ? AppTheme.warning : (col.is_selected ? AppTheme.accent-hover : AppTheme.text-muted);
                                                         vertical-alignment: center;
                                                     }
                                                 }
@@ -837,9 +841,9 @@ export component MainWindow inherits Window {
                             if root.has_temporary_collection: Rectangle {
                                 height: 28px;
                                 border-radius: 5px;
-                                background: save_temp_touch.has-hover ? #059669 : #065f46;
+                                background: save_temp_touch.has-hover ? AppTheme.success : AppTheme.success-bg;
                                 border-width: 1px;
-                                border-color: #10b981;
+                                border-color: AppTheme.success;
                                 HorizontalLayout {
                                     padding-left: 8px;
                                     padding-right: 8px;
@@ -848,7 +852,7 @@ export component MainWindow inherits Window {
                                     Text { text: "💾"; font-size: 11px; vertical-alignment: center; }
                                     Text {
                                         text: "Als Kollektion speichern";
-                                        color: #ffffff;
+                                        color: AppTheme.text-primary;
                                         font-size: 11px;
                                         font-weight: 700;
                                         vertical-alignment: center;
@@ -867,7 +871,7 @@ export component MainWindow inherits Window {
                         Rectangle {
                             width: 1px;
                             height: 22px;
-                            background: #2e3044;
+                            background: AppTheme.bg-hover;
                         }
                     }
 
@@ -878,10 +882,10 @@ export component MainWindow inherits Window {
 
                         Rectangle {
                             height: 30px;
-                            background: #13141c;
+                            background: AppTheme.bg-canvas;
                             border-radius: 6px;
                             border-width: 1px;
-                            border-color: #2e3044;
+                            border-color: AppTheme.bg-hover;
 
                             HorizontalLayout {
                                 padding: 2px;
@@ -892,12 +896,12 @@ export component MainWindow inherits Window {
                                     width: 72px;
                                     height: 24px;
                                     border-radius: 4px;
-                                    background: root.active_view_mode == 0 ? #2563eb : (m_all.has-hover ? #222638 : transparent);
+                                    background: root.active_view_mode == 0 ? AppTheme.accent : (m_all.has-hover ? AppTheme.bg-surface : transparent);
                                     Text {
                                         text: "🗂 Alle (" + (root.csv_tab_count + root.ods_tab_count) + ")";
                                         font-size: 11px;
                                         font-weight: root.active_view_mode == 0 ? 700 : 500;
-                                        color: root.active_view_mode == 0 ? #ffffff : #94a3b8;
+                                        color: root.active_view_mode == 0 ? AppTheme.text-primary : AppTheme.text-secondary;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
                                     }
@@ -912,12 +916,12 @@ export component MainWindow inherits Window {
                                     width: 76px;
                                     height: 24px;
                                     border-radius: 4px;
-                                    background: root.active_view_mode == 1 ? #059669 : (m_csv.has-hover ? #143526 : transparent);
+                                    background: root.active_view_mode == 1 ? AppTheme.success : (m_csv.has-hover ? AppTheme.success-bg : transparent);
                                     Text {
                                         text: "📄 CSV (" + root.csv_tab_count + ")";
                                         font-size: 11px;
                                         font-weight: root.active_view_mode == 1 ? 700 : 500;
-                                        color: root.active_view_mode == 1 ? #ffffff : #94a3b8;
+                                        color: root.active_view_mode == 1 ? AppTheme.text-primary : AppTheme.text-secondary;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
                                     }
@@ -932,12 +936,12 @@ export component MainWindow inherits Window {
                                     width: 76px;
                                     height: 24px;
                                     border-radius: 4px;
-                                    background: root.active_view_mode == 2 ? #d97706 : (m_ods.has-hover ? #382713 : transparent);
+                                    background: root.active_view_mode == 2 ? AppTheme.warning : (m_ods.has-hover ? AppTheme.warning-bg : transparent);
                                     Text {
                                         text: "📊 ODS (" + root.ods_tab_count + ")";
                                         font-size: 11px;
                                         font-weight: root.active_view_mode == 2 ? 700 : 500;
-                                        color: root.active_view_mode == 2 ? #ffffff : #94a3b8;
+                                        color: root.active_view_mode == 2 ? AppTheme.text-primary : AppTheme.text-secondary;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
                                     }
@@ -954,16 +958,16 @@ export component MainWindow inherits Window {
                     Rectangle {
                         height: 26px;
                         border-radius: 4px;
-                        background: root.active_table_is_ods ? #451a03 : #064e3b;
+                        background: root.active_table_is_ods ? AppTheme.warning-bg : AppTheme.success-bg;
                         border-width: 1px;
-                        border-color: root.active_table_is_ods ? #d97706 : #059669;
+                        border-color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
 
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 8px;
                             Text {
                                 text: root.active_table_is_ods ? "📊 ODS-Ebene" : "📄 CSV-Ebene";
-                                color: root.active_table_is_ods ? #fcd34d : #6ee7b7;
+                                color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
                                 font-weight: 700;
                                 font-size: 11px;
                                 vertical-alignment: center;
@@ -1018,13 +1022,13 @@ export component MainWindow inherits Window {
         // ROW 3: TAB BAR (KOLLEKTIONEN STRIKT GETRENNT / CSV-EBENE UND ODS-EBENE)
         Rectangle {
             height: root.tab_bar_effective_height;
-            background: #14161f;
+            background: AppTheme.bg-canvas;
 
             // Bottom border for tab bar
             Rectangle {
                 y: parent.height - 1px;
                 height: 1px;
-                background: #2a3147;
+                background: AppTheme.bg-subtle;
             }
 
             VerticalLayout {
@@ -1041,10 +1045,10 @@ export component MainWindow inherits Window {
                         spacing: 6px;
 
                         for group[grp_idx] in root.collection_groups: Rectangle {
-                            background: #151824;
+                            background: AppTheme.bg-canvas;
                             border-radius: 6px;
                             border-width: 1px;
-                            border-color: #262d40;
+                            border-color: AppTheme.bg-subtle;
 
                             VerticalLayout {
                                 padding-left: 6px;
@@ -1064,9 +1068,9 @@ export component MainWindow inherits Window {
                                             width: 140px;
                                             height: 26px;
                                             border-radius: 4px;
-                                            background: group.is_temporary ? #3b2048 : #1e293b;
+                                            background: group.is_temporary ? AppTheme.info-bg : AppTheme.bg-surface;
                                             border-width: 1px;
-                                            border-color: group.is_temporary ? #9333ea : #3b82f6;
+                                            border-color: group.is_temporary ? AppTheme.info : AppTheme.accent;
 
                                             HorizontalLayout {
                                                 padding-left: 6px;
@@ -1076,7 +1080,7 @@ export component MainWindow inherits Window {
 
                                                 Text {
                                                     text: group.is_temporary ? "⚡ " + group.name : "📁 " + group.name;
-                                                    color: group.is_temporary ? #f0abfc : #93c5fd;
+                                                    color: group.is_temporary ? AppTheme.info : AppTheme.accent-hover;
                                                     font-size: 11px;
                                                     font-weight: 700;
                                                     overflow: elide;
@@ -1084,7 +1088,7 @@ export component MainWindow inherits Window {
                                                 }
                                                 Text {
                                                     text: "(" + group.tab_count + ")";
-                                                    color: #94a3b8;
+                                                    color: AppTheme.text-secondary;
                                                     font-size: 10px;
                                                     vertical-alignment: center;
                                                 }
@@ -1157,9 +1161,9 @@ export component MainWindow inherits Window {
                                         Rectangle {
                                             height: 28px;
                                             border-radius: 4px;
-                                            background: root.tabs_multiline ? #1e3a8a : (multiline_touch_g.has-hover ? #2e3549 : #1a1e2d);
+                                            background: root.tabs_multiline ? AppTheme.info-bg : (multiline_touch_g.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas);
                                             border-width: 1px;
-                                            border-color: root.tabs_multiline ? #3b82f6 : #333d54;
+                                            border-color: root.tabs_multiline ? AppTheme.accent : AppTheme.border;
                                             HorizontalLayout {
                                                 padding-left: 8px;
                                                 padding-right: 8px;
@@ -1169,7 +1173,7 @@ export component MainWindow inherits Window {
                                                     text: root.tabs_multiline ? "☰ Einzeilig" : "☷ Mehrzeilig";
                                                     font-size: 11px;
                                                     font-weight: 600;
-                                                    color: root.tabs_multiline ? #93c5fd : #cbd5e1;
+                                                    color: root.tabs_multiline ? AppTheme.accent-hover : AppTheme.text-secondary;
                                                     vertical-alignment: center;
                                                 }
                                             }
@@ -1204,12 +1208,12 @@ export component MainWindow inherits Window {
                                 width: 72px;
                                 height: 24px;
                                 border-radius: 4px;
-                                background: #064e3b;
+                                background: AppTheme.success-bg;
                                 border-width: 1px;
-                                border-color: #059669;
+                                border-color: AppTheme.success;
                                 Text {
                                     text: "📄 CSV (" + root.csv_tabs.length + ")";
-                                    color: #6ee7b7;
+                                    color: AppTheme.success;
                                     font-size: 10px;
                                     font-weight: 700;
                                     horizontal-alignment: center;
@@ -1225,13 +1229,13 @@ export component MainWindow inherits Window {
                                 width: 22px;
                                 height: 28px;
                                 border-radius: 4px;
-                                background: tab_scroll_csv_l.has-hover ? #2e3549 : #1a1e2d;
+                                background: tab_scroll_csv_l.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas;
                                 border-width: 1px;
-                                border-color: #333d54;
+                                border-color: AppTheme.border;
                                 Text {
                                     text: "◀";
                                     font-size: 10px;
-                                    color: #94a3b8;
+                                    color: AppTheme.text-secondary;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
@@ -1285,13 +1289,13 @@ export component MainWindow inherits Window {
                                 width: 22px;
                                 height: 28px;
                                 border-radius: 4px;
-                                background: tab_scroll_csv_r.has-hover ? #2e3549 : #1a1e2d;
+                                background: tab_scroll_csv_r.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas;
                                 border-width: 1px;
-                                border-color: #333d54;
+                                border-color: AppTheme.border;
                                 Text {
                                     text: "▶";
                                     font-size: 10px;
-                                    color: #94a3b8;
+                                    color: AppTheme.text-secondary;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
@@ -1340,9 +1344,9 @@ export component MainWindow inherits Window {
                             Rectangle {
                                 height: 28px;
                                 border-radius: 4px;
-                                background: root.tabs_multiline ? #1e3a8a : (multiline_touch_csv.has-hover ? #2e3549 : #1a1e2d);
+                                background: root.tabs_multiline ? AppTheme.info-bg : (multiline_touch_csv.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas);
                                 border-width: 1px;
-                                border-color: root.tabs_multiline ? #3b82f6 : #333d54;
+                                border-color: root.tabs_multiline ? AppTheme.accent : AppTheme.border;
                                 HorizontalLayout {
                                     padding-left: 8px;
                                     padding-right: 8px;
@@ -1352,7 +1356,7 @@ export component MainWindow inherits Window {
                                         text: root.tabs_multiline ? "☰ Einzeilig" : "☷ Mehrzeilig";
                                         font-size: 11px;
                                         font-weight: 600;
-                                        color: root.tabs_multiline ? #93c5fd : #cbd5e1;
+                                        color: root.tabs_multiline ? AppTheme.accent-hover : AppTheme.text-secondary;
                                         vertical-alignment: center;
                                     }
                                 }
@@ -1371,7 +1375,7 @@ export component MainWindow inherits Window {
                 // Trennlinie wenn beide Zeilen im Modus "Alle" sichtbar sind
                 if root.active_view_mode == 0 && root.csv_tabs.length > 0 && root.ods_tabs.length > 0: Rectangle {
                     height: 1px;
-                    background: #252b3d;
+                    background: AppTheme.bg-subtle;
                 }
 
                 // 2. ODS Tab-Zeile (Sichtbar bei Modus "Alle" [0] oder "ODS" [2])
@@ -1390,12 +1394,12 @@ export component MainWindow inherits Window {
                                 width: 72px;
                                 height: 24px;
                                 border-radius: 4px;
-                                background: #451a03;
+                                background: AppTheme.warning-bg;
                                 border-width: 1px;
-                                border-color: #d97706;
+                                border-color: AppTheme.warning;
                                 Text {
                                     text: "📊 ODS (" + root.ods_tabs.length + ")";
-                                    color: #fcd34d;
+                                    color: AppTheme.warning;
                                     font-size: 10px;
                                     font-weight: 700;
                                     horizontal-alignment: center;
@@ -1411,13 +1415,13 @@ export component MainWindow inherits Window {
                                 width: 22px;
                                 height: 28px;
                                 border-radius: 4px;
-                                background: tab_scroll_ods_l.has-hover ? #2e3549 : #1a1e2d;
+                                background: tab_scroll_ods_l.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas;
                                 border-width: 1px;
-                                border-color: #333d54;
+                                border-color: AppTheme.border;
                                 Text {
                                     text: "◀";
                                     font-size: 10px;
-                                    color: #94a3b8;
+                                    color: AppTheme.text-secondary;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
@@ -1471,13 +1475,13 @@ export component MainWindow inherits Window {
                                 width: 22px;
                                 height: 28px;
                                 border-radius: 4px;
-                                background: tab_scroll_ods_r.has-hover ? #2e3549 : #1a1e2d;
+                                background: tab_scroll_ods_r.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas;
                                 border-width: 1px;
-                                border-color: #333d54;
+                                border-color: AppTheme.border;
                                 Text {
                                     text: "▶";
                                     font-size: 10px;
-                                    color: #94a3b8;
+                                    color: AppTheme.text-secondary;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
@@ -1526,9 +1530,9 @@ export component MainWindow inherits Window {
                             Rectangle {
                                 height: 28px;
                                 border-radius: 4px;
-                                background: root.tabs_multiline ? #1e3a8a : (multiline_touch_ods.has-hover ? #2e3549 : #1a1e2d);
+                                background: root.tabs_multiline ? AppTheme.info-bg : (multiline_touch_ods.has-hover ? AppTheme.bg-hover : AppTheme.bg-canvas);
                                 border-width: 1px;
-                                border-color: root.tabs_multiline ? #3b82f6 : #333d54;
+                                border-color: root.tabs_multiline ? AppTheme.accent : AppTheme.border;
                                 HorizontalLayout {
                                     padding-left: 8px;
                                     padding-right: 8px;
@@ -1538,7 +1542,7 @@ export component MainWindow inherits Window {
                                         text: root.tabs_multiline ? "☰ Einzeilig" : "☷ Mehrzeilig";
                                         font-size: 11px;
                                         font-weight: 600;
-                                        color: root.tabs_multiline ? #93c5fd : #cbd5e1;
+                                        color: root.tabs_multiline ? AppTheme.accent-hover : AppTheme.text-secondary;
                                         vertical-alignment: center;
                                     }
                                 }
@@ -1559,13 +1563,13 @@ export component MainWindow inherits Window {
         // DRAGGABLE SPLITTER ZWISCHEN TAB-LEISTE UND HAUPTBEREICH
         Rectangle {
             height: 7px;
-            background: splitter_ta.has-hover || splitter_ta.pressed ? #2563eb : #181a24;
+            background: splitter_ta.has-hover || splitter_ta.pressed ? AppTheme.accent : AppTheme.bg-canvas;
 
             // Visual Grip Handle in der Mitte
             Rectangle {
                 width: 52px;
                 height: 3px;
-                background: splitter_ta.has-hover || splitter_ta.pressed ? #93c5fd : #3b4256;
+                background: splitter_ta.has-hover || splitter_ta.pressed ? AppTheme.accent : AppTheme.border;
                 border-radius: 1.5px;
             }
 
@@ -1588,7 +1592,7 @@ export component MainWindow inherits Window {
         // TOOLBAR & SELECTION BAR
         Rectangle {
             height: 42px;
-            background: #23232b;
+            background: AppTheme.bg-surface;
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -1605,9 +1609,9 @@ export component MainWindow inherits Window {
                     Rectangle {
                         height: 26px;
                         border-radius: 4px;
-                        background: root.active_table_is_ods ? #451a03 : #064e3b;
+                        background: root.active_table_is_ods ? AppTheme.warning-bg : AppTheme.success-bg;
                         border-width: 1px;
-                        border-color: root.active_table_is_ods ? #d97706 : #059669;
+                        border-color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
 
                         HorizontalLayout {
                             padding-left: 8px;
@@ -1615,7 +1619,7 @@ export component MainWindow inherits Window {
                             spacing: 4px;
                             Text {
                                 text: root.active_table_is_ods ? "📊 ODS-Ebene" : "📄 CSV-Ebene";
-                                color: root.active_table_is_ods ? #fcd34d : #6ee7b7;
+                                color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
                                 font-weight: 700;
                                 font-size: 11px;
                                 vertical-alignment: center;
@@ -1626,9 +1630,9 @@ export component MainWindow inherits Window {
                     if root.active_table_name != "": Rectangle {
                         height: 26px;
                         border-radius: 4px;
-                        background: #1e2230;
+                        background: AppTheme.bg-surface;
                         border-width: 1px;
-                        border-color: #3b4258;
+                        border-color: AppTheme.border;
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 8px;
@@ -1637,7 +1641,7 @@ export component MainWindow inherits Window {
                                 text: "📄 " + root.active_table_name;
                                 font-weight: 700;
                                 font-size: 11px;
-                                color: #ffffff;
+                                color: AppTheme.text-primary;
                                 vertical-alignment: center;
                             }
                         }
@@ -1647,9 +1651,9 @@ export component MainWindow inherits Window {
                     Rectangle {
                         height: 28px;
                         border-radius: 5px;
-                        background: root.only_marked_active ? #78350f : (only_marked_touch.has-hover ? #2e3549 : #222536);
+                        background: root.only_marked_active ? AppTheme.warning-bg : (only_marked_touch.has-hover ? AppTheme.bg-hover : AppTheme.bg-surface);
                         border-width: 1.5px;
-                        border-color: root.only_marked_active ? #f59e0b : #475569;
+                        border-color: root.only_marked_active ? AppTheme.warning : AppTheme.border-strong;
 
                         HorizontalLayout {
                             padding-left: 8px;
@@ -1667,7 +1671,7 @@ export component MainWindow inherits Window {
 
                             Text {
                                 text: "Nur Markierte";
-                                color: root.only_marked_active ? #fef08a : #e2e8f0;
+                                color: root.only_marked_active ? AppTheme.warning : AppTheme.text-primary;
                                 font-weight: root.only_marked_active ? 700 : 600;
                                 font-size: 11px;
                                 vertical-alignment: center;
@@ -1684,14 +1688,14 @@ export component MainWindow inherits Window {
                     }
 
                     Rectangle {
-                        background: #333342;
+                        background: AppTheme.bg-hover;
                         border-radius: 4px;
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 8px;
                             Text {
                                 text: root.marked_row_count + " von " + root.total_row_count + " Zeilen markiert (" + root.rows.length + " sichtbar)";
-                                color: #d1d1e0;
+                                color: AppTheme.text-secondary;
                                 vertical-alignment: center;
                             }
                         }
@@ -1748,21 +1752,21 @@ export component MainWindow inherits Window {
 
         // MAIN GRID (Sticky Header + Scrollable Rows)
         Rectangle {
-            background: #19191e;
+            background: AppTheme.bg-canvas;
             vertical-stretch: 1;
 
             VerticalLayout {
                 // Table Header Row
                 Rectangle {
                     height: 34px;
-                    background: #252838;
+                    background: AppTheme.bg-subtle;
                     clip: true;
 
                     // Bottom border for sticky header
                     Rectangle {
                         y: parent.height - 1px;
                         height: 1px;
-                        background: #3a415a;
+                        background: AppTheme.border;
                     }
 
                     header_layout := HorizontalLayout {
@@ -1773,7 +1777,7 @@ export component MainWindow inherits Window {
                             min-width: 38px;
                             max-width: 38px;
                             preferred-width: 38px;
-                            background: #252838;
+                            background: AppTheme.bg-subtle;
                             CheckBox {
                                 toggled => {
                                     root.commit_active_edit();
@@ -1783,7 +1787,7 @@ export component MainWindow inherits Window {
                             Rectangle {
                                 x: parent.width - 1px;
                                 width: 1px;
-                                background: #353b52;
+                                background: AppTheme.bg-hover;
                             }
                         }
                         // Row index header
@@ -1791,10 +1795,10 @@ export component MainWindow inherits Window {
                             min-width: 50px;
                             max-width: 50px;
                             preferred-width: 50px;
-                            background: #252838;
+                            background: AppTheme.bg-subtle;
                             Text {
                                 text: "#";
-                                color: #9aa5c0;
+                                color: AppTheme.text-secondary;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                                 font-weight: 600;
@@ -1802,7 +1806,7 @@ export component MainWindow inherits Window {
                             Rectangle {
                                 x: parent.width - 1px;
                                 width: 1px;
-                                background: #353b52;
+                                background: AppTheme.bg-hover;
                             }
                         }
 
@@ -1811,12 +1815,12 @@ export component MainWindow inherits Window {
                             min-width: max(50px, h.width);
                             max-width: max(50px, h.width);
                             preferred-width: self.min-width;
-                            background: h.is_filtered ? #373f5c : #252838;
+                            background: h.is_filtered ? AppTheme.bg-hover : AppTheme.bg-subtle;
 
                             Rectangle {
                                 x: parent.width - 1px;
                                 width: 1px;
-                                background: #353b52;
+                                background: AppTheme.bg-hover;
                             }
 
                             TouchArea {
@@ -1837,13 +1841,13 @@ export component MainWindow inherits Window {
                                     alignment: center;
                                     Text {
                                         text: h.name + (h.sort_dir == 1 ? " ▲" : h.sort_dir == 2 ? " ▼" : "");
-                                        color: #e6ebf5;
+                                        color: AppTheme.text-primary;
                                         font-weight: 600;
                                         overflow: elide;
                                     }
                                     if h.concept != "": Text {
                                         text: "[" + h.concept + "]";
-                                        color: #60a5fa;
+                                        color: AppTheme.accent;
                                         font-size: 11px;
                                         overflow: elide;
                                     }
@@ -1870,7 +1874,7 @@ export component MainWindow inherits Window {
                                     x: 4px;
                                     width: 2px;
                                     height: parent.height;
-                                    background: col_resizer.has-hover || col_resizer.pressed ? #3b82f6 : transparent;
+                                    background: col_resizer.has-hover || col_resizer.pressed ? AppTheme.accent : transparent;
                                 }
 
                                 col_resizer := TouchArea {
@@ -1893,12 +1897,12 @@ export component MainWindow inherits Window {
                         alignment: start;
                         for row in root.rows: Rectangle {
                             height: 28px;
-                            background: row.is_marked ? #23374d : row.bg_color != transparent ? row.bg_color : (Math.mod(row.row_idx, 2) == 0 ? #191a22 : #1f202b);
+                            background: row.is_marked ? AppTheme.bg-selected : row.bg_color != transparent ? row.bg_color : (Math.mod(row.row_idx, 2) == 0 ? AppTheme.bg-canvas : AppTheme.bg-subtle);
 
                             Rectangle {
                                 y: parent.height - 1px;
                                 height: 1px;
-                                background: #292b3b;
+                                background: AppTheme.bg-subtle;
                             }
 
                             HorizontalLayout {
@@ -1917,7 +1921,7 @@ export component MainWindow inherits Window {
                                     Rectangle {
                                         x: parent.width - 1px;
                                         width: 1px;
-                                        background: #2a2c3a;
+                                        background: AppTheme.bg-subtle;
                                     }
                                 }
                                 // Row number
@@ -1927,7 +1931,7 @@ export component MainWindow inherits Window {
                                     preferred-width: 50px;
                                     Text {
                                         text: (row.original_idx + 1);
-                                        color: #7b8296;
+                                        color: AppTheme.text-muted;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
                                         font-size: 11px;
@@ -1935,7 +1939,7 @@ export component MainWindow inherits Window {
                                     Rectangle {
                                         x: parent.width - 1px;
                                         width: 1px;
-                                        background: #2a2c3a;
+                                        background: AppTheme.bg-subtle;
                                     }
                                 }
 
@@ -1946,16 +1950,16 @@ export component MainWindow inherits Window {
                                     preferred-width: self.min-width;
                                     clip: true;
                                     border-width: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? 1.5px : 0px;
-                                    border-color: #60a5fa;
-                                    background: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? #141824 :
+                                    border-color: AppTheme.accent;
+                                    background: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? AppTheme.bg-elevated :
                                         cell.bg_color != transparent ? cell.bg_color :
-                                        (cell.has_error ? #4d1f24 : cell.has_warning ? #4d441f : cell.has_info ? #1f3b4d :
-                                        (cell_touch.has-hover ? #25293a : transparent));
+                                        (cell.has_error ? AppTheme.danger-bg : cell.has_warning ? AppTheme.warning-bg : cell.has_info ? AppTheme.info-bg :
+                                        (cell_touch.has-hover ? AppTheme.bg-hover : transparent));
 
                                     Rectangle {
                                         x: parent.width - 1px;
                                         width: 1px;
-                                        background: #2a2c3a;
+                                        background: AppTheme.bg-subtle;
                                     }
 
                                     // Display mode (when not editing this cell)
@@ -1964,7 +1968,7 @@ export component MainWindow inherits Window {
                                         padding-right: 8px;
                                         Text {
                                             text: cell.text;
-                                            color: cell.bg_color != transparent ? #ffffff : (cell.has_error ? #ff8a80 : cell.has_warning ? #ffd54f : #d1d1de);
+                                            color: cell.has_custom_bg ? cell.fg_color : (cell.has_error ? AppTheme.danger : cell.has_warning ? AppTheme.warning : AppTheme.text-primary);
                                             font-weight: cell.bg_color != transparent ? 600 : 400;
                                             vertical-alignment: center;
                                             overflow: elide;
@@ -2015,13 +2019,13 @@ export component MainWindow inherits Window {
         // BOTTOM DOCK (COLLAPSIBLE)
         Rectangle {
             height: root.dock_collapsed ? 32px : 180px;
-            background: #202027;
+            background: AppTheme.bg-surface;
 
             VerticalLayout {
                 // Dock Header / Tab buttons
                 Rectangle {
                     height: 32px;
-                    background: #272732;
+                    background: AppTheme.bg-subtle;
 
                     HorizontalLayout {
                         padding-left: 8px;
@@ -2066,7 +2070,7 @@ export component MainWindow inherits Window {
                             spacing: 4px;
                             for r in root.rule_summaries: Rectangle {
                                 height: 32px;
-                                background: #2a2a36;
+                                background: AppTheme.bg-subtle;
                                 border-radius: 4px;
 
                                 HorizontalLayout {
@@ -2076,7 +2080,7 @@ export component MainWindow inherits Window {
 
                                     Text {
                                         text: r.id + ": " + r.description;
-                                        color: #e0e0ec;
+                                        color: AppTheme.text-primary;
                                         vertical-alignment: center;
                                         overflow: elide;
                                     }
@@ -2085,32 +2089,32 @@ export component MainWindow inherits Window {
                                         spacing: 8px;
                                         alignment: end;
                                         if r.errors > 0: Rectangle {
-                                            background: #c62828;
+                                            background: AppTheme.danger;
                                             border-radius: 3px;
                                             HorizontalLayout {
                                                 padding-left: 6px; padding-right: 6px;
-                                                Text { text: r.errors + " Fehler"; color: #ffffff; vertical-alignment: center; }
+                                                Text { text: r.errors + " Fehler"; color: AppTheme.text-primary; vertical-alignment: center; }
                                             }
                                         }
                                         if r.warnings > 0: Rectangle {
-                                            background: #f57f17;
+                                            background: AppTheme.warning;
                                             border-radius: 3px;
                                             HorizontalLayout {
                                                 padding-left: 6px; padding-right: 6px;
-                                                Text { text: r.warnings + " Warnungen"; color: #ffffff; vertical-alignment: center; }
+                                                Text { text: r.warnings + " Warnungen"; color: AppTheme.text-primary; vertical-alignment: center; }
                                             }
                                         }
                                         if r.hits > 0 && r.errors == 0 && r.warnings == 0: Rectangle {
-                                            background: #1e3a5f;
+                                            background: AppTheme.bg-selected;
                                             border-radius: 3px;
                                             HorizontalLayout {
                                                 padding-left: 8px; padding-right: 8px;
-                                                Text { text: r.hits + " Treffer"; color: #93c5fd; font-weight: 600; vertical-alignment: center; }
+                                                Text { text: r.hits + " Treffer"; color: AppTheme.accent-hover; font-weight: 600; vertical-alignment: center; }
                                             }
                                         }
                                         if r.hits == 0: Text {
                                             text: "OK (0 Treffer)";
-                                            color: #81c784;
+                                            color: AppTheme.success;
                                             vertical-alignment: center;
                                         }
                                     }
@@ -2126,12 +2130,12 @@ export component MainWindow inherits Window {
                             spacing: 4px;
                             if root.proposals.length == 0: Text {
                                 text: "Keine Vorschläge aus Tabellenvergleichen vorhanden.";
-                                color: #888899;
+                                color: AppTheme.text-muted;
                                 horizontal-alignment: center;
                             }
                             for p[idx] in root.proposals: Rectangle {
                                 height: 34px;
-                                background: #2a2a36;
+                                background: AppTheme.bg-subtle;
                                 border-radius: 4px;
 
                                 HorizontalLayout {
@@ -2140,7 +2144,7 @@ export component MainWindow inherits Window {
 
                                     Text {
                                         text: "Quelle: " + p.source_table + " | Schlüssel: " + p.key_val + " (" + p.preview + ")";
-                                        color: #e0e0ec;
+                                        color: AppTheme.text-primary;
                                         vertical-alignment: center;
                                     }
 
@@ -2168,7 +2172,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 for log in root.logs: Text {
                                     text: "[" + log.timestamp + "] [" + log.level + "] " + log.message;
-                                    color: log.level == "ERROR" ? #ff8a80 : log.level == "WARN" ? #ffd54f : #a6a6b8;
+                                    color: log.level == "ERROR" ? AppTheme.danger : log.level == "WARN" ? AppTheme.warning : AppTheme.text-secondary;
                                     font-family: "Consolas, Courier New, monospace";
                                     font-size: 11px;
                                 }
@@ -2182,7 +2186,7 @@ export component MainWindow inherits Window {
         // FOOTER STATUS BAR
         Rectangle {
             height: 24px;
-            background: #18181f;
+            background: AppTheme.bg-canvas;
 
             HorizontalLayout {
                 padding-left: 10px;
@@ -2191,13 +2195,13 @@ export component MainWindow inherits Window {
 
                 Text {
                     text: root.status_message;
-                    color: #9292a4;
+                    color: AppTheme.text-muted;
                     vertical-alignment: center;
                     font-size: 11px;
                 }
                 Text {
                     text: "Configurable CSV & ODS Analyzer (Rust + Slint)";
-                    color: #646476;
+                    color: AppTheme.text-muted;
                     vertical-alignment: center;
                     font-size: 11px;
                 }
@@ -2221,12 +2225,12 @@ export component MainWindow inherits Window {
             x: 12px;
             y: 44px;
             width: 240px;
-            background: #252634;
+            background: AppTheme.bg-subtle;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #4b5563;
+            border-color: AppTheme.border-strong;
             drop-shadow-blur: 14px;
-            drop-shadow-color: #000000aa;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 6px;
@@ -2235,14 +2239,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: op_csv.has-hover ? #34384e : transparent;
+                    background: op_csv.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "📄"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "CSV-Datei öffnen..."; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "CSV-Datei öffnen..."; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     op_csv := TouchArea {
                         mouse-cursor: pointer;
@@ -2256,14 +2260,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: op_ods.has-hover ? #34384e : transparent;
+                    background: op_ods.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "📊"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "ODS-Arbeitsmappe öffnen..."; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "ODS-Arbeitsmappe öffnen..."; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     op_ods := TouchArea {
                         mouse-cursor: pointer;
@@ -2277,14 +2281,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: op_folder.has-hover ? #34384e : transparent;
+                    background: op_folder.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "📁"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "CSV-Ordner einlesen..."; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "CSV-Ordner einlesen..."; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     op_folder := TouchArea {
                         mouse-cursor: pointer;
@@ -2314,12 +2318,12 @@ export component MainWindow inherits Window {
             x: 235px;
             y: 44px;
             width: 260px;
-            background: #252634;
+            background: AppTheme.bg-subtle;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #4b5563;
+            border-color: AppTheme.border-strong;
             drop-shadow-blur: 14px;
-            drop-shadow-color: #000000aa;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 6px;
@@ -2331,7 +2335,7 @@ export component MainWindow inherits Window {
                     padding-bottom: 2px;
                     Text {
                         text: "Mit externem Programm öffnen:";
-                        color: #94a3b8;
+                        color: AppTheme.text-secondary;
                         font-size: 10px;
                         font-weight: 600;
                     }
@@ -2340,14 +2344,14 @@ export component MainWindow inherits Window {
                 for app in root.external_apps: Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: ow_touch.has-hover ? #34384e : transparent;
+                    background: ow_touch.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "🚀"; font-size: 13px; vertical-alignment: center; }
-                        Text { text: app.name; color: #ffffff; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                        Text { text: app.name; color: AppTheme.text-primary; font-size: 12px; font-weight: 500; vertical-alignment: center; }
                     }
                     ow_touch := TouchArea {
                         mouse-cursor: pointer;
@@ -2358,19 +2362,19 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Rectangle { height: 1px; background: #374151; }
+                Rectangle { height: 1px; background: AppTheme.bg-hover; }
 
                 Rectangle {
                     height: 30px;
                     border-radius: 5px;
-                    background: ow_cfg.has-hover ? #34384e : transparent;
+                    background: ow_cfg.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "⚙"; font-size: 13px; vertical-alignment: center; }
-                        Text { text: "Programme konfigurieren..."; color: #93c5fd; font-size: 11px; vertical-alignment: center; }
+                        Text { text: "Programme konfigurieren..."; color: AppTheme.accent-hover; font-size: 11px; vertical-alignment: center; }
                     }
                     ow_cfg := TouchArea {
                         mouse-cursor: pointer;
@@ -2400,12 +2404,12 @@ export component MainWindow inherits Window {
             x: 350px;
             y: 44px;
             width: 290px;
-            background: #252634;
+            background: AppTheme.bg-subtle;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #4b5563;
+            border-color: AppTheme.border-strong;
             drop-shadow-blur: 14px;
-            drop-shadow-color: #000000aa;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 6px;
@@ -2414,14 +2418,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: es_c2o.has-hover ? #34384e : transparent;
+                    background: es_c2o.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "📤"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "CSV ➔ ODS (In Arbeitsmappe übertragen)"; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "CSV ➔ ODS (In Arbeitsmappe übertragen)"; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     es_c2o := TouchArea {
                         mouse-cursor: pointer;
@@ -2435,14 +2439,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: es_o2c.has-hover ? #34384e : transparent;
+                    background: es_o2c.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "📥"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "ODS ➔ CSV (Blätter als CSV exportieren)"; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "ODS ➔ CSV (Blätter als CSV exportieren)"; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     es_o2c := TouchArea {
                         mouse-cursor: pointer;
@@ -2453,19 +2457,19 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Rectangle { height: 1px; background: #374151; }
+                Rectangle { height: 1px; background: AppTheme.bg-hover; }
 
                 Rectangle {
                     height: 32px;
                     border-radius: 5px;
-                    background: es_diff.has-hover ? #34384e : transparent;
+                    background: es_diff.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "⚖️"; font-size: 14px; vertical-alignment: center; }
-                        Text { text: "Diff & Synchronisation öffnen..."; color: #e2e8f0; font-size: 12px; vertical-alignment: center; }
+                        Text { text: "Diff & Synchronisation öffnen..."; color: AppTheme.text-primary; font-size: 12px; vertical-alignment: center; }
                     }
                     es_diff := TouchArea {
                         mouse-cursor: pointer;
@@ -2495,12 +2499,12 @@ export component MainWindow inherits Window {
             x: 12px;
             y: 84px;
             width: 340px;
-            background: #252634;
+            background: AppTheme.bg-subtle;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #4b5563;
+            border-color: AppTheme.border-strong;
             drop-shadow-blur: 14px;
-            drop-shadow-color: #000000aa;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 8px;
@@ -2511,7 +2515,7 @@ export component MainWindow inherits Window {
                     padding-bottom: 2px;
                     Text {
                         text: "Kollektionen filtern (Klick = Einzeln, Checkbox = Mehrfach):";
-                        color: #94a3b8;
+                        color: AppTheme.text-secondary;
                         font-size: 10px;
                         font-weight: 600;
                     }
@@ -2520,14 +2524,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 30px;
                     border-radius: 5px;
-                    background: cm_all.has-hover ? #34384e : transparent;
+                    background: cm_all.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 8px;
                         padding-right: 8px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "🌐"; font-size: 13px; vertical-alignment: center; }
-                        Text { text: "Alle anzeigen (Filter aufheben)"; color: #93c5fd; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                        Text { text: "Alle anzeigen (Filter aufheben)"; color: AppTheme.accent-hover; font-size: 12px; font-weight: 500; vertical-alignment: center; }
                     }
                     cm_all := TouchArea {
                         mouse-cursor: pointer;
@@ -2538,12 +2542,12 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Rectangle { height: 1px; background: #374151; }
+                Rectangle { height: 1px; background: AppTheme.bg-hover; }
 
                 for col in root.collection_items: Rectangle {
                     height: 34px;
                     border-radius: 5px;
-                    background: col.is_temporary ? (col.is_selected ? #451a03 : (cm_touch.has-hover ? #2e1a06 : transparent)) : (col.is_selected ? #1e293b : (cm_touch.has-hover ? #34384e : transparent));
+                    background: col.is_temporary ? (col.is_selected ? AppTheme.warning-bg : (cm_touch.has-hover ? AppTheme.warning-bg : transparent)) : (col.is_selected ? AppTheme.bg-surface : (cm_touch.has-hover ? AppTheme.bg-hover : transparent));
 
                     HorizontalLayout {
                         padding-left: 8px;
@@ -2571,7 +2575,7 @@ export component MainWindow inherits Window {
                                     }
                                     Text {
                                         text: col.name;
-                                        color: col.is_temporary ? (col.is_selected ? #fef08a : #fcd34d) : (col.is_selected ? #ffffff : #cbd5e1);
+                                        color: col.is_temporary ? (col.is_selected ? AppTheme.warning : AppTheme.warning) : (col.is_selected ? AppTheme.text-primary : AppTheme.text-secondary);
                                         font-size: 12px;
                                         font-weight: col.is_selected ? 700 : 500;
                                         vertical-alignment: center;
@@ -2592,14 +2596,14 @@ export component MainWindow inherits Window {
                             Rectangle {
                                 height: 18px;
                                 border-radius: 9px;
-                                background: col.is_temporary ? (col.is_selected ? #78350f : #3d1f08) : (col.is_selected ? #1d3557 : #1e202e);
+                                background: col.is_temporary ? (col.is_selected ? AppTheme.warning-bg : AppTheme.warning-bg) : (col.is_selected ? AppTheme.bg-selected : AppTheme.bg-surface);
                                 HorizontalLayout {
                                     padding-left: 6px;
                                     padding-right: 6px;
                                     Text {
                                         text: col.file_count + " Dateien";
                                         font-size: 10px;
-                                        color: col.is_temporary ? #fef08a : (col.is_selected ? #93c5fd : #94a3b8);
+                                        color: col.is_temporary ? AppTheme.warning : (col.is_selected ? AppTheme.accent-hover : AppTheme.text-secondary);
                                         vertical-alignment: center;
                                     }
                                 }
@@ -2608,19 +2612,19 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Rectangle { height: 1px; background: #374151; }
+                Rectangle { height: 1px; background: AppTheme.bg-hover; }
 
                 if root.has_temporary_collection: Rectangle {
                     height: 30px;
                     border-radius: 5px;
-                    background: cm_save_temp.has-hover ? #059669 : #065f46;
+                    background: cm_save_temp.has-hover ? AppTheme.success : AppTheme.success-bg;
                     HorizontalLayout {
                         padding-left: 8px;
                         padding-right: 8px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "💾"; font-size: 12px; vertical-alignment: center; }
-                        Text { text: "Temporäre Kollektion speichern..."; color: #ffffff; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                        Text { text: "Temporäre Kollektion speichern..."; color: AppTheme.text-primary; font-size: 11px; font-weight: 700; vertical-alignment: center; }
                     }
                     cm_save_temp := TouchArea {
                         mouse-cursor: pointer;
@@ -2634,14 +2638,14 @@ export component MainWindow inherits Window {
                 Rectangle {
                     height: 28px;
                     border-radius: 5px;
-                    background: cm_cfg.has-hover ? #34384e : transparent;
+                    background: cm_cfg.has-hover ? AppTheme.bg-hover : transparent;
                     HorizontalLayout {
                         padding-left: 8px;
                         padding-right: 8px;
                         spacing: 8px;
                         alignment: start;
                         Text { text: "⚙"; font-size: 12px; vertical-alignment: center; }
-                        Text { text: "Kollektionen verwalten..."; color: #93c5fd; font-size: 11px; vertical-alignment: center; }
+                        Text { text: "Kollektionen verwalten..."; color: AppTheme.accent-hover; font-size: 11px; vertical-alignment: center; }
                     }
                     cm_cfg := TouchArea {
                         mouse-cursor: pointer;
@@ -2671,12 +2675,12 @@ export component MainWindow inherits Window {
             x: 430px;
             y: 46px;
             width: 230px;
-            background: #252634;
+            background: AppTheme.bg-subtle;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #4b5563;
+            border-color: AppTheme.border-strong;
             drop-shadow-blur: 14px;
-            drop-shadow-color: #000000aa;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 8px;
@@ -2684,7 +2688,7 @@ export component MainWindow inherits Window {
 
                 Text {
                     text: "Textmarker-Farbe wählen:";
-                    color: #9ca3af;
+                    color: AppTheme.text-muted;
                     font-size: 11px;
                     font-weight: 600;
                 }
@@ -2692,7 +2696,7 @@ export component MainWindow inherits Window {
                 for mc in root.marker_choices: Rectangle {
                     height: 30px;
                     border-radius: 5px;
-                    background: mc_touch.has-hover ? #34384e : transparent;
+                    background: mc_touch.has-hover ? AppTheme.bg-hover : transparent;
 
                     HorizontalLayout {
                         padding-left: 8px;
@@ -2708,13 +2712,13 @@ export component MainWindow inherits Window {
                                 border-radius: 4px;
                                 background: mc.color;
                                 border-width: 1px;
-                                border-color: #ffffff55;
+                                border-color: AppTheme.border-strong;
                             }
                         }
 
                         Text {
                             text: mc.key;
-                            color: #f3f4f6;
+                            color: AppTheme.text-primary;
                             font-size: 13px;
                             vertical-alignment: center;
                             horizontal-stretch: 1;
@@ -2722,7 +2726,7 @@ export component MainWindow inherits Window {
 
                         Text {
                             text: mc.hex_value;
-                            color: #8b92a8;
+                            color: AppTheme.text-muted;
                             font-size: 11px;
                             vertical-alignment: center;
                         }
@@ -2739,13 +2743,13 @@ export component MainWindow inherits Window {
 
                 Rectangle {
                     height: 1px;
-                    background: #3f445a;
+                    background: AppTheme.border;
                 }
 
                 Rectangle {
                     height: 30px;
                     border-radius: 5px;
-                    background: clear_marker_touch.has-hover ? #4d232a : transparent;
+                    background: clear_marker_touch.has-hover ? AppTheme.danger-bg : transparent;
 
                     HorizontalLayout {
                         padding-left: 8px;
@@ -2753,7 +2757,7 @@ export component MainWindow inherits Window {
                         spacing: 8px;
                         Text {
                             text: "✕ Marker von Auswahl löschen";
-                            color: #fca5a5;
+                            color: AppTheme.danger;
                             font-size: 12px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -2776,7 +2780,7 @@ export component MainWindow inherits Window {
 
     // 1. Column Filter Dialog (with hit counts & other active filters support)
     if root.filter_dialog_visible: Rectangle {
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         TouchArea {}
@@ -2784,10 +2788,10 @@ export component MainWindow inherits Window {
         Rectangle {
             width: 430px;
             height: 520px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 16px;
@@ -2799,11 +2803,11 @@ export component MainWindow inherits Window {
                         text: "Spaltenfilter: " + root.filter_dialog_col_name;
                         font-size: 15px;
                         font-weight: 700;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                         vertical-alignment: center;
                     }
                     Rectangle {
-                        background: #1e3a5f;
+                        background: AppTheme.bg-selected;
                         border-radius: 4px;
                         height: 22px;
                         HorizontalLayout {
@@ -2811,7 +2815,7 @@ export component MainWindow inherits Window {
                             padding-right: 8px;
                             Text {
                                 text: root.filter_dialog_total_hits + " Treffer";
-                                color: #93c5fd;
+                                color: AppTheme.accent-hover;
                                 font-size: 11px;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -2822,7 +2826,7 @@ export component MainWindow inherits Window {
 
                 Text {
                     text: "Trefferanzahl berücksichtigt alle anderen aktiven Filter.";
-                    color: #9ca3af;
+                    color: AppTheme.text-muted;
                     font-size: 11px;
                 }
 
@@ -2856,10 +2860,10 @@ export component MainWindow inherits Window {
 
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #1c1d26;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     border-width: 1px;
-                    border-color: #34374a;
+                    border-color: AppTheme.border;
 
                     ScrollView {
                         VerticalLayout {
@@ -2870,7 +2874,7 @@ export component MainWindow inherits Window {
                                 if item.visible: Rectangle {
                                     height: 28px;
                                     border-radius: 4px;
-                                    background: item.selected ? #263147 : transparent;
+                                    background: item.selected ? AppTheme.bg-subtle : transparent;
 
                                     HorizontalLayout {
                                         padding-left: 6px;
@@ -2891,13 +2895,13 @@ export component MainWindow inherits Window {
                                                 min-width: 30px;
                                                 height: 20px;
                                                 border-radius: 10px;
-                                                background: item.count > 0 ? #313d5a : #2a2b36;
+                                                background: item.count > 0 ? AppTheme.bg-hover : AppTheme.bg-subtle;
                                                 HorizontalLayout {
                                                     padding-left: 6px;
                                                     padding-right: 6px;
                                                     Text {
                                                         text: item.count;
-                                                        color: item.count > 0 ? #93c5fd : #6b7280;
+                                                        color: item.count > 0 ? AppTheme.accent-hover : AppTheme.text-muted;
                                                         font-size: 11px;
                                                         font-weight: 600;
                                                         horizontal-alignment: center;
@@ -2935,7 +2939,7 @@ export component MainWindow inherits Window {
 
     // 2. Smart Add Rows Dialog (C# SmartAddDialog port)
     if root.smart_add_dialog_visible: Rectangle {
-        background: #000000bb;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         TouchArea {}
@@ -2943,10 +2947,10 @@ export component MainWindow inherits Window {
         Rectangle {
             width: min(parent.width - 60px, 760px);
             height: min(parent.height - 60px, 640px);
-            background: #232533;
+            background: AppTheme.bg-surface;
             border-radius: 10px;
             border-width: 1px;
-            border-color: #47506b;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 18px;
@@ -2961,12 +2965,12 @@ export component MainWindow inherits Window {
                             text: "Neue Zeilen hinzufügen (Smart Add)";
                             font-size: 17px;
                             font-weight: 700;
-                            color: #ffffff;
+                            color: AppTheme.text-primary;
                         }
                         Text {
                             text: root.smart_add_basis_text;
                             font-size: 12px;
-                            color: #93c5fd;
+                            color: AppTheme.accent-hover;
                         }
                     }
 
@@ -2979,10 +2983,10 @@ export component MainWindow inherits Window {
                 // RowCount Bar (- / LineEdit / + / +3 / +5 / +10 / +15)
                 Rectangle {
                     height: 46px;
-                    background: #1b1d29;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     border-width: 1px;
-                    border-color: #33384d;
+                    border-color: AppTheme.bg-hover;
 
                     HorizontalLayout {
                         padding-left: 12px;
@@ -2996,7 +3000,7 @@ export component MainWindow inherits Window {
 
                             Text {
                                 text: "Zeilenanzahl:";
-                                color: #e2e8f0;
+                                color: AppTheme.text-primary;
                                 font-weight: 600;
                                 vertical-alignment: center;
                             }
@@ -3035,7 +3039,7 @@ export component MainWindow inherits Window {
 
                             Text {
                                 text: "Schnellwahl:";
-                                color: #94a3b8;
+                                color: AppTheme.text-secondary;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -3066,10 +3070,10 @@ export component MainWindow inherits Window {
                 // Columns and Editable Suggestion Inputs
                 Rectangle {
                     vertical-stretch: 1;
-                    background: #191b26;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     border-width: 1px;
-                    border-color: #32374d;
+                    border-color: AppTheme.bg-hover;
 
                     ScrollView {
                         VerticalLayout {
@@ -3078,10 +3082,10 @@ export component MainWindow inherits Window {
                             alignment: start;
 
                             for field[field_idx] in root.smart_add_fields: Rectangle {
-                                background: field.dropdown_open ? #252b3d : #212432;
+                                background: field.dropdown_open ? AppTheme.bg-subtle : AppTheme.bg-surface;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: field.dropdown_open ? #60a5fa : #2f354a;
+                                border-color: field.dropdown_open ? AppTheme.accent : AppTheme.bg-hover;
 
                                 VerticalLayout {
                                     padding: 8px;
@@ -3096,13 +3100,13 @@ export component MainWindow inherits Window {
                                             alignment: center;
                                             Text {
                                                 text: field.column_name;
-                                                color: #f1f5f9;
+                                                color: AppTheme.text-primary;
                                                 font-weight: 600;
                                                 overflow: elide;
                                             }
                                             if field.concept_name != "": Text {
                                                 text: "[" + field.concept_name + "]";
-                                                color: #60a5fa;
+                                                color: AppTheme.accent;
                                                 font-size: 11px;
                                                 overflow: elide;
                                             }
@@ -3138,10 +3142,10 @@ export component MainWindow inherits Window {
                                     // Expandable suggestions list with counts & "... (Alle anzeigen)"
                                     if field.dropdown_open: Rectangle {
                                         height: min(170px, max(36px, field.suggestions.length * 28px + 8px));
-                                        background: #161822;
+                                        background: AppTheme.bg-canvas;
                                         border-radius: 5px;
                                         border-width: 1px;
-                                        border-color: #3b4461;
+                                        border-color: AppTheme.border;
 
                                         ScrollView {
                                             VerticalLayout {
@@ -3150,7 +3154,7 @@ export component MainWindow inherits Window {
 
                                                 if field.suggestions.length == 0: Text {
                                                     text: "Keine vorhandenen Werte in den Basiszeilen.";
-                                                    color: #64748b;
+                                                    color: AppTheme.text-muted;
                                                     font-size: 12px;
                                                     horizontal-alignment: center;
                                                 }
@@ -3158,7 +3162,7 @@ export component MainWindow inherits Window {
                                                 for sugg[sugg_idx] in field.suggestions: Rectangle {
                                                     height: 26px;
                                                     border-radius: 4px;
-                                                    background: sugg_touch.has-hover ? (sugg.is_load_more ? #1e3a5f : #2a334d) : transparent;
+                                                    background: sugg_touch.has-hover ? (sugg.is_load_more ? AppTheme.bg-selected : AppTheme.bg-subtle) : transparent;
 
                                                     HorizontalLayout {
                                                         padding-left: 8px;
@@ -3167,7 +3171,7 @@ export component MainWindow inherits Window {
 
                                                         Text {
                                                             text: sugg.is_load_more ? "🔄 " + sugg.display : sugg.value;
-                                                            color: sugg.is_load_more ? #60a5fa : #e2e8f0;
+                                                            color: sugg.is_load_more ? AppTheme.accent : AppTheme.text-primary;
                                                             font-weight: sugg.is_load_more ? 700 : 400;
                                                             vertical-alignment: center;
                                                             overflow: elide;
@@ -3175,7 +3179,7 @@ export component MainWindow inherits Window {
 
                                                         if !sugg.is_load_more: Text {
                                                             text: sugg.count + "×";
-                                                            color: #93c5fd;
+                                                            color: AppTheme.accent-hover;
                                                             font-size: 11px;
                                                             font-weight: 600;
                                                             vertical-alignment: center;
@@ -3205,7 +3209,7 @@ export component MainWindow inherits Window {
 
                     Text {
                         text: "Hinweis: Aktive Spaltenfilter werden automatisch erweitert, damit neue Zeilen sofort sichtbar bleiben.";
-                        color: #94a3b8;
+                        color: AppTheme.text-secondary;
                         font-size: 11px;
                         vertical-alignment: center;
                     }
@@ -3232,16 +3236,16 @@ export component MainWindow inherits Window {
 
     // 3. Fill Column Dialog
     if root.fill_dialog_visible: Rectangle {
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         Rectangle {
             width: 420px;
             height: 380px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 18px;
@@ -3251,12 +3255,12 @@ export component MainWindow inherits Window {
                     text: "Spalte füllen";
                     font-size: 16px;
                     font-weight: 600;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: "Zielspalte Index: " + (root.fill_dialog_col_idx + 1);
-                    color: #b0b0c2;
+                    color: AppTheme.text-secondary;
                 }
 
                 HorizontalLayout {
@@ -3352,16 +3356,16 @@ export component MainWindow inherits Window {
 
     // 4. Split Column Dialog
     if root.split_dialog_visible: Rectangle {
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         Rectangle {
             width: 420px;
             height: 280px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 18px;
@@ -3371,7 +3375,7 @@ export component MainWindow inherits Window {
                     text: "Spalte aufteilen";
                     font-size: 16px;
                     font-weight: 600;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 HorizontalLayout {
@@ -3384,7 +3388,7 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Text { text: "Neue Spaltennamen (kommagetrennt):"; color: #b0b0c2; }
+                Text { text: "Neue Spaltennamen (kommagetrennt):"; color: AppTheme.text-secondary; }
                 LineEdit {
                     text: root.split_new_cols;
                     edited(s) => { root.split_new_cols = s; }
@@ -3418,16 +3422,16 @@ export component MainWindow inherits Window {
 
     // 5. Sheet Selection Dialog
     if root.sheet_dialog_visible: Rectangle {
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         Rectangle {
             width: 380px;
             height: 320px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 18px;
@@ -3437,7 +3441,7 @@ export component MainWindow inherits Window {
                     text: "ODS Tabellenblatt auswählen";
                     font-size: 15px;
                     font-weight: 600;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 ScrollView {
@@ -3464,16 +3468,16 @@ export component MainWindow inherits Window {
 
     // 6. Diff Dialog
     if root.diff_dialog_visible: Rectangle {
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
         x: 0px; y: 0px; width: parent.width; height: parent.height;
 
         Rectangle {
             width: 580px;
             height: 420px;
-            background: #252530;
+            background: AppTheme.bg-surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: #444458;
+            border-color: AppTheme.border-strong;
 
             VerticalLayout {
                 padding: 18px;
@@ -3483,12 +3487,12 @@ export component MainWindow inherits Window {
                     text: "Tabellendaten-Diff (CSV <-> ODS / Extern)";
                     font-size: 16px;
                     font-weight: 600;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: root.diff_summary_text;
-                    color: #64b5f6;
+                    color: AppTheme.accent;
                     font-weight: 600;
                 }
 
@@ -3496,7 +3500,7 @@ export component MainWindow inherits Window {
                     vertical-stretch: 1;
                     Text {
                         text: root.diff_details_text;
-                        color: #d1d1de;
+                        color: AppTheme.text-secondary;
                         font-family: "Consolas, Courier New, monospace";
                         font-size: 11px;
                     }
@@ -3528,7 +3532,7 @@ export component MainWindow inherits Window {
         y: 0px;
         width: parent.width;
         height: parent.height;
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
 
         TouchArea {
             // Modal barrier to block background clicks
@@ -3537,12 +3541,12 @@ export component MainWindow inherits Window {
         Rectangle {
             width: 440px;
             height: 210px;
-            background: #1f2233;
+            background: AppTheme.bg-surface;
             border-radius: 10px;
             border-width: 1.5px;
-            border-color: #3b82f6;
+            border-color: AppTheme.accent;
             drop-shadow-blur: 24px;
-            drop-shadow-color: #000000ee;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 20px;
@@ -3552,13 +3556,13 @@ export component MainWindow inherits Window {
                     text: "💾 Kollektion speichern";
                     font-size: 16px;
                     font-weight: 700;
-                    color: #ffffff;
+                    color: AppTheme.text-primary;
                 }
 
                 Text {
                     text: "Geben Sie einen Namen für die Kollektion ein:";
                     font-size: 12px;
-                    color: #94a3b8;
+                    color: AppTheme.text-secondary;
                 }
 
                 LineEdit {
@@ -3602,7 +3606,7 @@ export component MainWindow inherits Window {
     if root.move_modal_visible: Rectangle {
         x: 0px; y: 0px;
         width: parent.width; height: parent.height;
-        background: #000000aa;
+        background: AppTheme.bg-scrim;
 
         TouchArea {
             // Modal barrier
@@ -3611,12 +3615,12 @@ export component MainWindow inherits Window {
         Rectangle {
             width: 520px;
             height: root.move_modal_has_target_base_path ? 350px : 270px;
-            background: #1f2233;
+            background: AppTheme.bg-surface;
             border-radius: 10px;
             border-width: 1.5px;
-            border-color: #6366f1;
+            border-color: AppTheme.accent;
             drop-shadow-blur: 24px;
-            drop-shadow-color: #000000ee;
+            drop-shadow-color: AppTheme.bg-scrim;
 
             VerticalLayout {
                 padding: 20px;
@@ -3632,7 +3636,7 @@ export component MainWindow inherits Window {
                         text: "Tabelle in andere Kollektion verschieben";
                         font-size: 16px;
                         font-weight: 700;
-                        color: #ffffff;
+                        color: AppTheme.text-primary;
                         vertical-alignment: center;
                     }
                 }
@@ -3640,7 +3644,7 @@ export component MainWindow inherits Window {
                 Text {
                     text: "Soll die Tabelle '" + root.move_modal_table_name + "' wirklich aus Kollektion '" + root.move_modal_src_collection + "' verschoben werden?";
                     font-size: 12px;
-                    color: #cbd5e1;
+                    color: AppTheme.text-secondary;
                     wrap: word-wrap;
                 }
 
@@ -3648,7 +3652,7 @@ export component MainWindow inherits Window {
                     spacing: 10px;
                     Text {
                         text: "Ziel-Kollektion:";
-                        color: #94a3b8;
+                        color: AppTheme.text-secondary;
                         font-size: 12px;
                         vertical-alignment: center;
                         width: 110px;
@@ -3665,10 +3669,10 @@ export component MainWindow inherits Window {
                 }
 
                 if root.move_modal_has_target_base_path: Rectangle {
-                    background: #181d2e;
+                    background: AppTheme.bg-canvas;
                     border-radius: 6px;
                     border-width: 1px;
-                    border-color: #374151;
+                    border-color: AppTheme.border;
                     VerticalLayout {
                         padding: 10px;
                         spacing: 6px;
@@ -3680,7 +3684,7 @@ export component MainWindow inherits Window {
                         Text {
                             text: "📁 Ziel-Basispfad: " + root.move_modal_target_base_path;
                             font-size: 11px;
-                            color: #93c5fd;
+                            color: AppTheme.accent-hover;
                             overflow: elide;
                         }
                     }
