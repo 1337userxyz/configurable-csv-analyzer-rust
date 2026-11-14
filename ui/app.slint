@@ -1,6 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
-import { AppTheme } from "@kit-theme";
-import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
+import { AppTheme, KitColorItem, KitComboItem, KitRichCombo } from "@kit-theme";
 import { ConfigurationWindow, SlintViewItem, SlintViewFileItem, SlintBrushItem, SlintExternalAppItem } from "configuration.slint";
 import {
     InfoFileEditorWindow,
@@ -14,8 +13,7 @@ import {
     SlintApplyRuleItem,
     SlintKeyMappingItem,
     SlintLinkStepItem,
-    SlintVirtualColumnItem,
-    SlintValueCountItem
+    SlintVirtualColumnItem
 } from "info_editor.slint";
 
 export struct SlintCollectionFilterItem {
@@ -27,7 +25,8 @@ export struct SlintCollectionFilterItem {
 
 export {
     AppTheme,
-    ColorChoiceItem,
+    KitColorItem,
+    KitComboItem,
     ConfigurationWindow,
     SlintViewItem,
     SlintViewFileItem,
@@ -44,8 +43,7 @@ export {
     SlintApplyRuleItem,
     SlintKeyMappingItem,
     SlintLinkStepItem,
-    SlintVirtualColumnItem,
-    SlintValueCountItem
+    SlintVirtualColumnItem
 }
 
 export struct TabItem {
@@ -128,20 +126,12 @@ export struct FilterChoiceItem {
     visible: bool,
 }
 
-export struct SmartAddSuggestionItem {
-    value: string,
-    display: string,
-    count: int,
-    is_load_more: bool,
-}
-
 export struct SmartAddFieldItem {
     col_idx: int,
     column_name: string,
     concept_name: string,
     value: string,
-    suggestions: [SmartAddSuggestionItem],
-    dropdown_open: bool,
+    items: [KitComboItem],
 }
 
 component ModernScrollBar inherits Rectangle {
@@ -465,8 +455,6 @@ export component MainWindow inherits Window {
 
     callback smart_add_row_clicked();
     callback smart_add_field_edited(int, string);
-    callback smart_add_toggle_dropdown(int);
-    callback smart_add_suggestion_selected(int, int);
     callback smart_add_clear_all_fields();
     callback confirm_smart_add_rows(int);
 
@@ -559,7 +547,7 @@ export component MainWindow inherits Window {
     in-out property <[SlintCollectionFilterItem]> collection_items: [];
     in-out property <string> collection_filter_summary: "Alle";
     in-out property <[SlintExternalAppItem]> external_apps: [];
-    in-out property <[ColorChoiceItem]> marker_choices: [
+    in-out property <[KitColorItem]> marker_choices: [
         { key: "Gelb", hex_value: "#fff59d", color: #fff59d },
         { key: "Grün", hex_value: "#c8e6c9", color: #c8e6c9 },
         { key: "Blau", hex_value: "#bbdefb", color: #bbdefb },
@@ -3082,10 +3070,10 @@ export component MainWindow inherits Window {
                             alignment: start;
 
                             for field[field_idx] in root.smart_add_fields: Rectangle {
-                                background: field.dropdown_open ? AppTheme.bg-subtle : AppTheme.bg-surface;
+                                background: field.value != "" ? AppTheme.bg-subtle : AppTheme.bg-surface;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: field.dropdown_open ? AppTheme.accent : AppTheme.bg-hover;
+                                border-color: field.value != "" ? AppTheme.accent : AppTheme.bg-hover;
 
                                 VerticalLayout {
                                     padding: 8px;
@@ -3112,87 +3100,19 @@ export component MainWindow inherits Window {
                                             }
                                         }
 
-                                        // Value input + clear + suggestion dropdown toggle
-                                        LineEdit {
+                                        // Value input + clear + suggestion dropdown via KitRichCombo
+                                        KitRichCombo {
                                             horizontal-stretch: 1;
                                             placeholder-text: "(Leer lassen zum Ignorieren)";
-                                            text: field.value;
+                                            value: field.value;
+                                            items: field.items;
+                                            clearable: true;
+                                            show-count: true;
                                             edited(val) => {
                                                 root.smart_add_field_edited(field_idx, val);
                                             }
-                                        }
-
-                                        if field.value != "": Button {
-                                            width: 30px;
-                                            text: "✕";
-                                            clicked => {
+                                            cleared => {
                                                 root.smart_add_field_edited(field_idx, "");
-                                            }
-                                        }
-
-                                        Button {
-                                            width: 90px;
-                                            text: (field.dropdown_open ? "▲ " : "▼ ") + field.suggestions.length;
-                                            clicked => {
-                                                root.smart_add_toggle_dropdown(field_idx);
-                                            }
-                                        }
-                                    }
-
-                                    // Expandable suggestions list with counts & "... (Alle anzeigen)"
-                                    if field.dropdown_open: Rectangle {
-                                        height: min(170px, max(36px, field.suggestions.length * 28px + 8px));
-                                        background: AppTheme.bg-canvas;
-                                        border-radius: 5px;
-                                        border-width: 1px;
-                                        border-color: AppTheme.border;
-
-                                        ScrollView {
-                                            VerticalLayout {
-                                                padding: 4px;
-                                                spacing: 2px;
-
-                                                if field.suggestions.length == 0: Text {
-                                                    text: "Keine vorhandenen Werte in den Basiszeilen.";
-                                                    color: AppTheme.text-muted;
-                                                    font-size: 12px;
-                                                    horizontal-alignment: center;
-                                                }
-
-                                                for sugg[sugg_idx] in field.suggestions: Rectangle {
-                                                    height: 26px;
-                                                    border-radius: 4px;
-                                                    background: sugg_touch.has-hover ? (sugg.is_load_more ? AppTheme.bg-selected : AppTheme.bg-subtle) : transparent;
-
-                                                    HorizontalLayout {
-                                                        padding-left: 8px;
-                                                        padding-right: 8px;
-                                                        alignment: space-between;
-
-                                                        Text {
-                                                            text: sugg.is_load_more ? "🔄 " + sugg.display : sugg.value;
-                                                            color: sugg.is_load_more ? AppTheme.accent : AppTheme.text-primary;
-                                                            font-weight: sugg.is_load_more ? 700 : 400;
-                                                            vertical-alignment: center;
-                                                            overflow: elide;
-                                                        }
-
-                                                        if !sugg.is_load_more: Text {
-                                                            text: sugg.count + "×";
-                                                            color: AppTheme.accent-hover;
-                                                            font-size: 11px;
-                                                            font-weight: 600;
-                                                            vertical-alignment: center;
-                                                        }
-                                                    }
-
-                                                    sugg_touch := TouchArea {
-                                                        mouse-cursor: pointer;
-                                                        clicked => {
-                                                            root.smart_add_suggestion_selected(field_idx, sugg_idx);
-                                                        }
-                                                    }
-                                                }
                                             }
                                         }
                                     }

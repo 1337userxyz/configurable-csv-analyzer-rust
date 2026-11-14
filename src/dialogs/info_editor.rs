@@ -18,11 +18,11 @@ use configurable_csv_analyzer::core::rules::RuleEngine;
 use configurable_csv_analyzer::core::validation::TableConfigValidator;
 
 use crate::{
-    AppState, ColorChoiceItem, InfoFileEditorWindow, MainWindow,
+    AppState, InfoFileEditorWindow, KitColorItem, KitComboItem, MainWindow,
     SlintApplyRuleItem, SlintCalcRuleItem, SlintColumnDisplayItem,
     SlintComparisonRuleItem, SlintGroupValidationItem, SlintHighlightRuleItem,
     SlintJoinRuleItem, SlintKeyMappingItem, SlintLinkStepItem, SlintMappingItem,
-    SlintValueCountItem, SlintVirtualColumnItem,
+    SlintVirtualColumnItem,
 };
 use configurable_csv_analyzer::core::color_cache::cached_color;
 
@@ -98,7 +98,7 @@ pub fn update_hl_column_value_counts(
     let mut pairs: Vec<(String, usize)> = counts.into_iter().collect();
     pairs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
-    let items: Vec<SlintValueCountItem> = pairs
+    let items: Vec<KitComboItem> = pairs
         .into_iter()
         .take(500)
         .map(|(val, cnt)| {
@@ -107,11 +107,10 @@ pub fn update_hl_column_value_counts(
             } else {
                 val.clone()
             };
-            SlintValueCountItem {
+            KitComboItem {
                 value: slint::SharedString::from(val),
-                display_label: slint::SharedString::from(label),
-                count: cnt as i32,
-                count_text: slint::SharedString::from(format!("{}x", cnt)),
+                label: slint::SharedString::from(label),
+                badge: slint::SharedString::from(format!("{}x", cnt)),
             }
         })
         .collect();
@@ -209,16 +208,16 @@ pub fn open_info_editor_for_table_or_path(
     brush_names.extend(brushes.iter().map(|b| slint::SharedString::from(&b.key)));
     window.set_available_brushes(ModelRc::new(VecModel::from(brush_names)));
 
-    let color_items: Vec<ColorChoiceItem> = brushes
+    let color_items: Vec<KitColorItem> = brushes
         .iter()
-        .map(|b| ColorChoiceItem {
+        .map(|b| KitColorItem {
             key: slint::SharedString::from(&b.key),
             hex_value: slint::SharedString::from(&b.hex_value),
             color: cached_color(&b.hex_value, 255),
         })
         .collect();
 
-    let mut join_color_items: Vec<ColorChoiceItem> = vec![ColorChoiceItem {
+    let mut join_color_items: Vec<KitColorItem> = vec![KitColorItem {
         key: slint::SharedString::from("Keine"),
         hex_value: slint::SharedString::from("Transparent"),
         color: cached_color("Keine", 0),

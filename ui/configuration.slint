@@ -1,5 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
-import { AppTheme, KitThemeSelector } from "@kit-theme";
+import { AppTheme, KitThemeSelector, KitDeleteButton } from "@kit-theme";
 
 export struct SlintViewItem {
     id: int,
@@ -37,31 +37,6 @@ export struct SlintExternalAppItem {
     name: string,
     command_or_path: string,
     arguments: string,
-}
-
-component ConfigDeleteButton inherits Rectangle {
-    callback clicked();
-
-    width: 28px;
-    height: 28px;
-    border-radius: AppTheme.radius-sm;
-    background: ta.has-hover ? AppTheme.danger : AppTheme.danger-bg;
-    border-width: 1px;
-    border-color: ta.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
-
-    Text {
-        text: "✕";
-        color: ta.has-hover ? AppTheme.accent-fg : AppTheme.danger;
-        font-size: 12px;
-        font-weight: 700;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
 }
 
 export component ConfigurationWindow inherits Window {
@@ -726,7 +701,7 @@ export component ConfigurationWindow inherits Window {
                                             }
                                             VerticalLayout {
                                                 alignment: center;
-                                                ConfigDeleteButton {
+                                                KitDeleteButton {
                                                     clicked => { root.remove_file_from_view_clicked(f_idx); }
                                                 }
                                             }
@@ -1392,7 +1367,7 @@ export component ConfigurationWindow inherits Window {
                                         HorizontalLayout {
                                             spacing: 6px;
                                             alignment: center;
-                                            ConfigDeleteButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_app_clicked(app_idx); }
                                             }
                                         }

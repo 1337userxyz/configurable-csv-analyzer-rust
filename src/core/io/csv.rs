@@ -3,71 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use crate::core::model::{ColumnSetting, TableData};
 
-pub fn sniff_delimiter(bytes: &[u8]) -> char {
-    let sample_str = match std::str::from_utf8(bytes) {
-        Ok(s) => s.to_string(),
-        Err(_) => {
-            let (cow, _, _) = encoding_rs::WINDOWS_1252.decode(bytes);
-            cow.into_owned()
-        }
-    };
-
-    let lines: Vec<&str> = sample_str.lines().take(10).filter(|l| !l.trim().is_empty()).collect();
-    if lines.is_empty() {
-        return ',';
-    }
-
-    let candidates = [',', ';', '\t', '|'];
-    let mut best_delimiter = ',';
-    let mut best_score = -1.0;
-
-    for &delim in &candidates {
-        let counts: Vec<usize> = lines.iter().map(|l| l.chars().filter(|&c| c == delim).count()).collect();
-        if counts.is_empty() || counts[0] == 0 {
-            continue;
-        }
-
-        let first = counts[0];
-        let matching = counts.iter().filter(|&&c| c == first).count();
-        let consistency = matching as f64 / counts.len() as f64;
-        let score = (first as f64) * 2.0 + consistency * 10.0;
-
-        if score > best_score {
-            best_score = score;
-            best_delimiter = delim;
-        }
-    }
-
-    best_delimiter
-}
-
-pub fn decode_bytes(bytes: &[u8], forced_encoding: Option<&str>) -> (String, String) {
-    if let Some(enc) = forced_encoding {
-        if enc.eq_ignore_ascii_case("windows-1252") || enc.eq_ignore_ascii_case("ansi") {
-            let (res, _, _) = encoding_rs::WINDOWS_1252.decode(bytes);
-            return (res.into_owned(), "windows-1252".to_string());
-        }
-        if enc.eq_ignore_ascii_case("utf-8") || enc.eq_ignore_ascii_case("utf8") {
-            let (res, _, _) = encoding_rs::UTF_8.decode(bytes);
-            return (res.into_owned(), "utf-8".to_string());
-        }
-    }
-
-    // Auto-detect BOM
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        let (res, _, _) = encoding_rs::UTF_8.decode(&bytes[3..]);
-        return (res.into_owned(), "utf-8-bom".to_string());
-    }
-
-    // Check UTF-8 validity
-    match std::str::from_utf8(bytes) {
-        Ok(s) => (s.to_string(), "utf-8".to_string()),
-        Err(_) => {
-            let (res, _, _) = encoding_rs::WINDOWS_1252.decode(bytes);
-            (res.into_owned(), "windows-1252".to_string())
-        }
-    }
-}
+pub use kit_csv::{decode_bytes, sniff_delimiter};
 
 pub fn load_csv(
     path: &Path,

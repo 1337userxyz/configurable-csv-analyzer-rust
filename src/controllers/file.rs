@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use slint::{ComponentHandle, ModelRc, VecModel};
-use kit_picker::PickRequest;
+use kit_dialog::PickRequest;
 
 use configurable_csv_analyzer::core::io::csv::{find_all_csvs_in_dir, load_csv, save_csv};
 use configurable_csv_analyzer::core::io::info::{

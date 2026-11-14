@@ -1,6 +1,5 @@
 import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from "std-widgets.slint";
-import { AppTheme } from "@kit-theme";
-import { ColorChoiceItem, ColorComboBox } from "color_combobox.slint";
+import { AppTheme, KitDeleteButton, KitCheckBox, KitRichCombo, KitComboItem, KitColorItem, KitColorCombo } from "@kit-theme";
 
 export struct SlintColumnDisplayItem {
     id: int,
@@ -104,13 +103,6 @@ export struct SlintHighlightRuleItem {
     is_active: bool,
 }
 
-export struct SlintValueCountItem {
-    value: string,
-    display_label: string,
-    count: int,
-    count_text: string,
-}
-
 export struct SlintApplyRuleItem {
     id: int,
     rule_name: string,
@@ -120,253 +112,6 @@ export struct SlintApplyRuleItem {
     requires_confirmation: bool,
     execute_automatically: bool,
     is_active: bool,
-}
-
-component DeleteIconButton inherits Rectangle {
-    in property <string> label: "✕";
-    callback clicked();
-
-    width: 28px;
-    height: 28px;
-    border-radius: AppTheme.radius-sm;
-    background: touch.has-hover ? AppTheme.danger : AppTheme.danger-bg;
-    border-width: 1px;
-    border-color: touch.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
-
-    Text {
-        text: root.label;
-        color: touch.has-hover ? AppTheme.accent-fg : AppTheme.danger;
-        font-size: 12px;
-        font-weight: 700;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
-}
-
-component DeleteTextButton inherits Rectangle {
-    in property <string> text: "✕ Entfernen";
-    callback clicked();
-
-    height: 28px;
-    min-width: 110px;
-    border-radius: AppTheme.radius-sm;
-    background: touch.has-hover ? AppTheme.danger : AppTheme.danger-bg;
-    border-width: 1px;
-    border-color: touch.has-hover ? AppTheme.danger : AppTheme.danger.with-alpha(0.4);
-
-    HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        alignment: center;
-        Text {
-            text: root.text;
-            color: touch.has-hover ? AppTheme.accent-fg : AppTheme.danger;
-            font-size: 12px;
-            font-weight: 600;
-            vertical-alignment: center;
-        }
-    }
-
-    touch := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
-}
-
-component DarkCheckBox inherits Rectangle {
-    in-out property <bool> checked: false;
-    in property <string> text: "";
-    callback toggled(bool);
-
-    height: 28px;
-    background: transparent;
-
-    HorizontalLayout {
-        spacing: 8px;
-        alignment: start;
-
-        VerticalLayout {
-            alignment: center;
-            Rectangle {
-                width: 18px;
-                height: 18px;
-                border-radius: AppTheme.radius-sm;
-                background: root.checked ? AppTheme.accent : (ta.has-hover ? AppTheme.bg-hover : AppTheme.bg-subtle);
-                border-width: 1px;
-                border-color: root.checked ? AppTheme.accent : (ta.has-hover ? AppTheme.border-strong : AppTheme.border);
-
-                if root.checked: Text {
-                    text: "✓";
-                    color: AppTheme.accent-fg;
-                    font-size: 12px;
-                    font-weight: 800;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-            }
-        }
-
-        if root.text != "": Text {
-            text: root.text;
-            color: AppTheme.text-primary;
-            font-size: 12px;
-            font-weight: 500;
-            vertical-alignment: center;
-        }
-    }
-
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        clicked => {
-            root.checked = !root.checked;
-            root.toggled(root.checked);
-        }
-    }
-}
-
-component EditableValueComboBox inherits Rectangle {
-    in-out property <string> value: "";
-    in property <[SlintValueCountItem]> items: [];
-    in property <string> placeholder: "Wert eingeben oder auswählen...";
-    callback edited(string);
-
-    height: 32px;
-    background: transparent;
-
-    HorizontalLayout {
-        spacing: 4px;
-
-        LineEdit {
-            horizontal-stretch: 1;
-            text <=> root.value;
-            placeholder-text: root.placeholder;
-            edited(s) => {
-                root.value = s;
-                root.edited(s);
-            }
-        }
-
-        Rectangle {
-            width: 58px;
-            height: 32px;
-            background: drop-ta.has-hover ? AppTheme.bg-hover : AppTheme.bg-subtle;
-            border-radius: AppTheme.radius-sm;
-            border-width: 1px;
-            border-color: drop-ta.has-hover ? AppTheme.accent : AppTheme.border-strong;
-
-            HorizontalLayout {
-                padding-left: 6px;
-                padding-right: 6px;
-                alignment: center;
-                spacing: 3px;
-                Text {
-                    text: "▼ (" + root.items.length + ")";
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: AppTheme.accent;
-                    vertical-alignment: center;
-                }
-            }
-
-            drop-ta := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { popup.show(); }
-            }
-        }
-    }
-
-    popup := PopupWindow {
-        x: 0px;
-        y: root.height + 2px;
-        width: root.width;
-        height: min(max(root.items.length * 30px + 12px, 60px), 280px);
-
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            background: AppTheme.bg-elevated;
-            border-radius: AppTheme.radius-md;
-            border-width: 1px;
-            border-color: AppTheme.border-strong;
-
-            if root.items.length == 0: VerticalLayout {
-                alignment: center;
-                Text {
-                    text: "Keine Werte in dieser Spalte gefunden";
-                    color: AppTheme.text-muted;
-                    font-size: 12px;
-                    horizontal-alignment: center;
-                }
-            }
-
-            if root.items.length > 0: ScrollView {
-                width: 100%;
-                height: 100%;
-
-                VerticalLayout {
-                    padding: 4px;
-                    spacing: 2px;
-
-                    for item in root.items: Rectangle {
-                        height: 28px;
-                        border-radius: AppTheme.radius-sm;
-                        background: item.value == root.value ? AppTheme.bg-selected : (item-ta.has-hover ? AppTheme.bg-hover : transparent);
-
-                        HorizontalLayout {
-                            padding-left: 8px;
-                            padding-right: 8px;
-                            spacing: 8px;
-                            alignment: space-between;
-
-                            Text {
-                                text: item.display_label;
-                                color: item.value == "" ? AppTheme.text-muted : AppTheme.text-primary;
-                                font-size: 12px;
-                                font-weight: item.value == root.value ? 700 : 400;
-                                vertical-alignment: center;
-                                overflow: elide;
-                                horizontal-stretch: 1;
-                            }
-
-                            Rectangle {
-                                min-width: 44px;
-                                height: 20px;
-                                background: AppTheme.accent-bg;
-                                border-radius: 10px;
-                                border-width: 1px;
-                                border-color: AppTheme.accent.with-alpha(0.35);
-                                HorizontalLayout {
-                                    padding-left: 6px;
-                                    padding-right: 6px;
-                                    alignment: center;
-                                    Text {
-                                        text: item.count_text;
-                                        color: AppTheme.accent;
-                                        font-size: 11px;
-                                        font-weight: 600;
-                                        vertical-alignment: center;
-                                    }
-                                }
-                            }
-                        }
-
-                        item-ta := TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => {
-                                root.value = item.value;
-                                root.edited(item.value);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 export component InfoFileEditorWindow inherits Window {
@@ -403,8 +148,8 @@ export component InfoFileEditorWindow inherits Window {
     in-out property <[string]> available_concepts: [];
     in-out property <[string]> available_tables: [];
     in-out property <[string]> available_brushes: [];
-    in-out property <[ColorChoiceItem]> color_choices: [];
-    in-out property <[ColorChoiceItem]> join_color_choices: [];
+    in-out property <[KitColorItem]> color_choices: [];
+    in-out property <[KitColorItem]> join_color_choices: [];
     in-out property <color> general_dirty_color: AppTheme.accent;
     in-out property <color> edit_comp_color: AppTheme.danger;
     in-out property <color> edit_group_color: AppTheme.info;
@@ -540,7 +285,7 @@ export component InfoFileEditorWindow inherits Window {
     in-out property <bool> edit_hl_active: true;
     in-out property <[string]> available_hl_conditions: ["Equals", "Contains", "StartsWith", "EndsWith", "RegEx", "IsEmpty", "IsNotEmpty", "InList", "GreaterThan", "LessThan"];
     in-out property <[string]> available_hl_targets: ["Cell", "Row"];
-    in-out property <[SlintValueCountItem]> hl_value_counts: [];
+    in-out property <[KitComboItem]> hl_value_counts: [];
     callback add_highlight_rule();
     callback delete_highlight_rule(int);
     callback select_highlight_rule(int);
@@ -944,7 +689,7 @@ export component InfoFileEditorWindow inherits Window {
                         width: 330px;
                         spacing: 6px;
                         Text { text: "Farbschlüssel für bearbeitete Zellen (Dirty):"; color: AppTheme.text-secondary; }
-                        ColorComboBox {
+                        KitColorCombo {
                             choices: root.color_choices;
                             selected_key: root.general_dirty_brush;
                             selected_color: root.general_dirty_color;
@@ -995,7 +740,7 @@ export component InfoFileEditorWindow inherits Window {
                     }
                 }
 
-                DarkCheckBox {
+                KitCheckBox {
                     text: "Erste Zeile enthält Spaltennamen (Header vorhanden)";
                     checked: root.general_has_header;
                     toggled(c) => {
@@ -1065,7 +810,7 @@ export component InfoFileEditorWindow inherits Window {
                                 VerticalLayout {
                                     width: 80px;
                                     alignment: center;
-                                    DarkCheckBox {
+                                    KitCheckBox {
                                         text: "";
                                         checked: col.is_visible;
                                         toggled(c) => { root.column_toggle_visibility(c_idx, c); }
@@ -1210,8 +955,8 @@ export component InfoFileEditorWindow inherits Window {
                                     alignment: end;
                                     VerticalLayout {
                                         alignment: center;
-                                        DeleteTextButton {
-                                            text: "✕ Entfernen";
+                                        KitDeleteButton {
+                                            label: "✕ Entfernen";
                                             clicked => { root.delete_mapping_clicked(m_idx); }
                                         }
                                     }
@@ -1264,7 +1009,7 @@ export component InfoFileEditorWindow inherits Window {
                                         Text { text: rule.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_calc_rule(rule.id); }
                                             }
                                         }
@@ -1428,7 +1173,7 @@ export component InfoFileEditorWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_join_rule(j.id); }
                                             }
                                         }
@@ -1505,7 +1250,7 @@ export component InfoFileEditorWindow inherits Window {
                                             alignment: start;
                                             spacing: 14px;
                                             padding-top: 16px;
-                                            DarkCheckBox {
+                                            KitCheckBox {
                                                 text: "Regel aktiv";
                                                 checked: root.edit_join_is_active;
                                                 toggled(c) => {
@@ -1513,7 +1258,7 @@ export component InfoFileEditorWindow inherits Window {
                                                     root.save_join_rule_edit();
                                                 }
                                             }
-                                            DarkCheckBox {
+                                            KitCheckBox {
                                                 text: "Im Grid hervorheben";
                                                 checked: root.edit_join_is_highlighted;
                                                 toggled(c) => {
@@ -1595,8 +1340,8 @@ export component InfoFileEditorWindow inherits Window {
                                                         }
                                                     }
                                                 }
-                                                DeleteTextButton {
-                                                    text: "✕ Schritt entfernen";
+                                                KitDeleteButton {
+                                                    label: "✕ Schritt entfernen";
                                                     clicked => { root.delete_join_step(step.step_idx); }
                                                 }
                                             }
@@ -1650,7 +1395,7 @@ export component InfoFileEditorWindow inherits Window {
                                                     VerticalLayout {
                                                         width: 45px;
                                                         alignment: center;
-                                                        DarkCheckBox {
+                                                        KitCheckBox {
                                                             text: "";
                                                             checked: m.is_case_sensitive;
                                                             toggled(c) => { root.update_key_mapping_case(step.step_idx, m.mapping_idx, c); }
@@ -1658,7 +1403,7 @@ export component InfoFileEditorWindow inherits Window {
                                                     }
                                                     VerticalLayout {
                                                         alignment: center;
-                                                        DeleteIconButton {
+                                                        KitDeleteButton {
                                                             clicked => { root.delete_key_mapping(step.step_idx, m.mapping_idx); }
                                                         }
                                                     }
@@ -1743,7 +1488,7 @@ export component InfoFileEditorWindow inherits Window {
                                             current-value: vc.display_mode;
                                             selected(val) => { root.update_virtual_column_mode(vc.col_idx, val); }
                                         }
-                                        ColorComboBox {
+                                        KitColorCombo {
                                             horizontal-stretch: 1;
                                             min-width: 170px;
                                             choices: root.join_color_choices;
@@ -1755,7 +1500,7 @@ export component InfoFileEditorWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_virtual_column(vc.col_idx); }
                                             }
                                         }
@@ -1820,7 +1565,7 @@ export component InfoFileEditorWindow inherits Window {
                                         Text { text: c.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_comparison_rule(c.id); }
                                             }
                                         }
@@ -1927,7 +1672,7 @@ export component InfoFileEditorWindow inherits Window {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
                                 Text { text: "Mismatch-Farbe:"; color: AppTheme.text-secondary; }
-                                ColorComboBox {
+                                KitColorCombo {
                                     choices: root.color_choices;
                                     selected_key: root.edit_comp_brush;
                                     selected_color: root.edit_comp_color;
@@ -1942,7 +1687,7 @@ export component InfoFileEditorWindow inherits Window {
                             }
                         }
 
-                        DarkCheckBox {
+                        KitCheckBox {
                             text: "Vorschlag-Dialog anzeigen (Übernahme fehlender Zeilen ins Dock einbinden)";
                             checked: root.edit_comp_proposal_dialog;
                             toggled(c) => {
@@ -2010,7 +1755,7 @@ export component InfoFileEditorWindow inherits Window {
                                         Text { text: g.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_group_rule(g.id); }
                                             }
                                         }
@@ -2132,7 +1877,7 @@ export component InfoFileEditorWindow inherits Window {
                         VerticalLayout {
                             spacing: 4px;
                             Text { text: "Mismatch-Farbe:"; color: AppTheme.text-secondary; }
-                            ColorComboBox {
+                            KitColorCombo {
                                 choices: root.color_choices;
                                 selected_key: root.edit_group_brush;
                                 selected_color: root.edit_group_color;
@@ -2213,7 +1958,7 @@ export component InfoFileEditorWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_highlight_rule(h.id); }
                                             }
                                         }
@@ -2295,9 +2040,11 @@ export component InfoFileEditorWindow inherits Window {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
                                 Text { text: "Vergleichswert (frei editierbar oder aus Spaltenwerten wählen):"; color: AppTheme.text-secondary; }
-                                EditableValueComboBox {
+                                KitRichCombo {
                                     value <=> root.edit_hl_val;
                                     items: root.hl_value_counts;
+                                    clearable: false;
+                                    show-count: true;
                                     edited(s) => {
                                         root.edit_hl_val = s;
                                         root.save_highlight_rule_edit(root.selected_hl_idx, root.edit_hl_name, root.edit_hl_column, root.edit_hl_condition, s, root.edit_hl_invert, root.edit_hl_brush, root.edit_hl_target, root.edit_hl_priority);
@@ -2312,7 +2059,7 @@ export component InfoFileEditorWindow inherits Window {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
                                 Text { text: "Farb-Schlüssel (Brush):"; color: AppTheme.text-secondary; }
-                                ColorComboBox {
+                                KitColorCombo {
                                     choices: root.color_choices;
                                     selected_key: root.edit_hl_brush;
                                     selected_color: root.edit_hl_color;
@@ -2351,7 +2098,7 @@ export component InfoFileEditorWindow inherits Window {
                                 alignment: start;
                                 VerticalLayout {
                                     alignment: center;
-                                    DarkCheckBox {
+                                    KitCheckBox {
                                         text: "Bedingung umkehren (NOT – treffe alle Zeilen, auf die die Bedingung NICHT zutrifft)";
                                         checked: root.edit_hl_invert;
                                         toggled(c) => {
@@ -2420,7 +2167,7 @@ export component InfoFileEditorWindow inherits Window {
                                         Text { text: a.rule_name; color: AppTheme.text-primary; font-weight: 600; vertical-alignment: center; overflow: elide; }
                                         VerticalLayout {
                                             alignment: center;
-                                            DeleteIconButton {
+                                            KitDeleteButton {
                                                 clicked => { root.delete_apply_rule(a.id); }
                                             }
                                         }
@@ -2502,7 +2249,7 @@ export component InfoFileEditorWindow inherits Window {
                             }
                         }
 
-                        DarkCheckBox {
+                        KitCheckBox {
                             text: "Vor Ausführung Bestätigungsdialog anzeigen";
                             checked: root.edit_apply_confirm;
                             toggled(c) => {
@@ -2513,7 +2260,7 @@ export component InfoFileEditorWindow inherits Window {
                             }
                         }
 
-                        DarkCheckBox {
+                        KitCheckBox {
                             text: "Bei jeder Zellenänderung sofort im Hintergrund ausführen";
                             checked: root.edit_apply_auto;
                             toggled(c) => {

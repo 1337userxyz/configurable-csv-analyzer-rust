@@ -24,16 +24,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 notify = "8.0"
 rayon = "1.10"
-kit-picker = { path = "../slint-desktop-kit/crates/kit-picker", version = "0.1.0" }
-kit-paths = { path = "../slint-desktop-kit/crates/kit-paths", version = "0.1.0" }
+kit-dialog = { path = "../rust-kit/crates/kit-dialog", version = "0.1.0" }
+kit-fs = { path = "../rust-kit/crates/kit-fs", version = "0.1.0" }
+kit-csv = { path = "../rust-kit/crates/kit-csv", version = "0.1.0" }
+kit-logging = { path = "../rust-kit/crates/kit-logging", version = "0.1.0" }
+kit-launcher = { path = "../rust-kit/crates/kit-launcher", version = "0.1.0" }
 kit-slint = { path = "../slint-desktop-kit/crates/kit-slint", version = "0.1.0" }
-kit-logging = { path = "../slint-desktop-kit/crates/kit-logging", version = "0.1.0" }
-kit-launcher = { path = "../slint-desktop-kit/crates/kit-launcher", version = "0.1.0" }
 kit-theme = { path = "../slint-desktop-kit/crates/kit-theme", version = "0.1.0", features = ["serde"] }
-rfd = "0.17"
 log = "0.4"
 chrono = "0.4"
 
 [build-dependencies]
-slint-build = "1.18"
-kit-theme = { path = "../slint-desktop-kit/crates/kit-theme", version = "0.1.0" }
+kit-theme = { path = "../slint-desktop-kit/crates/kit-theme", version = "0.1.0", features = ["build"] }

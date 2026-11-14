@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -20,7 +20,7 @@ pub use ui_sync::sync_ui;
 slint::include_modules!();
 
 fn main() -> Result<(), slint::PlatformError> {
-    kit_picker::ensure_dialog_ready();
+    kit_dialog::ensure_dialog_ready();
     let app_config = load_app_config(&default_config_path()).unwrap_or_default();
     if let Ok(mut cache) = get_global_color_cache().lock() {
         cache.update_from_brushes(&app_config.brushes);

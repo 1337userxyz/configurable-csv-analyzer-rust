@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use kit_picker::PickRequest;
+use kit_dialog::PickRequest;
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
 use configurable_csv_analyzer::core::color_cache::{cached_color, get_global_color_cache};
@@ -905,7 +905,7 @@ pub fn setup_configuration_window(
                 };
 
                 let col_base_dir = if target_mode == InfoFileStorageMode::KollektionsBasispfad && col_base.is_none() {
-                    let folder = kit_picker::PickRequest::folder()
+                    let folder = kit_dialog::PickRequest::folder()
                         .title("Basispfad für diese Kollektion wählen")
                         .context("collection_base_path")
                         .pick_sync();
@@ -970,7 +970,7 @@ pub fn setup_configuration_window(
                 let bp_dir = match col_base {
                     Some(dir) => dir,
                     None => {
-                        let folder = kit_picker::PickRequest::folder()
+                        let folder = kit_dialog::PickRequest::folder()
                             .title("Basispfad für diese Kollektion wählen")
                             .context("collection_base_path")
                             .pick_sync();
@@ -1036,7 +1036,7 @@ pub fn setup_configuration_window(
                 let bp_dir = match col_base {
                     Some(dir) => dir,
                     None => {
-                        let folder = kit_picker::PickRequest::folder()
+                        let folder = kit_dialog::PickRequest::folder()
                             .title("Basispfad für diese Kollektion wählen (für alle .info Dateien)")
                             .context("collection_base_path")
                             .pick_sync();

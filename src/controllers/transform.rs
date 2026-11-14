@@ -8,7 +8,7 @@ use configurable_csv_analyzer::core::transforms::{
     load_all_suggestions_for_column, split_column, FillMode,
 };
 
-use crate::{sync_ui, AppState, MainWindow, SmartAddFieldItem, SmartAddSuggestionItem};
+use crate::{sync_ui, AppState, KitComboItem, MainWindow, SmartAddFieldItem};
 
 pub fn register(main_window: &MainWindow, state: Rc<RefCell<AppState>>) {
     // --- WORKFLOWS: FILL, SPLIT, SMART ADD ---
@@ -94,14 +94,23 @@ pub fn register(main_window: &MainWindow, state: Rc<RefCell<AppState>>) {
                 .fields
                 .into_iter()
                 .map(|f| {
-                    let suggs: Vec<SmartAddSuggestionItem> = f
+                    let items: Vec<KitComboItem> = f
                         .suggestions
                         .into_iter()
-                        .map(|s| SmartAddSuggestionItem {
-                            value: slint::SharedString::from(s.value),
-                            display: slint::SharedString::from(s.display),
-                            count: s.count as i32,
-                            is_load_more: s.is_load_more,
+                        .map(|s| {
+                            if s.is_load_more {
+                                KitComboItem {
+                                    value: slint::SharedString::from("__LOAD_MORE__"),
+                                    label: slint::SharedString::from(format!("🔄 {}", s.display)),
+                                    badge: slint::SharedString::default(),
+                                }
+                            } else {
+                                KitComboItem {
+                                    value: slint::SharedString::from(s.value),
+                                    label: slint::SharedString::from(s.display),
+                                    badge: slint::SharedString::from(format!("{}×", s.count)),
+                                }
+                            }
                         })
                         .collect();
                     SmartAddFieldItem {
@@ -109,8 +118,7 @@ pub fn register(main_window: &MainWindow, state: Rc<RefCell<AppState>>) {
                         column_name: slint::SharedString::from(f.column_name),
                         concept_name: slint::SharedString::from(f.concept_name),
                         value: slint::SharedString::from(f.value),
-                        suggestions: ModelRc::new(VecModel::from(suggs)),
-                        dropdown_open: false,
+                        items: ModelRc::new(VecModel::from(items)),
                     }
                 })
                 .collect();
@@ -128,77 +136,33 @@ pub fn register(main_window: &MainWindow, state: Rc<RefCell<AppState>>) {
     }
     {
         let ui_handle = main_window.as_weak();
+        let state = state.clone();
         main_window.on_smart_add_field_edited(move |field_idx, new_val| {
             if let Some(ui) = ui_handle.upgrade() {
                 let model = ui.get_smart_add_fields();
                 let idx = field_idx as usize;
                 if let Some(mut item) = model.row_data(idx) {
-                    item.value = new_val;
-                    model.set_row_data(idx, item);
-                }
-            }
-        });
-    }
-    {
-        let ui_handle = main_window.as_weak();
-        main_window.on_smart_add_toggle_dropdown(move |field_idx| {
-            if let Some(ui) = ui_handle.upgrade() {
-                let model = ui.get_smart_add_fields();
-                let target_idx = field_idx as usize;
-                let count = model.row_count();
-                for i in 0..count {
-                    if let Some(mut item) = model.row_data(i) {
-                        if i == target_idx {
-                            item.dropdown_open = !item.dropdown_open;
-                        } else {
-                            item.dropdown_open = false;
+                    if new_val.as_str() == "__LOAD_MORE__" {
+                        let st = state.borrow();
+                        if let Some(tbl) = st.active_table() {
+                            let all_suggs =
+                                load_all_suggestions_for_column(tbl, item.col_idx as usize);
+                            let slint_items: Vec<KitComboItem> = all_suggs
+                                .into_iter()
+                                .map(|s| KitComboItem {
+                                    value: slint::SharedString::from(s.value),
+                                    label: slint::SharedString::from(s.display),
+                                    badge: slint::SharedString::from(format!("{}×", s.count)),
+                                })
+                                .collect();
+                            item.items = ModelRc::new(VecModel::from(slint_items));
+                            model.set_row_data(idx, item);
                         }
-                        model.set_row_data(i, item);
+                    } else {
+                        item.value = new_val;
+                        model.set_row_data(idx, item);
                     }
                 }
-            }
-        });
-    }
-    {
-        let ui_handle = main_window.as_weak();
-        let state = state.clone();
-        main_window.on_smart_add_suggestion_selected(move |field_idx, sugg_idx| {
-            let Some(ui) = ui_handle.upgrade() else {
-                return;
-            };
-            let model = ui.get_smart_add_fields();
-            let f_idx = field_idx as usize;
-            let s_idx = sugg_idx as usize;
-            let Some(mut field_item) = model.row_data(f_idx) else {
-                return;
-            };
-            let Some(sugg_item) = field_item.suggestions.row_data(s_idx) else {
-                return;
-            };
-
-            if sugg_item.is_load_more {
-                // Load all suggestions from all (unfiltered) rows of the table
-                let st = state.borrow();
-                if let Some(tbl) = st.active_table() {
-                    let all_suggs =
-                        load_all_suggestions_for_column(tbl, field_item.col_idx as usize);
-                    let slint_suggs: Vec<SmartAddSuggestionItem> = all_suggs
-                        .into_iter()
-                        .map(|s| SmartAddSuggestionItem {
-                            value: slint::SharedString::from(s.value),
-                            display: slint::SharedString::from(s.display),
-                            count: s.count as i32,
-                            is_load_more: false,
-                        })
-                        .collect();
-                    field_item.suggestions = ModelRc::new(VecModel::from(slint_suggs));
-                    field_item.dropdown_open = true;
-                    model.set_row_data(f_idx, field_item);
-                }
-            } else {
-                field_item.value = sugg_item.value;
-                field_item.dropdown_open = false;
-                model.set_row_data(f_idx, field_item);
             }
         });
     }
@@ -211,7 +175,6 @@ pub fn register(main_window: &MainWindow, state: Rc<RefCell<AppState>>) {
                 for i in 0..count {
                     if let Some(mut item) = model.row_data(i) {
                         item.value = slint::SharedString::default();
-                        item.dropdown_open = false;
                         model.set_row_data(i, item);
                     }
                 }

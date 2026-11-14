@@ -8,7 +8,7 @@ use configurable_csv_analyzer::core::logging::get_global_logger;
 use configurable_csv_analyzer::core::model::{BrushCategory, HighlightItem, TableData};
 
 use crate::{
-    AppState, AppTheme, CellItem, ColorChoiceItem, ConfigurationWindow, HeaderItem,
+    AppState, AppTheme, CellItem, KitColorItem, ConfigurationWindow, HeaderItem,
     InfoFileEditorWindow, LogViewItem, MainWindow, ProposalItem, RowItem, RuleSummaryItem,
     SlintCollectionFilterItem, SlintCollectionTabGroup, SlintExternalAppItem, TabItem, TabRowItem,
 };
@@ -111,7 +111,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
         .collect();
     ui.set_external_apps(external_apps.to_slint_model());
 
-    let marker_choices: Vec<ColorChoiceItem> = state
+    let marker_choices: Vec<KitColorItem> = state
         .app_config
         .brushes
         .iter()
@@ -126,7 +126,7 @@ pub fn sync_ui(ui: &MainWindow, state: &AppState) {
                 "MarkerLila" => "Lila",
                 other => other.strip_prefix("Marker").unwrap_or(other),
             };
-            ColorChoiceItem {
+            KitColorItem {
                 key: slint::SharedString::from(label),
                 hex_value: slint::SharedString::from(&b.hex_value),
                 color: cached_color(&b.hex_value, 255),
