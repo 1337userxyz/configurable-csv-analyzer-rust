@@ -1,0 +1,1454 @@
+import { Button, LineEdit, CheckBox, ScrollView } from "std-widgets.slint";
+import { AppTheme, KitColorItem, KitComboItem, KitRichCombo } from "@kit-theme";
+
+export struct HeaderItem {
+    id: int,
+    name: string,
+    concept: string,
+    sort_dir: int, // 0 = none, 1 = asc, 2 = desc
+    is_filtered: bool,
+    width: length,
+}
+
+export struct CellItem {
+    text: string,
+    bg_color: color,
+    fg_color: color,
+    has_custom_bg: bool,
+    has_error: bool,
+    has_warning: bool,
+    has_info: bool,
+}
+
+export struct RowItem {
+    row_idx: int,
+    original_idx: int,
+    is_marked: bool,
+    bg_color: color,
+    cells: [CellItem],
+}
+
+export struct RuleSummaryItem {
+    id: string,
+    description: string,
+    hits: int,
+    errors: int,
+    warnings: int,
+}
+
+export struct ProposalItem {
+    source_table: string,
+    key_val: string,
+    preview: string,
+    row_idx: int,
+}
+
+export struct FilterChoiceItem {
+    value: string,
+    display_text: string,
+    count: int,
+    selected: bool,
+    visible: bool,
+}
+
+export struct SmartAddFieldItem {
+    col_idx: int,
+    column_name: string,
+    concept_name: string,
+    value: string,
+    items: [KitComboItem],
+}
+
+export component CsvTableView inherits VerticalLayout {
+    // Konfigurations-Properties für Host-Apps
+    in property <bool> show_toolbar: true;
+    in property <bool> show_edit_actions: true;
+    in property <bool> show_info_editor_button: true;
+    in property <bool> show_rules_button: true;
+    in property <bool> show_level_badge: false;
+    in property <bool> active_table_is_ods: false;
+    in property <string> active_table_name: "";
+
+    // Tabellen-Daten & Zustand
+    in-out property <[HeaderItem]> headers: [];
+    in-out property <[RowItem]> rows: [];
+    in-out property <int> total_row_count: 0;
+    in-out property <int> marked_row_count: 0;
+    in-out property <bool> only_marked_active: false;
+    in-out property <string> search_query: "";
+
+    // Textmarker
+    in-out property <bool> marker_menu_visible: false;
+    in-out property <[KitColorItem]> marker_choices: [
+        { key: "Gelb", hex_value: "#fff59d", color: #fff59d },
+        { key: "Grün", hex_value: "#c8e6c9", color: #c8e6c9 },
+        { key: "Blau", hex_value: "#bbdefb", color: #bbdefb },
+        { key: "Rot", hex_value: "#ffcdd2", color: #ffcdd2 },
+        { key: "Orange", hex_value: "#ffe0b2", color: #ffe0b2 },
+        { key: "Lila", hex_value: "#e1bee7", color: #e1bee7 },
+    ];
+
+    // Filter-Modal
+    in-out property <bool> filter_dialog_visible: false;
+    in-out property <int> filter_dialog_col_idx: 0;
+    in-out property <string> filter_dialog_col_name: "";
+    in-out property <[FilterChoiceItem]> filter_dialog_items: [];
+    in-out property <string> filter_dialog_search: "";
+    in-out property <int> filter_dialog_total_hits: 0;
+
+    // Smart-Add-Modal
+    in-out property <bool> smart_add_dialog_visible: false;
+    in-out property <string> smart_add_basis_text: "";
+    in-out property <int> smart_add_row_count: 1;
+    in-out property <string> smart_add_row_count_text: "1";
+    in-out property <[SmartAddFieldItem]> smart_add_fields: [];
+
+    // Fill-Column-Modal
+    in-out property <bool> fill_dialog_visible: false;
+    in-out property <int> fill_dialog_col_idx: 0;
+    in-out property <int> fill_dialog_mode: 0; // 0: Static, 1: Prefix/Suffix, 2: Increment
+    in-out property <string> fill_static_val: "";
+    in-out property <string> fill_prefix_val: "";
+    in-out property <string> fill_suffix_val: "";
+    in-out property <int> fill_start_val: 1;
+    in-out property <int> fill_step_val: 1;
+
+    // Split-Column-Modal
+    in-out property <bool> split_dialog_visible: false;
+    in-out property <int> split_dialog_col_idx: 0;
+    in-out property <string> split_delimiter: ",";
+    in-out property <string> split_new_cols: "Spalte_1, Spalte_2";
+
+    // Inline cell edit tracking
+    in-out property <int> editing_row: -1;
+    in-out property <int> editing_col: -1;
+    in-out property <string> editing_text: "";
+    in-out property <bool> editing_dirty: false;
+
+    // Callbacks: Auswahl & Filter
+    callback select_all_toggled(bool);
+    callback only_marked_toggled(bool);
+    callback mark_empty_rows_clicked();
+    callback clear_selection_clicked();
+    callback row_mark_toggled(int, bool);
+    callback search_text_changed(string);
+    callback filter_clear_all_clicked();
+    callback run_rules_clicked();
+    callback show_info_editor_clicked();
+
+    // Callbacks: Textmarker
+    callback apply_marker_color(string);
+    callback clear_markers_clicked();
+
+    // Callbacks: Workflows
+    callback smart_add_row_clicked();
+    callback smart_add_field_edited(int, string);
+    callback smart_add_clear_all_fields();
+    callback confirm_smart_add_rows(int);
+
+    callback show_fill_dialog_clicked();
+    callback apply_fill_column(int, int, string, string, string, int, int);
+
+    callback show_split_dialog_clicked();
+    callback apply_split_column(int, string, string);
+
+    callback delete_marked_rows_clicked();
+    callback copy_clipboard_clicked();
+    callback paste_clipboard_clicked();
+
+    // Callbacks: Grid & Filter-Popup
+    callback header_sort_clicked(int);
+    callback column_resized(int, length);
+    callback open_filter_popup(int);
+    callback filter_apply_clicked(int);
+    callback filter_toggle_item(int, bool);
+    callback filter_search_changed(string);
+    callback filter_select_all(bool);
+    callback filter_reset_column(int);
+    callback cell_edited(int, int, string);
+
+    public function commit_active_edit() {
+        if (root.editing_row >= 0 && root.editing_col >= 0 && root.editing_dirty) {
+            root.cell_edited(root.editing_row, root.editing_col, root.editing_text);
+        }
+        root.editing_row = -1;
+        root.editing_col = -1;
+        root.editing_dirty = false;
+    }
+
+    function set_smart_row_count(new_count: int) {
+        let clamped = max(1, new_count);
+        root.smart_add_row_count = clamped;
+        root.smart_add_row_count_text = "" + clamped;
+    }
+
+    Rectangle {
+        vertical-stretch: 1;
+        background: AppTheme.bg-canvas;
+        clip: true;
+
+        VerticalLayout {
+            width: 100%;
+            height: 100%;
+            spacing: 0px;
+
+            // 1. KOMPAKT-TOOLBAR (Filter, Suche, Markierung, Regeln, .info)
+            if root.show_toolbar: Rectangle {
+                height: 42px;
+                background: AppTheme.bg-surface;
+
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: AppTheme.border;
+                }
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 10px;
+                    alignment: space-between;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        if root.show_level_badge: Rectangle {
+                            height: 26px;
+                            border-radius: 4px;
+                            background: root.active_table_is_ods ? AppTheme.warning-bg : AppTheme.success-bg;
+                            border-width: 1px;
+                            border-color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                Text {
+                                    text: root.active_table_is_ods ? "📊 ODS-Ebene" : "📄 CSV-Ebene";
+                                    color: root.active_table_is_ods ? AppTheme.warning : AppTheme.success;
+                                    font-weight: 700;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        if root.show_level_badge && root.active_table_name != "": Rectangle {
+                            height: 26px;
+                            border-radius: 4px;
+                            background: AppTheme.bg-surface;
+                            border-width: 1px;
+                            border-color: AppTheme.border;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                Text {
+                                    text: "📄 " + root.active_table_name;
+                                    font-weight: 700;
+                                    font-size: 11px;
+                                    color: AppTheme.text-primary;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Nur Markierte Filter Pill
+                        Rectangle {
+                            height: 28px;
+                            border-radius: 5px;
+                            background: root.only_marked_active ? AppTheme.warning-bg : (only_marked_touch.has-hover ? AppTheme.bg-hover : AppTheme.bg-surface);
+                            border-width: 1.5px;
+                            border-color: root.only_marked_active ? AppTheme.warning : AppTheme.border-strong;
+
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 10px;
+                                spacing: 6px;
+                                alignment: center;
+
+                                CheckBox {
+                                    checked: root.only_marked_active;
+                                    toggled => {
+                                        root.commit_active_edit();
+                                        root.only_marked_toggled(self.checked);
+                                    }
+                                }
+
+                                Text {
+                                    text: "Nur Markierte";
+                                    color: root.only_marked_active ? AppTheme.warning : AppTheme.text-primary;
+                                    font-weight: root.only_marked_active ? 700 : 600;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            only_marked_touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.commit_active_edit();
+                                    root.only_marked_toggled(!root.only_marked_active);
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 28px;
+                            background: AppTheme.bg-hover;
+                            border-radius: 4px;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                Text {
+                                    text: root.marked_row_count + " / " + root.total_row_count + " markiert (" + root.rows.length + " sichtbar)";
+                                    color: AppTheme.text-secondary;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        Button {
+                            text: "Leere Zeilen";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.mark_empty_rows_clicked();
+                            }
+                        }
+                        Button {
+                            text: "Auswahl aufheben";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.clear_selection_clicked();
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: end;
+
+                        LineEdit {
+                            width: 190px;
+                            placeholder-text: "Schnellsuche...";
+                            text: root.search_query;
+                            edited(s) => {
+                                root.commit_active_edit();
+                                root.search_query = s;
+                                root.search_text_changed(s);
+                            }
+                        }
+                        Button {
+                            text: "Filter leeren";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.filter_clear_all_clicked();
+                            }
+                        }
+                        if root.show_rules_button: Button {
+                            text: "Regeln prüfen";
+                            primary: true;
+                            clicked => {
+                                root.commit_active_edit();
+                                root.run_rules_clicked();
+                            }
+                        }
+                        if root.show_info_editor_button: Button {
+                            text: ".info Editor";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.show_info_editor_clicked();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. BEARBEITUNGS-AKTIONEN (Textmarker, SmartAdd, Füllen, Teilen, Löschen, TSV)
+            if root.show_edit_actions: Rectangle {
+                height: 40px;
+                background: AppTheme.bg-canvas;
+
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: AppTheme.border;
+                }
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 6px;
+                    alignment: space-between;
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+
+                        Button {
+                            text: "🖍 Marker ▼";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.marker_menu_visible = !root.marker_menu_visible;
+                            }
+                        }
+                        Button {
+                            text: "+ Zeile (Smart)";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.smart_add_row_clicked();
+                            }
+                        }
+                        Button {
+                            text: "Spalte füllen";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.fill_dialog_visible = true;
+                                root.show_fill_dialog_clicked();
+                            }
+                        }
+                        Button {
+                            text: "Spalte teilen";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.split_dialog_visible = true;
+                                root.show_split_dialog_clicked();
+                            }
+                        }
+                        Button {
+                            text: "Zeilen löschen";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.delete_marked_rows_clicked();
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: end;
+
+                        Button {
+                            text: "Kopieren (TSV)";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.copy_clipboard_clicked();
+                            }
+                        }
+                        Button {
+                            text: "Einfügen";
+                            clicked => {
+                                root.commit_active_edit();
+                                root.paste_clipboard_clicked();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. MAIN DATA GRID (Sticky Header + Scrollable Rows)
+            Rectangle {
+                background: AppTheme.bg-canvas;
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    // Sticky Header Row
+                    Rectangle {
+                        height: 34px;
+                        background: AppTheme.bg-subtle;
+                        clip: true;
+
+                        Rectangle {
+                            y: parent.height - 1px;
+                            height: 1px;
+                            background: AppTheme.border;
+                        }
+
+                        header_layout := HorizontalLayout {
+                            x: table_scroll.content-x;
+
+                            // Checkbox column
+                            Rectangle {
+                                min-width: 38px;
+                                max-width: 38px;
+                                preferred-width: 38px;
+                                background: AppTheme.bg-subtle;
+                                CheckBox {
+                                    toggled => {
+                                        root.commit_active_edit();
+                                        root.select_all_toggled(self.checked);
+                                    }
+                                }
+                                Rectangle {
+                                    x: parent.width - 1px;
+                                    width: 1px;
+                                    background: AppTheme.bg-hover;
+                                }
+                            }
+                            // Row index header
+                            Rectangle {
+                                min-width: 50px;
+                                max-width: 50px;
+                                preferred-width: 50px;
+                                background: AppTheme.bg-subtle;
+                                Text {
+                                    text: "#";
+                                    color: AppTheme.text-secondary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    font-weight: 600;
+                                }
+                                Rectangle {
+                                    x: parent.width - 1px;
+                                    width: 1px;
+                                    background: AppTheme.bg-hover;
+                                }
+                            }
+
+                            // Column Headers
+                            for h in root.headers: Rectangle {
+                                min-width: max(50px, h.width);
+                                max-width: max(50px, h.width);
+                                preferred-width: self.min-width;
+                                background: h.is_filtered ? AppTheme.bg-hover : AppTheme.bg-subtle;
+
+                                Rectangle {
+                                    x: parent.width - 1px;
+                                    width: 1px;
+                                    background: AppTheme.bg-hover;
+                                }
+
+                                TouchArea {
+                                    x: 0px;
+                                    width: parent.width - 34px;
+                                    clicked => {
+                                        root.commit_active_edit();
+                                        root.header_sort_clicked(h.id);
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    alignment: space-between;
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Text {
+                                            text: h.name + (h.sort_dir == 1 ? " ▲" : h.sort_dir == 2 ? " ▼" : "");
+                                            color: AppTheme.text-primary;
+                                            font-weight: 600;
+                                            overflow: elide;
+                                        }
+                                        if h.concept != "": Text {
+                                            text: "[" + h.concept + "]";
+                                            color: AppTheme.accent;
+                                            font-size: 11px;
+                                            overflow: elide;
+                                        }
+                                    }
+
+                                    Button {
+                                        width: 24px;
+                                        height: 24px;
+                                        text: h.is_filtered ? "⏷" : "▼";
+                                        clicked => {
+                                            root.commit_active_edit();
+                                            root.open_filter_popup(h.id);
+                                        }
+                                    }
+                                }
+
+                                // Interactive Column Resize Handle
+                                Rectangle {
+                                    x: parent.width - 5px;
+                                    width: 10px;
+                                    height: parent.height;
+
+                                    Rectangle {
+                                        x: 4px;
+                                        width: 2px;
+                                        height: parent.height;
+                                        background: col_resizer.has-hover || col_resizer.pressed ? AppTheme.accent : transparent;
+                                    }
+
+                                    col_resizer := TouchArea {
+                                        mouse-cursor: col-resize;
+                                        moved => {
+                                            if self.pressed {
+                                                root.column_resized(h.id, max(40px, h.width + (self.mouse-x - self.pressed-x)));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Table Rows
+                    table_scroll := ScrollView {
+                        VerticalLayout {
+                            min-width: header_layout.min-width;
+                            alignment: start;
+                            for row in root.rows: Rectangle {
+                                height: 28px;
+                                background: row.is_marked ? AppTheme.bg-selected : row.bg_color != transparent ? row.bg_color : (Math.mod(row.row_idx, 2) == 0 ? AppTheme.bg-canvas : AppTheme.bg-subtle);
+
+                                Rectangle {
+                                    y: parent.height - 1px;
+                                    height: 1px;
+                                    background: AppTheme.bg-subtle;
+                                }
+
+                                HorizontalLayout {
+                                    // Checkbox
+                                    Rectangle {
+                                        min-width: 38px;
+                                        max-width: 38px;
+                                        preferred-width: 38px;
+                                        CheckBox {
+                                            checked: row.is_marked;
+                                            toggled => {
+                                                root.commit_active_edit();
+                                                root.row_mark_toggled(row.original_idx, self.checked);
+                                            }
+                                        }
+                                        Rectangle {
+                                            x: parent.width - 1px;
+                                            width: 1px;
+                                            background: AppTheme.bg-subtle;
+                                        }
+                                    }
+                                    // Row number
+                                    Rectangle {
+                                        min-width: 50px;
+                                        max-width: 50px;
+                                        preferred-width: 50px;
+                                        Text {
+                                            text: (row.original_idx + 1);
+                                            color: AppTheme.text-muted;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                            font-size: 11px;
+                                        }
+                                        Rectangle {
+                                            x: parent.width - 1px;
+                                            width: 1px;
+                                            background: AppTheme.bg-subtle;
+                                        }
+                                    }
+
+                                    // Cells
+                                    for cell[col_idx] in row.cells: Rectangle {
+                                        min-width: col_idx < root.headers.length ? max(60px, root.headers[col_idx].width) : 150px;
+                                        max-width: self.min-width;
+                                        preferred-width: self.min-width;
+                                        clip: true;
+                                        border-width: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? 1.5px : 0px;
+                                        border-color: AppTheme.accent;
+                                        background: (root.editing_row == row.original_idx && root.editing_col == col_idx) ? AppTheme.bg-elevated :
+                                            cell.bg_color != transparent ? cell.bg_color :
+                                            (cell.has_error ? AppTheme.danger-bg : cell.has_warning ? AppTheme.warning-bg : cell.has_info ? AppTheme.info-bg :
+                                            (cell_touch.has-hover ? AppTheme.bg-hover : transparent));
+
+                                        Rectangle {
+                                            x: parent.width - 1px;
+                                            width: 1px;
+                                            background: AppTheme.bg-subtle;
+                                        }
+
+                                        if root.editing_row != row.original_idx || root.editing_col != col_idx: HorizontalLayout {
+                                            padding-left: 8px;
+                                            padding-right: 8px;
+                                            Text {
+                                                text: cell.text;
+                                                color: cell.has_custom_bg ? cell.fg_color : (cell.has_error ? AppTheme.danger : cell.has_warning ? AppTheme.warning : AppTheme.text-primary);
+                                                font-weight: cell.bg_color != transparent ? 600 : 400;
+                                                vertical-alignment: center;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        cell_touch := TouchArea {
+                                            visible: root.editing_row != row.original_idx || root.editing_col != col_idx;
+                                            mouse-cursor: text;
+                                            clicked => {
+                                                root.commit_active_edit();
+                                                root.editing_row = row.original_idx;
+                                                root.editing_col = col_idx;
+                                                root.editing_text = cell.text;
+                                                root.editing_dirty = false;
+                                            }
+                                        }
+
+                                        if root.editing_row == row.original_idx && root.editing_col == col_idx: LineEdit {
+                                            x: 2px;
+                                            y: 1px;
+                                            width: parent.width - 4px;
+                                            height: parent.height - 2px;
+                                            text: root.editing_text;
+                                            init => {
+                                                self.focus();
+                                            }
+                                            edited(val) => {
+                                                root.editing_text = val;
+                                                root.editing_dirty = true;
+                                            }
+                                            accepted => {
+                                                root.cell_edited(row.original_idx, col_idx, self.text);
+                                                root.editing_row = -1;
+                                                root.editing_col = -1;
+                                                root.editing_dirty = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- OVERLAY 1: MARKER DROPDOWN MENU ---
+        if root.marker_menu_visible: Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            background: transparent;
+
+            TouchArea {
+                clicked => { root.marker_menu_visible = false; }
+            }
+
+            Rectangle {
+                x: 12px;
+                y: root.show_toolbar ? 84px : 42px;
+                width: 230px;
+                background: AppTheme.bg-subtle;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: AppTheme.border-strong;
+                drop-shadow-blur: 14px;
+                drop-shadow-color: AppTheme.bg-scrim;
+
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 4px;
+
+                    Text {
+                        text: "Textmarker-Farbe wählen:";
+                        color: AppTheme.text-muted;
+                        font-size: 11px;
+                        font-weight: 600;
+                    }
+
+                    for mc in root.marker_choices: Rectangle {
+                        height: 30px;
+                        border-radius: 5px;
+                        background: mc_touch.has-hover ? AppTheme.bg-hover : transparent;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 10px;
+                            alignment: start;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 18px;
+                                    height: 18px;
+                                    border-radius: 4px;
+                                    background: mc.color;
+                                    border-width: 1px;
+                                    border-color: AppTheme.border-strong;
+                                }
+                            }
+
+                            Text {
+                                text: mc.key;
+                                color: AppTheme.text-primary;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                            }
+
+                            Text {
+                                text: mc.hex_value;
+                                color: AppTheme.text-muted;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        mc_touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.apply_marker_color(mc.hex_value);
+                                root.marker_menu_visible = false;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: AppTheme.border;
+                    }
+
+                    Rectangle {
+                        height: 30px;
+                        border-radius: 5px;
+                        background: clear_marker_touch.has-hover ? AppTheme.danger-bg : transparent;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 8px;
+                            Text {
+                                text: "✕ Marker von Auswahl löschen";
+                                color: AppTheme.danger;
+                                font-size: 12px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        clear_marker_touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.clear_markers_clicked();
+                                root.marker_menu_visible = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- OVERLAY 2: COLUMN FILTER DIALOG ---
+        if root.filter_dialog_visible: Rectangle {
+            background: AppTheme.bg-scrim;
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+            TouchArea {}
+
+            Rectangle {
+                width: min(parent.width - 32px, 430px);
+                height: min(parent.height - 32px, 520px);
+                background: AppTheme.bg-surface;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: AppTheme.border-strong;
+
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text {
+                            text: "Spaltenfilter: " + root.filter_dialog_col_name;
+                            font-size: 15px;
+                            font-weight: 700;
+                            color: AppTheme.text-primary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        Rectangle {
+                            background: AppTheme.bg-selected;
+                            border-radius: 4px;
+                            height: 22px;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                Text {
+                                    text: root.filter_dialog_total_hits + " Treffer";
+                                    color: AppTheme.accent-hover;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "Trefferanzahl berücksichtigt alle anderen aktiven Filter.";
+                        color: AppTheme.text-muted;
+                        font-size: 11px;
+                    }
+
+                    LineEdit {
+                        placeholder-text: "Werte in dieser Spalte suchen...";
+                        text: root.filter_dialog_search;
+                        edited(s) => {
+                            root.filter_dialog_search = s;
+                            root.filter_search_changed(s);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Button {
+                            text: "Alle auswählen";
+                            clicked => { root.filter_select_all(true); }
+                        }
+                        Button {
+                            text: "Keine auswählen";
+                            clicked => { root.filter_select_all(false); }
+                        }
+                        Button {
+                            text: "Spaltenfilter zurücksetzen";
+                            clicked => {
+                                root.filter_reset_column(root.filter_dialog_col_idx);
+                                root.filter_dialog_visible = false;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                        background: AppTheme.bg-canvas;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: AppTheme.border;
+
+                        ScrollView {
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 2px;
+                                alignment: start;
+                                for item[idx] in root.filter_dialog_items: VerticalLayout {
+                                    if item.visible: Rectangle {
+                                        height: 28px;
+                                        border-radius: 4px;
+                                        background: item.selected ? AppTheme.bg-subtle : transparent;
+
+                                        HorizontalLayout {
+                                            padding-left: 6px;
+                                            padding-right: 8px;
+                                            spacing: 8px;
+                                            alignment: space-between;
+
+                                            CheckBox {
+                                                horizontal-stretch: 1;
+                                                text: item.display_text;
+                                                checked: item.selected;
+                                                toggled => { root.filter_toggle_item(idx, self.checked); }
+                                            }
+
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Rectangle {
+                                                    min-width: 30px;
+                                                    height: 20px;
+                                                    border-radius: 10px;
+                                                    background: item.count > 0 ? AppTheme.bg-hover : AppTheme.bg-subtle;
+                                                    HorizontalLayout {
+                                                        padding-left: 6px;
+                                                        padding-right: 6px;
+                                                        Text {
+                                                            text: item.count;
+                                                            color: item.count > 0 ? AppTheme.accent-hover : AppTheme.text-muted;
+                                                            font-size: 11px;
+                                                            font-weight: 600;
+                                                            horizontal-alignment: center;
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: end;
+                        Button {
+                            text: "Abbrechen";
+                            clicked => { root.filter_dialog_visible = false; }
+                        }
+                        Button {
+                            text: "Filter anwenden";
+                            primary: true;
+                            clicked => {
+                                root.filter_apply_clicked(root.filter_dialog_col_idx);
+                                root.filter_dialog_visible = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- OVERLAY 3: SMART ADD ROWS DIALOG ---
+        if root.smart_add_dialog_visible: Rectangle {
+            background: AppTheme.bg-scrim;
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+            TouchArea {}
+
+            Rectangle {
+                width: min(parent.width - 40px, 760px);
+                height: min(parent.height - 40px, 640px);
+                background: AppTheme.bg-surface;
+                border-radius: 10px;
+                border-width: 1px;
+                border-color: AppTheme.border-strong;
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 3px;
+                            Text {
+                                text: "Neue Zeilen hinzufügen (Smart Add)";
+                                font-size: 17px;
+                                font-weight: 700;
+                                color: AppTheme.text-primary;
+                            }
+                            Text {
+                                text: root.smart_add_basis_text;
+                                font-size: 12px;
+                                color: AppTheme.accent-hover;
+                            }
+                        }
+
+                        Button {
+                            text: "Alle Felder leeren";
+                            clicked => { root.smart_add_clear_all_fields(); }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 46px;
+                        background: AppTheme.bg-canvas;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: AppTheme.bg-hover;
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 8px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+
+                                Text {
+                                    text: "Zeilenanzahl:";
+                                    color: AppTheme.text-primary;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                }
+
+                                Button {
+                                    width: 32px;
+                                    text: "−";
+                                    clicked => {
+                                        root.set_smart_row_count(root.smart_add_row_count - 1);
+                                    }
+                                }
+
+                                LineEdit {
+                                    width: 64px;
+                                    text: root.smart_add_row_count_text;
+                                    edited(val) => {
+                                        root.smart_add_row_count_text = val;
+                                        if (val != "" && val.to-float() >= 1) {
+                                            root.smart_add_row_count = Math.round(val.to-float());
+                                        }
+                                    }
+                                }
+
+                                Button {
+                                    width: 32px;
+                                    text: "+";
+                                    clicked => {
+                                        root.set_smart_row_count(root.smart_add_row_count + 1);
+                                    }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: end;
+
+                                Text {
+                                    text: "Schnellwahl:";
+                                    color: AppTheme.text-secondary;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+                                Button { text: "1"; clicked => { root.set_smart_row_count(1); } }
+                                Button { text: "+3"; clicked => { root.set_smart_row_count(root.smart_add_row_count + 3); } }
+                                Button { text: "+5"; clicked => { root.set_smart_row_count(root.smart_add_row_count + 5); } }
+                                Button { text: "+10"; clicked => { root.set_smart_row_count(root.smart_add_row_count + 10); } }
+                                Button { text: "+15"; clicked => { root.set_smart_row_count(root.smart_add_row_count + 15); } }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                        background: AppTheme.bg-canvas;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: AppTheme.bg-hover;
+
+                        ScrollView {
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 8px;
+                                alignment: start;
+
+                                for field[field_idx] in root.smart_add_fields: Rectangle {
+                                    background: field.value != "" ? AppTheme.bg-subtle : AppTheme.bg-surface;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: field.value != "" ? AppTheme.accent : AppTheme.bg-hover;
+
+                                    VerticalLayout {
+                                        padding: 8px;
+                                        spacing: 6px;
+
+                                        HorizontalLayout {
+                                            spacing: 10px;
+
+                                            VerticalLayout {
+                                                width: 210px;
+                                                alignment: center;
+                                                Text {
+                                                    text: field.column_name;
+                                                    color: AppTheme.text-primary;
+                                                    font-weight: 600;
+                                                    overflow: elide;
+                                                }
+                                                if field.concept_name != "": Text {
+                                                    text: "[" + field.concept_name + "]";
+                                                    color: AppTheme.accent;
+                                                    font-size: 11px;
+                                                    overflow: elide;
+                                                }
+                                            }
+
+                                            KitRichCombo {
+                                                horizontal-stretch: 1;
+                                                placeholder-text: "(Leer lassen zum Ignorieren)";
+                                                value: field.value;
+                                                items: field.items;
+                                                clearable: true;
+                                                show-count: true;
+                                                edited(val) => {
+                                                    root.smart_add_field_edited(field_idx, val);
+                                                }
+                                                cleared => {
+                                                    root.smart_add_field_edited(field_idx, "");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: space-between;
+
+                        Text {
+                            text: "Hinweis: Aktive Spaltenfilter werden automatisch erweitert, damit neue Zeilen sofort sichtbar bleiben.";
+                            color: AppTheme.text-secondary;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: "Abbrechen";
+                                clicked => { root.smart_add_dialog_visible = false; }
+                            }
+                            Button {
+                                text: "+ " + root.smart_add_row_count + (root.smart_add_row_count == 1 ? " Zeile hinzufügen" : " Zeilen hinzufügen");
+                                primary: true;
+                                clicked => {
+                                    root.confirm_smart_add_rows(root.smart_add_row_count);
+                                    root.smart_add_dialog_visible = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- OVERLAY 4: FILL COLUMN DIALOG ---
+        if root.fill_dialog_visible: Rectangle {
+            background: AppTheme.bg-scrim;
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+            TouchArea {}
+
+            Rectangle {
+                width: min(parent.width - 32px, 440px);
+                height: min(parent.height - 32px, 380px);
+                background: AppTheme.bg-surface;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: AppTheme.border-strong;
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+
+                    Text {
+                        text: "Spalte füllen";
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: AppTheme.text-primary;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+
+                        Text {
+                            text: "Zielspalte: " + (root.fill_dialog_col_idx >= 0 && root.fill_dialog_col_idx < root.headers.length ? root.headers[root.fill_dialog_col_idx].name : ("Spalte " + (root.fill_dialog_col_idx + 1)));
+                            color: AppTheme.text-secondary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 4px;
+                            Button {
+                                width: 30px;
+                                text: "◀";
+                                enabled: root.fill_dialog_col_idx > 0;
+                                clicked => {
+                                    if (root.fill_dialog_col_idx > 0) {
+                                        root.fill_dialog_col_idx -= 1;
+                                    }
+                                }
+                            }
+                            Button {
+                                width: 30px;
+                                text: "▶";
+                                enabled: root.fill_dialog_col_idx + 1 < root.headers.length;
+                                clicked => {
+                                    if (root.fill_dialog_col_idx + 1 < root.headers.length) {
+                                        root.fill_dialog_col_idx += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: "Statisch";
+                            primary: root.fill_dialog_mode == 0;
+                            clicked => { root.fill_dialog_mode = 0; }
+                        }
+                        Button {
+                            text: "Präfix / Suffix";
+                            primary: root.fill_dialog_mode == 1;
+                            clicked => { root.fill_dialog_mode = 1; }
+                        }
+                        Button {
+                            text: "Inkrement";
+                            primary: root.fill_dialog_mode == 2;
+                            clicked => { root.fill_dialog_mode = 2; }
+                        }
+                    }
+
+                    if root.fill_dialog_mode == 0: LineEdit {
+                        placeholder-text: "Statischer Wert...";
+                        text: root.fill_static_val;
+                        edited(s) => { root.fill_static_val = s; }
+                    }
+
+                    if root.fill_dialog_mode == 1: VerticalLayout {
+                        spacing: 6px;
+                        LineEdit {
+                            placeholder-text: "Präfix...";
+                            text: root.fill_prefix_val;
+                            edited(s) => { root.fill_prefix_val = s; }
+                        }
+                        LineEdit {
+                            placeholder-text: "Suffix...";
+                            text: root.fill_suffix_val;
+                            edited(s) => { root.fill_suffix_val = s; }
+                        }
+                    }
+
+                    if root.fill_dialog_mode == 2: VerticalLayout {
+                        spacing: 6px;
+                        LineEdit {
+                            placeholder-text: "Präfix (z. B. SRV-)...";
+                            text: root.fill_prefix_val;
+                            edited(s) => { root.fill_prefix_val = s; }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text { text: "Start:"; vertical-alignment: center; }
+                            LineEdit {
+                                text: root.fill_start_val;
+                                edited(s) => { root.fill_start_val = s.to-float(); }
+                            }
+                            Text { text: "Schritt:"; vertical-alignment: center; }
+                            LineEdit {
+                                text: root.fill_step_val;
+                                edited(s) => { root.fill_step_val = s.to-float(); }
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: end;
+                        Button {
+                            text: "Abbrechen";
+                            clicked => { root.fill_dialog_visible = false; }
+                        }
+                        Button {
+                            text: "Ausführen";
+                            primary: true;
+                            clicked => {
+                                root.apply_fill_column(
+                                    root.fill_dialog_col_idx,
+                                    root.fill_dialog_mode,
+                                    root.fill_static_val,
+                                    root.fill_prefix_val,
+                                    root.fill_suffix_val,
+                                    root.fill_start_val,
+                                    root.fill_step_val
+                                );
+                                root.fill_dialog_visible = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- OVERLAY 5: SPLIT COLUMN DIALOG ---
+        if root.split_dialog_visible: Rectangle {
+            background: AppTheme.bg-scrim;
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+
+            TouchArea {}
+
+            Rectangle {
+                width: min(parent.width - 32px, 440px);
+                height: min(parent.height - 32px, 310px);
+                background: AppTheme.bg-surface;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: AppTheme.border-strong;
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+
+                    Text {
+                        text: "Spalte aufteilen";
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: AppTheme.text-primary;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+
+                        Text {
+                            text: "Quellspalte: " + (root.split_dialog_col_idx >= 0 && root.split_dialog_col_idx < root.headers.length ? root.headers[root.split_dialog_col_idx].name : ("Spalte " + (root.split_dialog_col_idx + 1)));
+                            color: AppTheme.text-secondary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 4px;
+                            Button {
+                                width: 30px;
+                                text: "◀";
+                                enabled: root.split_dialog_col_idx > 0;
+                                clicked => {
+                                    if (root.split_dialog_col_idx > 0) {
+                                        root.split_dialog_col_idx -= 1;
+                                    }
+                                }
+                            }
+                            Button {
+                                width: 30px;
+                                text: "▶";
+                                enabled: root.split_dialog_col_idx + 1 < root.headers.length;
+                                clicked => {
+                                    if (root.split_dialog_col_idx + 1 < root.headers.length) {
+                                        root.split_dialog_col_idx += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text { text: "Trennzeichen:"; vertical-alignment: center; }
+                        LineEdit {
+                            width: 50px;
+                            text: root.split_delimiter;
+                            edited(s) => { root.split_delimiter = s; }
+                        }
+                    }
+
+                    Text { text: "Neue Spaltennamen (kommagetrennt):"; color: AppTheme.text-secondary; }
+                    LineEdit {
+                        text: root.split_new_cols;
+                        edited(s) => { root.split_new_cols = s; }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: end;
+                        Button {
+                            text: "Abbrechen";
+                            clicked => { root.split_dialog_visible = false; }
+                        }
+                        Button {
+                            text: "Aufteilen";
+                            primary: true;
+                            clicked => {
+                                root.apply_split_column(
+                                    root.split_dialog_col_idx,
+                                    root.split_delimiter,
+                                    root.split_new_cols
+                                );
+                                root.split_dialog_visible = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

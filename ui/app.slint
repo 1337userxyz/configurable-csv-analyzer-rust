@@ -2,6 +2,15 @@ import { Button, LineEdit, CheckBox, ScrollView, ComboBox, StandardButton } from
 import { AppTheme, KitColorItem, KitComboItem, KitRichCombo } from "@kit-theme";
 import { ConfigurationWindow, SlintViewItem, SlintViewFileItem, SlintBrushItem, SlintExternalAppItem } from "configuration.slint";
 import {
+    HeaderItem,
+    CellItem,
+    RowItem,
+    RuleSummaryItem,
+    ProposalItem,
+    FilterChoiceItem,
+    SmartAddFieldItem
+} from "csv_table_view.slint";
+import {
     InfoFileEditorWindow,
     SlintColumnDisplayItem,
     SlintMappingItem,
@@ -32,6 +41,13 @@ export {
     SlintViewFileItem,
     SlintBrushItem,
     SlintExternalAppItem,
+    HeaderItem,
+    CellItem,
+    RowItem,
+    RuleSummaryItem,
+    ProposalItem,
+    FilterChoiceItem,
+    SmartAddFieldItem,
     InfoFileEditorWindow,
     SlintColumnDisplayItem,
     SlintMappingItem,
@@ -70,68 +86,10 @@ export struct SlintCollectionTabGroup {
     tab_rows: [TabRowItem],
 }
 
-export struct HeaderItem {
-    id: int,
-    name: string,
-    concept: string,
-    sort_dir: int, // 0 = none, 1 = asc, 2 = desc
-    is_filtered: bool,
-    width: length,
-}
-
-export struct CellItem {
-    text: string,
-    bg_color: color,
-    fg_color: color,
-    has_custom_bg: bool,
-    has_error: bool,
-    has_warning: bool,
-    has_info: bool,
-}
-
-export struct RowItem {
-    row_idx: int,
-    original_idx: int,
-    is_marked: bool,
-    bg_color: color,
-    cells: [CellItem],
-}
-
-export struct RuleSummaryItem {
-    id: string,
-    description: string,
-    hits: int,
-    errors: int,
-    warnings: int,
-}
-
-export struct ProposalItem {
-    source_table: string,
-    key_val: string,
-    preview: string,
-    row_idx: int,
-}
-
 export struct LogViewItem {
     timestamp: string,
     level: string,
     message: string,
-}
-
-export struct FilterChoiceItem {
-    value: string,
-    display_text: string,
-    count: int,
-    selected: bool,
-    visible: bool,
-}
-
-export struct SmartAddFieldItem {
-    col_idx: int,
-    column_name: string,
-    concept_name: string,
-    value: string,
-    items: [KitComboItem],
 }
 
 component ModernScrollBar inherits Rectangle {

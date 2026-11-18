@@ -53,10 +53,171 @@ pub fn load_info_file(path: &Path) -> Result<InfoFile, Box<dyn std::error::Error
 }
 
 pub fn save_info_file(path: &Path, info: &InfoFile) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
     let s = serde_json::to_string_pretty(info)?;
     let mut f = File::create(path)?;
     f.write_all(s.as_bytes())?;
     Ok(())
+}
+
+/// Steuert unabhängig von einer globalen Analyzer-Config, wo `.info`-Dateien gesucht und gespeichert werden.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InfoStoragePolicy {
+    /// Sucht und speichert `<csv_pfad>.info` direkt neben der jeweiligen CSV-Datei.
+    BesideCsv,
+    /// Sucht und speichert `<project_dir>/<csv_dateiname>.info` im angegebenen Projektordner.
+    ProjectDir(PathBuf),
+    /// Sucht zuerst lokal neben der CSV (`<csv_pfad>.info`), danach in `project_dir`.
+    /// Speichert je nach `prefer_save_local` lokal neben der CSV oder in `project_dir`.
+    ProjectWithLocalFallback {
+        project_dir: PathBuf,
+        prefer_save_local: bool,
+    },
+    /// Mehrstufige Suche für den Standalone CSV-Analyzer (Kollektions-Basispfade / explizite Mappings -> lokal -> Zentralordner).
+    AnalyzerLookup {
+        collection_base_dirs: Vec<PathBuf>,
+        explicit_mappings: Vec<(PathBuf, PathBuf)>,
+        central_dir: PathBuf,
+    },
+}
+
+impl Default for InfoStoragePolicy {
+    fn default() -> Self {
+        Self::BesideCsv
+    }
+}
+
+impl InfoStoragePolicy {
+    fn info_file_name(csv_path: &Path) -> String {
+        csv_path
+            .file_name()
+            .map(|f| format!("{}.info", f.to_string_lossy()))
+            .unwrap_or_else(|| "table.csv.info".to_string())
+    }
+
+    pub fn resolve_existing_info_path(&self, csv_path: &Path) -> Option<PathBuf> {
+        match self {
+            InfoStoragePolicy::BesideCsv => {
+                let p = default_info_path_for_table(csv_path);
+                p.exists().then_some(p)
+            }
+            InfoStoragePolicy::ProjectDir(dir) => {
+                let p = dir.join(Self::info_file_name(csv_path));
+                p.exists().then_some(p)
+            }
+            InfoStoragePolicy::ProjectWithLocalFallback { project_dir, .. } => {
+                let local = default_info_path_for_table(csv_path);
+                if local.exists() {
+                    return Some(local);
+                }
+                let proj = project_dir.join(Self::info_file_name(csv_path));
+                proj.exists().then_some(proj)
+            }
+            InfoStoragePolicy::AnalyzerLookup {
+                collection_base_dirs,
+                explicit_mappings,
+                central_dir,
+            } => {
+                let fname = Self::info_file_name(csv_path);
+                for bp in collection_base_dirs {
+                    let candidate = bp.join(&fname);
+                    if candidate.exists() {
+                        return Some(candidate);
+                    }
+                }
+                let csv_str = csv_path.to_string_lossy();
+                for (mapped_csv, mapped_info) in explicit_mappings {
+                    if (mapped_csv == csv_path
+                        || mapped_csv
+                            .to_string_lossy()
+                            .eq_ignore_ascii_case(&csv_str))
+                        && mapped_info.exists()
+                    {
+                        return Some(mapped_info.clone());
+                    }
+                }
+                let local = default_info_path_for_table(csv_path);
+                if local.exists() {
+                    return Some(local);
+                }
+                let central = central_dir.join(fname);
+                central.exists().then_some(central)
+            }
+        }
+    }
+
+    pub fn resolve_save_info_path(&self, csv_path: &Path) -> PathBuf {
+        match self {
+            InfoStoragePolicy::BesideCsv => default_info_path_for_table(csv_path),
+            InfoStoragePolicy::ProjectDir(dir) => dir.join(Self::info_file_name(csv_path)),
+            InfoStoragePolicy::ProjectWithLocalFallback {
+                project_dir,
+                prefer_save_local,
+            } => {
+                if *prefer_save_local {
+                    default_info_path_for_table(csv_path)
+                } else {
+                    project_dir.join(Self::info_file_name(csv_path))
+                }
+            }
+            InfoStoragePolicy::AnalyzerLookup {
+                collection_base_dirs,
+                explicit_mappings,
+                ..
+            } => {
+                let csv_str = csv_path.to_string_lossy();
+                for (mapped_csv, mapped_info) in explicit_mappings {
+                    if mapped_csv == csv_path
+                        || mapped_csv
+                            .to_string_lossy()
+                            .eq_ignore_ascii_case(&csv_str)
+                    {
+                        return mapped_info.clone();
+                    }
+                }
+                if let Some(existing) = self.resolve_existing_info_path(csv_path) {
+                    return existing;
+                }
+                if let Some(first_base) = collection_base_dirs.first() {
+                    return first_base.join(Self::info_file_name(csv_path));
+                }
+                default_info_path_for_table(csv_path)
+            }
+        }
+    }
+
+    pub fn load_info_for_table(
+        &self,
+        table: &mut TableData,
+    ) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
+        let Some(csv_path) = table.file_path.as_deref() else {
+            return Ok(None);
+        };
+        let Some(info_path) = self.resolve_existing_info_path(csv_path) else {
+            return Ok(None);
+        };
+        let info = load_info_file(&info_path)?;
+        apply_info_to_table(table, &info);
+        Ok(Some(info_path))
+    }
+
+    pub fn save_info_for_table(
+        &self,
+        table: &TableData,
+    ) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let csv_path = table
+            .file_path
+            .as_deref()
+            .ok_or("Tabelle hat keinen Dateipfad für die .info-Datei.")?;
+        let target_path = self.resolve_save_info_path(csv_path);
+        let info = build_info_from_table(table);
+        save_info_file(&target_path, &info)?;
+        Ok(target_path)
+    }
 }
 
 pub fn apply_info_to_table(table: &mut TableData, info: &InfoFile) {

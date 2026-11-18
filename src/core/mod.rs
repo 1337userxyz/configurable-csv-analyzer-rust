@@ -5,3 +5,4 @@ pub mod transforms;
 pub mod logging;
 pub mod validation;
 pub mod color_cache;
+pub mod session;

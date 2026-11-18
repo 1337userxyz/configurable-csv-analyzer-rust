@@ -371,6 +371,7 @@ fn test_virtual_columns_multi_step_joins() {
     assert!(autotext.contains("rooms.csv"));
 }
 
+#[cfg(feature = "ods")]
 #[test]
 fn test_create_and_load_ods() {
     use configurable_csv_analyzer::core::io::ods::{create_ods_file, list_ods_sheets, load_ods_sheet};
@@ -399,6 +400,7 @@ fn test_create_and_load_ods() {
     let _ = std::fs::remove_file(&tmp_path);
 }
 
+#[cfg(feature = "ods")]
 #[test]
 fn test_empty_0byte_ods() {
     use configurable_csv_analyzer::core::io::ods::{list_ods_sheets, load_ods_sheet};
@@ -548,6 +550,7 @@ fn test_smart_add_dialog_logic_and_filter_visibility() {
     }
 }
 
+#[cfg(feature = "ods")]
 #[test]
 fn test_multi_sheet_ods_unique_ids() {
     use configurable_csv_analyzer::core::io::ods::{create_ods_file, list_ods_sheets, load_ods_sheet};
@@ -670,6 +673,267 @@ fn test_relocate_all_and_migrate_to_selected_mode() {
     );
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_info_storage_policy_beside_and_project_dir() {
+    use configurable_csv_analyzer::core::io::csv::load_csv;
+    use configurable_csv_analyzer::core::io::info::InfoStoragePolicy;
+
+    let dir = std::env::temp_dir().join("test_info_storage_policy");
+    let _ = std::fs::remove_dir_all(&dir);
+    let csv_dir = dir.join("site_csvs");
+    let proj_dir = dir.join("site_info_project");
+    std::fs::create_dir_all(&csv_dir).unwrap();
+    std::fs::create_dir_all(&proj_dir).unwrap();
+
+    let csv_path = csv_dir.join("switches.csv");
+    std::fs::write(&csv_path, "Name;IP\nSW-1;10.0.0.1\n").unwrap();
+
+    let mut tbl = load_csv(&csv_path, None, None, true).unwrap();
+    tbl.column_mappings
+        .insert("SwitchName".into(), "Name".into());
+    tbl.rules.push(RuleDefinition::BulkField {
+        id: "R_NAME".into(),
+        description: "Name Pflicht".into(),
+        concept: "SwitchName".into(),
+        check_all_for_empty: true,
+        check_all_for_placeholder: false,
+        placeholders: vec![],
+    });
+
+    // 1. ProjectDir speichert im eigenen Projektordner, nicht neben der CSV
+    let proj_policy = InfoStoragePolicy::ProjectDir(proj_dir.clone());
+    let saved_proj = proj_policy.save_info_for_table(&tbl).unwrap();
+    assert_eq!(saved_proj, proj_dir.join("switches.csv.info"));
+    assert!(saved_proj.exists());
+    assert!(!csv_dir.join("switches.csv.info").exists());
+
+    let mut reloaded = load_csv(&csv_path, None, None, true).unwrap();
+    let loaded_from = proj_policy.load_info_for_table(&mut reloaded).unwrap();
+    assert_eq!(loaded_from, Some(saved_proj.clone()));
+    assert_eq!(reloaded.rules.len(), 1);
+    assert_eq!(
+        reloaded.column_mappings.get("SwitchName").map(String::as_str),
+        Some("Name")
+    );
+
+    // 2. ProjectWithLocalFallback findet zuerst Projektordner, speichert bei prefer_save_local neben CSV
+    let fallback_policy = InfoStoragePolicy::ProjectWithLocalFallback {
+        project_dir: proj_dir.clone(),
+        prefer_save_local: true,
+    };
+    assert_eq!(
+        fallback_policy.resolve_existing_info_path(&csv_path),
+        Some(proj_dir.join("switches.csv.info"))
+    );
+    let saved_local = fallback_policy.save_info_for_table(&tbl).unwrap();
+    assert_eq!(saved_local, csv_dir.join("switches.csv.info"));
+    assert!(saved_local.exists());
+    // Wenn lokal existiert, wird lokal bevorzugt
+    assert_eq!(
+        fallback_policy.resolve_existing_info_path(&csv_path),
+        Some(saved_local.clone())
+    );
+
+    // 3. BesideCsv
+    let beside_policy = InfoStoragePolicy::BesideCsv;
+    assert_eq!(beside_policy.resolve_save_info_path(&csv_path), saved_local);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_csv_table_session_rules_markers_fill_filter_smart_add() {
+    use configurable_csv_analyzer::core::io::info::{save_info_file, InfoStoragePolicy};
+    use configurable_csv_analyzer::core::session::CsvTableSession;
+    use std::collections::HashSet;
+
+    let dir = std::env::temp_dir().join("test_csv_table_session");
+    let _ = std::fs::remove_dir_all(&dir);
+    let csv_dir = dir.join("csvs");
+    let proj_dir = dir.join("proj_infos");
+    std::fs::create_dir_all(&csv_dir).unwrap();
+    std::fs::create_dir_all(&proj_dir).unwrap();
+
+    let switches_csv = csv_dir.join("switches.csv");
+    std::fs::write(&switches_csv, "Switch;IP\nSW-01;10.0.0.1\nSW-02;10.0.0.2\n").unwrap();
+
+    let patches_csv = csv_dir.join("patches.csv");
+    std::fs::write(&patches_csv, "PanelPort;Switch;Note\nP01;SW-01;OK\nP02;SW-02;\n").unwrap();
+
+    // Info-Datei für patches.csv im Projektordner (mit Join + Pflichtfeld-Regel)
+    let mut patches_info = InfoFile::default();
+    patches_info
+        .column_mappings
+        .insert("NoteConcept".into(), "Note".into());
+    patches_info.rules.push(RuleDefinition::BulkField {
+        id: "R_NOTE".into(),
+        description: "Note prüfen".into(),
+        concept: "NoteConcept".into(),
+        check_all_for_empty: true,
+        check_all_for_placeholder: false,
+        placeholders: vec![],
+    });
+    patches_info.rules.push(RuleDefinition::VirtualRowJoin {
+        id: "J_SW".into(),
+        description: "Switch IP holen".into(),
+        action_group: None,
+        is_active: true,
+        is_highlighted: true,
+        key_concept: "Switch".into(),
+        target_table: "switches.csv".into(),
+        target_key_concept: "Switch".into(),
+        import_concepts: vec!["IP".into()],
+        injected_column_names: vec!["Switch-IP".into()],
+        link_steps: vec![LinkStep {
+            target_table_key: "switches.csv".into(),
+            key_mappings: vec![KeyMapping::new("Switch", "Switch")],
+        }],
+        virtual_columns: vec![VirtualColumnMapping {
+            remote_column_concept: "IP".into(),
+            virtual_column_header: "Switch-IP".into(),
+            virtual_column_key: "v_switch_ip".into(),
+            multi_result_display: "First".into(),
+            brush_key: None,
+            priority: Some(5),
+        }],
+    });
+    save_info_file(&proj_dir.join("patches.csv.info"), &patches_info).unwrap();
+
+    let mut session = CsvTableSession::new(InfoStoragePolicy::ProjectDir(proj_dir.clone()));
+    session.load_csv_file(&switches_csv).unwrap();
+    let patches_id = session.load_csv_file(&patches_csv).unwrap();
+    session.select_table(&patches_id);
+
+    // Join-Spalte + Rule-Highlight (leeres Note in Zeile 1) sollten aktiv sein
+    {
+        let tbl = session.active_table().unwrap();
+        assert!(tbl.headers.iter().any(|h| h == "Switch-IP"));
+        let ip_col = tbl.headers.iter().position(|h| h == "Switch-IP").unwrap();
+        assert_eq!(tbl.rows[0][ip_col], "10.0.0.1");
+        assert_eq!(tbl.rows[1][ip_col], "10.0.0.2");
+        assert!(!tbl.rule_highlights.is_empty());
+    }
+
+    // Textmarker + Spalte füllen
+    session.toggle_row_mark(1, true);
+    session.apply_marker_color("#fff59d");
+    session.apply_fill_column(2, FillMode::Static("Geprüft".into()));
+    {
+        let tbl = session.active_table().unwrap();
+        assert_eq!(tbl.row_markers.get(&1), Some(&TextMarkerColor::Yellow));
+        assert_eq!(tbl.rows[1][2], "Geprüft");
+        assert!(tbl.is_dirty);
+    }
+
+    // Filter-Popup & Filter anwenden (nur SW-01)
+    let (col_name, total_hits, items) = session.build_filter_popup(1).unwrap();
+    assert_eq!(col_name, "Switch");
+    assert_eq!(total_hits, 2);
+    assert_eq!(items.len(), 2);
+
+    let mut selected = HashSet::new();
+    selected.insert("SW-01".to_string());
+    session.apply_column_filter(1, selected, false, false);
+    {
+        let tbl = session.active_table().unwrap();
+        assert_eq!(session.visible_row_indices_for_table(tbl), vec![0]);
+    }
+
+    // SmartAdd auf gefilterter Ansicht (bleibt sichtbar im Filter)
+    let smart_state = session.build_smart_add_state().unwrap();
+    assert!(smart_state.fields.iter().all(|f| f.column_name != "Switch-IP"));
+    let created = session.confirm_smart_add_rows(
+        1,
+        &[
+            (0, "P03".into()),
+            (1, "SW-02".into()),
+            (2, "Neu".into()),
+        ],
+    );
+    assert_eq!(created.len(), 1);
+    {
+        let tbl = session.active_table().unwrap();
+        assert!(session.visible_row_indices_for_table(tbl).contains(&created[0]));
+    }
+
+    // Speichern schreibt CSV & .info in proj_dir (ohne virtuelle Spalte in CSV)
+    session.save_active_table().unwrap();
+    assert!(!session.active_table().unwrap().is_dirty);
+    assert!(proj_dir.join("patches.csv.info").exists());
+    let saved_csv_text = std::fs::read_to_string(&patches_csv).unwrap();
+    assert!(!saved_csv_text.contains("Switch-IP"));
+    assert!(saved_csv_text.contains("P03"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_library_paths() {
+    let lib_p = configurable_csv_analyzer::library_path();
+    assert!(lib_p.ends_with("index.slint"));
+    assert!(lib_p.exists());
+
+    let map = configurable_csv_analyzer::library_paths();
+    assert!(map.contains_key("kit-theme"));
+    assert_eq!(map.get("csv-analyzer"), Some(&lib_p));
+}
+
+#[cfg(feature = "build")]
+#[test]
+fn test_slint_csv_analyzer_library_compiles() {
+    let tmp_dir =
+        std::env::temp_dir().join(format!("csv-analyzer-slint-test-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let test_slint = tmp_dir.join("embed_test.slint");
+    std::fs::write(
+        &test_slint,
+        r##"
+import { AppTheme, KitColorItem, KitComboItem } from "@kit-theme";
+import {
+    CsvTableView,
+    InfoFileEditorWindow,
+    HeaderItem,
+    CellItem,
+    RowItem,
+    FilterChoiceItem,
+    SmartAddFieldItem
+} from "@csv-analyzer";
+
+export { InfoFileEditorWindow, AppTheme }
+
+export component HostAppWindow inherits Window {
+    width: 1024px;
+    height: 700px;
+    background: AppTheme.bg-canvas;
+
+    property <[HeaderItem]> hdrs: [{ id: 0, name: "Switch", concept: "SwitchName", sort_dir: 0, is_filtered: false, width: 150px }];
+    property <[RowItem]> tbl_rows: [];
+
+    VerticalLayout {
+        CsvTableView {
+            vertical-stretch: 1;
+            headers: root.hdrs;
+            rows: root.tbl_rows;
+            show_level_badge: false;
+        }
+    }
+}
+"##,
+    )
+    .unwrap();
+
+    let out_dir = tmp_dir.join("out");
+    let _ = std::fs::create_dir_all(&out_dir);
+    std::env::set_var("OUT_DIR", &out_dir);
+
+    let config = slint_build::CompilerConfiguration::new()
+        .with_library_paths(configurable_csv_analyzer::library_paths())
+        .with_style("fluent".into());
+    let res = slint_build::compile_with_config(&test_slint, config);
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    res.expect("@csv-analyzer Slint library must compile cleanly in a host app");
 }
 
 
